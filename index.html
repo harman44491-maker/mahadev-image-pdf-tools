@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mahadev Net Cafe - Complete Image & PDF Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Acme&family=Alfa+Slab+One&family=Amatic+SC:wght@700&family=Anton&family=Architects+Daughter&family=Arvo:wght@400;700&family=Baloo+2:wght@400;700&family=Baloo+Bhai+2:wght@400;700&family=Baloo+Bhaina+2:wght@400;700&family=Baloo+Da+2:wght@400;700&family=Baloo+Paaji+2:wght@400;700&family=Baloo+Tamma+2:wght@400;700&family=Baloo+Tammudu+2:wght@400;700&family=Baloo+Thambi+2:wght@400;700&family=Bangers&family=Bebas+Neue&family=Bitter:wght@400;700&family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Comfortaa:wght@400;700&family=Cookie&family=Courgette&family=Creepster&family=Crimson+Text:wght@400;700&family=Dancing+Script:wght@400;700&family=DM+Sans:wght@400;700&family=DM+Serif+Display&family=EB+Garamond:wght@400;700&family=Exo+2:wght@400;700&family=Fira+Code:wght@400;700&family=Fredoka:wght@400;700&family=Gloria+Hallelujah&family=Great+Vibes&family=Hind:wght@400;700&family=Hind+Siliguri:wght@400;700&family=Hind+Vadodara:wght@400;700&family=Indie+Flower&family=Inconsolata:wght@400;700&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Josefin+Sans:wght@400;700&family=Kalam:wght@400;700&family=Kaushan+Script&family=Khand:wght@400;700&family=Laila:wght@400;700&family=Lato:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Lobster&family=Lora:wght@400;700&family=Merriweather:wght@400;700&family=Modak&family=Montserrat:wght@400;700&family=Mukta:wght@400;700&family=Mukta+Mahee:wght@400;700&family=Mukta+Malayalam:wght@400;700&family=Mukta+Vaani:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Noto+Serif:wght@400;700&family=Noto+Serif+Devanagari:wght@400;700&family=Noto+Serif+Gurmukhi:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;700&family=Outfit:wght@400;700&family=Pacifico&family=Patrick+Hand&family=Permanent+Marker&family=Playfair+Display:wght@400;700&family=Plus+Jakarta+Sans:wght@400;700&family=Poppins:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Serif:wght@400;700&family=Quicksand:wght@400;700&family=Rajdhani:wght@400;700&family=Raleway:wght@400;700&family=Righteous&family=Roboto:wght@400;700&family=Roboto+Mono:wght@400;700&family=Roboto+Slab:wght@400;700&family=Rokkitt:wght@400;700&family=Rozha+One&family=Rubik:wght@400;700&family=Sacramento&family=Satisfy&family=Shadows+Into+Light&family=Source+Code+Pro:wght@400;700&family=Space+Grotesk:wght@400;700&family=Teko:wght@400;700&family=Tiro+Devanagari+Hindi&family=Tiro+Gurmukhi&family=Ubuntu:wght@400;700&family=Varela+Round&family=Work+Sans:wght@400;700&family=Yatra+One&family=Zeyada&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
@@ -13,17 +16,17 @@
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Noto Sans Gurmukhi', 'Noto Sans Devanagari', Arial, Helvetica, sans-serif; }
     body { background: #f4f6f9; color: #1f2937; }
     .navbar { background: #3f4898; color: #fff; position: sticky; top: 0; z-index: 50; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
-    .nav-inner { max-width: 1240px; margin: 0 auto; padding: 11px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .nav-inner { max-width: 1280px; margin: 0 auto; padding: 11px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.02rem; }
     .brand-badge { background: #fff; color: #3f4898; padding: 3px 7px; border-radius: 4px; font-weight: 800; }
     .menu { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .menu-btn { background: transparent; color: #e0e7ff; border: 1px solid rgba(255,255,255,.28); padding: 6px 10px; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: .82rem; }
     .menu-btn.active, .menu-btn:hover { background: #fff; color: #3f4898; }
 
-    .container { max-width: 1240px; margin: 20px auto; padding: 0 14px; }
+    .container { max-width: 1280px; margin: 20px auto; padding: 0 14px; }
     .panel { display: none; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
     .panel.active { display: block; }
     h1 { text-align: center; font-size: 1.4rem; margin-bottom: 16px; color: #111827; }
@@ -37,6 +40,7 @@
     .inputs-row label, .controls-row label { display: flex; align-items: center; gap: 6px; font-size: .86rem; background: #f8fafc; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 5px; }
     input[type="number"], input[type="text"], input[type="password"], select, textarea { padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: .88rem; }
     input[type="number"] { width: 86px; }
+    input[type="range"] { width: 110px; cursor: pointer; }
     textarea { width: 100%; max-width: 640px; min-height: 90px; }
 
     .drop-box { border: 2px dashed #94a3b8; border-radius: 8px; padding: 24px 16px; text-align: center; background: #fafbfd; margin-bottom: 14px; cursor: pointer; }
@@ -62,12 +66,12 @@
     .field-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 5px; }
     .field-card label { font-size: .82rem; font-weight: 700; color: #334155; }
 
-    .frame-gallery { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 10px auto 14px; max-width: 780px; }
-    .frame-thumb { width: 84px; padding: 6px; border: 2px solid #cbd5e1; border-radius: 6px; text-align: center; cursor: pointer; background: #fff; transition: 0.15s; }
+    .frame-gallery { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px auto 14px; max-width: 1060px; max-height: 340px; overflow-y: auto; padding: 8px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+    .frame-thumb { width: 82px; padding: 5px; border: 2px solid #cbd5e1; border-radius: 6px; text-align: center; cursor: pointer; background: #fff; transition: 0.15s; }
     .frame-thumb:hover { border-color: #3f4898; }
     .frame-thumb.selected { border-color: #0b7a5c; background: #ecfdf5; box-shadow: 0 0 0 2px rgba(11,122,92,0.2); }
-    .frame-thumb canvas { width: 64px; height: 76px; display: block; margin: 0 auto 4px; background: #f8fafc; }
-    .frame-thumb span { display: block; font-size: .72rem; font-weight: 700; color: #334155; }
+    .frame-thumb canvas { width: 58px; height: 68px; display: block; margin: 0 auto 3px; background: #f1f5f9; }
+    .frame-thumb span { display: block; font-size: .68rem; font-weight: 700; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .output-area { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
     .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; background: #fff; overflow: hidden; }
@@ -332,6 +336,12 @@
           + Add Image/Sign: <input type="file" id="edAddImgInput" accept="image/*" style="width:170px;">
         </label>
         <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
+          Font (Eng/Hin/Punjabi): <select class="font-selector-100" id="edFontFamily" style="max-width:210px;"></select>
+        </label>
+        <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
+          <input type="checkbox" id="edBoldToggle" checked> <strong>Bold</strong>
+        </label>
+        <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
           Font Size: <input type="number" id="edFontSize" value="16" min="8" max="72" style="width:60px;">
         </label>
         <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
@@ -361,6 +371,8 @@
         <button type="button" class="btn-green" id="ffLoadBtn">Open / Detect Form Fields</button>
       </div>
       <div class="inputs-row">
+        <label>Font (Eng/Hin/Punjabi): <select class="font-selector-100" id="ffFontFamily" style="max-width:210px;"></select></label>
+        <label><input type="checkbox" id="ffBoldToggle" checked> <strong>Bold</strong></label>
         <label><input type="checkbox" id="ffFlatten" checked> Lock / Flatten Fields After Filling</label>
         <label>Set Output Password: <input type="password" id="ffPassword" placeholder="Optional"></label>
       </div>
@@ -397,10 +409,10 @@
           </optgroup>
           <optgroup label="CHANGE PHOTO">
             <option value="name_date" selected>Add Name and Date on Photo (Transparent / Strip)</option>
-            <option value="photo_frame">Photo Frame &amp; Border (Upload or Select Frame)</option>
+            <option value="photo_frame">Photo Frame &amp; Border (50 Pro Frames + Upload)</option>
             <option value="add_border">Add Simple Solid Border to Photo</option>
             <option value="blur_image">Blur Image</option>
-            <option value="img_contrast">Image Contrast &amp; Brightness</option>
+            <option value="img_contrast">Image Contrast &amp; Brightness (Separate Controls)</option>
             <option value="rotate">Rotate Image</option>
             <option value="add_text_img">Add Text to Image</option>
             <option value="watermark_img">Watermark Image</option>
@@ -419,10 +431,25 @@
         <label id="edImgFileLbl">Photo File(s): <input type="file" id="editFiles" accept="image/*" multiple></label>
         <label id="edText1Lbl">Name / Text: <input type="text" id="editText1" placeholder="Enter Name / Text"></label>
         <label id="edText2Lbl">Date / Subtext: <input type="text" id="editText2" placeholder="DD/MM/YYYY"></label>
+        <label id="edFontLbl">Font (100 Eng/Hin/Punjabi): <select class="font-selector-100" id="editFontFamily" style="max-width:210px;"></select></label>
+        <label id="edBoldLbl"><input type="checkbox" id="editBoldToggle" checked> <strong>Bold</strong></label>
         <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
       </div>
 
-      <!-- NAME & DATE ADVANCED OPTIONS (TRANSPARENT OVERLAY + POSITION + HORIZONTAL/VERTICAL) -->
+      <!-- SEPARATE CONTRAST & BRIGHTNESS CONTROLS -->
+      <div id="cbControlsWrap" class="inputs-row hidden">
+        <label>Contrast (%):
+          <input type="range" id="cbContrastRange" min="20" max="250" value="110">
+          <input type="number" id="cbContrastNum" min="20" max="250" value="110">
+        </label>
+        <label>Brightness (%):
+          <input type="range" id="cbBrightnessRange" min="20" max="250" value="105">
+          <input type="number" id="cbBrightnessNum" min="20" max="250" value="105">
+        </label>
+        <button type="button" class="chip" id="cbResetBtn">Reset 100%</button>
+      </div>
+
+      <!-- NAME & DATE ADVANCED OPTIONS -->
       <div id="ndOptionsWrap" class="inputs-row">
         <label>Style:
           <select id="ndBgStyle">
@@ -449,18 +476,19 @@
         <label>Text Size (%): <input type="number" id="ndFontSizePct" value="5" min="2" max="15"></label>
       </div>
 
-      <!-- PHOTO FRAME UPLOAD & SELECTABLE READY-MADE FRAMES -->
+      <!-- PHOTO FRAME UPLOAD & 50 SELECTABLE READY-MADE FRAMES -->
       <div id="frameOptionsWrap" class="hidden">
         <div class="inputs-row">
           <label>Upload Custom Frame (PNG): <input type="file" id="customFrameFile" accept="image/*"></label>
           <label>Frame Thickness (%): <input type="number" id="frameThickness" value="6" min="2" max="20"></label>
+          <span id="selectedFrameBadge" style="font-size:.82rem;font-weight:700;color:#0b7a5c;">Selected: 01. Royal Gold</span>
         </div>
-        <p style="text-align:center;font-size:.84rem;color:#475569;margin-bottom:6px;">Or select a ready-made frame below:</p>
+        <p style="text-align:center;font-size:.84rem;color:#475569;margin-bottom:6px;">50 Ready-Made Pro Frames (Click any frame to select):</p>
         <div class="frame-gallery" id="frameGallery"></div>
       </div>
 
       <div id="edNumWrap" class="inputs-row hidden">
-        <label>Value (Angle / Blur / Contrast / Border px): <input type="number" id="editNum1" value="10"></label>
+        <label>Value (Angle / Blur / Border px): <input type="number" id="editNum1" value="10"></label>
       </div>
 
       <div id="hwTextWrap" class="controls-row hidden">
@@ -485,6 +513,137 @@
 
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // ================= 100+ ENGLISH, HINDI (DEVANAGARI) & PUNJABI (GURMUKHI) FONTS =================
+    const FONTS_100_PLUS = [
+      // Punjabi (Gurmukhi) Fonts
+      { label: '[Punjabi] Noto Sans Gurmukhi', css: "'Noto Sans Gurmukhi', sans-serif" },
+      { label: '[Punjabi] Baloo Paaji 2', css: "'Baloo Paaji 2', 'Noto Sans Gurmukhi', sans-serif" },
+      { label: '[Punjabi] Mukta Mahee', css: "'Mukta Mahee', 'Noto Sans Gurmukhi', sans-serif" },
+      { label: '[Punjabi] Noto Serif Gurmukhi', css: "'Noto Serif Gurmukhi', serif" },
+      { label: '[Punjabi] Tiro Gurmukhi', css: "'Tiro Gurmukhi', 'Noto Serif Gurmukhi', serif" },
+      { label: '[Punjabi] Raavi Classic', css: "'Raavi', 'Noto Sans Gurmukhi', sans-serif" },
+      { label: '[Punjabi] AnmolLipi Style', css: "'AnmolLipi', 'Noto Serif Gurmukhi', serif" },
+      { label: '[Punjabi] GurbaniAkhar Style', css: "'GurbaniAkhar', 'Noto Serif Gurmukhi', serif" },
+      { label: '[Punjabi] Saab Gurmukhi', css: "'Saab', 'Noto Sans Gurmukhi', sans-serif" },
+      { label: '[Punjabi] Joy Gurmukhi', css: "'Joy', 'Baloo Paaji 2', sans-serif" },
+      // Hindi (Devanagari) Fonts
+      { label: '[Hindi] Noto Sans Devanagari', css: "'Noto Sans Devanagari', sans-serif" },
+      { label: '[Hindi] Hind', css: "'Hind', 'Noto Sans Devanagari', sans-serif" },
+      { label: '[Hindi] Mukta', css: "'Mukta', 'Noto Sans Devanagari', sans-serif" },
+      { label: '[Hindi] Kalam (Handwriting)', css: "'Kalam', cursive" },
+      { label: '[Hindi] Khand (Display)', css: "'Khand', 'Noto Sans Devanagari', sans-serif" },
+      { label: '[Hindi] Laila (Serif)', css: "'Laila', 'Noto Serif Devanagari', serif" },
+      { label: '[Hindi] Noto Serif Devanagari', css: "'Noto Serif Devanagari', serif" },
+      { label: '[Hindi] Tiro Devanagari Hindi', css: "'Tiro Devanagari Hindi', serif" },
+      { label: '[Hindi] Rozha One (Bold Title)', css: "'Rozha One', serif" },
+      { label: '[Hindi] Yatra One (Poster)', css: "'Yatra One', cursive" },
+      { label: '[Hindi] Modak (Fun Display)', css: "'Modak', cursive" },
+      { label: '[Hindi] Baloo 2 Devanagari', css: "'Baloo 2', 'Noto Sans Devanagari', sans-serif" },
+      { label: '[Hindi] Baloo Bhai 2', css: "'Baloo Bhai 2', sans-serif" },
+      { label: '[Hindi] Baloo Bhaina 2', css: "'Baloo Bhaina 2', sans-serif" },
+      { label: '[Hindi] Hind Vadodara', css: "'Hind Vadodara', sans-serif" },
+      { label: '[Hindi] Hind Siliguri', css: "'Hind Siliguri', sans-serif" },
+      { label: '[Hindi] Mukta Vaani', css: "'Mukta Vaani', sans-serif" },
+      { label: '[Hindi] Mukta Malayalam', css: "'Mukta Malayalam', sans-serif" },
+      { label: '[Hindi] Baloo Da 2', css: "'Baloo Da 2', sans-serif" },
+      { label: '[Hindi] Baloo Tamma 2', css: "'Baloo Tamma 2', sans-serif" },
+      // English Fonts (70+)
+      { label: '[Eng] Arial', css: "Arial, sans-serif" },
+      { label: '[Eng] Roboto', css: "'Roboto', sans-serif" },
+      { label: '[Eng] Open Sans', css: "'Open Sans', sans-serif" },
+      { label: '[Eng] Lato', css: "'Lato', sans-serif" },
+      { label: '[Eng] Montserrat', css: "'Montserrat', sans-serif" },
+      { label: '[Eng] Poppins', css: "'Poppins', sans-serif" },
+      { label: '[Eng] Inter', css: "'Inter', sans-serif" },
+      { label: '[Eng] Oswald', css: "'Oswald', sans-serif" },
+      { label: '[Eng] Raleway', css: "'Raleway', sans-serif" },
+      { label: '[Eng] PT Sans', css: "'PT Sans', sans-serif" },
+      { label: '[Eng] Merriweather', css: "'Merriweather', serif" },
+      { label: '[Eng] Nunito', css: "'Nunito', sans-serif" },
+      { label: '[Eng] Playfair Display', css: "'Playfair Display', serif" },
+      { label: '[Eng] Ubuntu', css: "'Ubuntu', sans-serif" },
+      { label: '[Eng] Rubik', css: "'Rubik', sans-serif" },
+      { label: '[Eng] Lora', css: "'Lora', serif" },
+      { label: '[Eng] PT Serif', css: "'PT Serif', serif" },
+      { label: '[Eng] Work Sans', css: "'Work Sans', sans-serif" },
+      { label: '[Eng] Fira Code', css: "'Fira Code', monospace" },
+      { label: '[Eng] Quicksand', css: "'Quicksand', sans-serif" },
+      { label: '[Eng] Bitter', css: "'Bitter', serif" },
+      { label: '[Eng] Josefin Sans', css: "'Josefin Sans', sans-serif" },
+      { label: '[Eng] Dancing Script', css: "'Dancing Script', cursive" },
+      { label: '[Eng] Pacifico', css: "'Pacifico', cursive" },
+      { label: '[Eng] Bebas Neue', css: "'Bebas Neue', cursive" },
+      { label: '[Eng] Anton', css: "'Anton', sans-serif" },
+      { label: '[Eng] Lobster', css: "'Lobster', cursive" },
+      { label: '[Eng] Caveat', css: "'Caveat', cursive" },
+      { label: '[Eng] Abril Fatface', css: "'Abril Fatface', cursive" },
+      { label: '[Eng] Righteous', css: "'Righteous', cursive" },
+      { label: '[Eng] Cinzel', css: "'Cinzel', serif" },
+      { label: '[Eng] Great Vibes', css: "'Great Vibes', cursive" },
+      { label: '[Eng] Architects Daughter', css: "'Architects Daughter', cursive" },
+      { label: '[Eng] Indie Flower', css: "'Indie Flower', cursive" },
+      { label: '[Eng] Shadows Into Light', css: "'Shadows Into Light', cursive" },
+      { label: '[Eng] Satisfy', css: "'Satisfy', cursive" },
+      { label: '[Eng] Kaushan Script', css: "'Kaushan Script', cursive" },
+      { label: '[Eng] Courgette', css: "'Courgette', cursive" },
+      { label: '[Eng] Cookie', css: "'Cookie', cursive" },
+      { label: '[Eng] Sacramento', css: "'Sacramento', cursive" },
+      { label: '[Eng] Bangers', css: "'Bangers', cursive" },
+      { label: '[Eng] Creepster', css: "'Creepster', cursive" },
+      { label: '[Eng] Alfa Slab One', css: "'Alfa Slab One', cursive" },
+      { label: '[Eng] Acme', css: "'Acme', sans-serif" },
+      { label: '[Eng] Amatic SC', css: "'Amatic SC', cursive" },
+      { label: '[Eng] Patrick Hand', css: "'Patrick Hand', cursive" },
+      { label: '[Eng] Gloria Hallelujah', css: "'Gloria Hallelujah', cursive" },
+      { label: '[Eng] Permanent Marker', css: "'Permanent Marker', cursive" },
+      { label: '[Eng] Zeyada', css: "'Zeyada', cursive" },
+      { label: '[Eng] Space Grotesk', css: "'Space Grotesk', sans-serif" },
+      { label: '[Eng] Plus Jakarta Sans', css: "'Plus Jakarta Sans', sans-serif" },
+      { label: '[Eng] DM Sans', css: "'DM Sans', sans-serif" },
+      { label: '[Eng] DM Serif Display', css: "'DM Serif Display', serif" },
+      { label: '[Eng] Outfit', css: "'Outfit', sans-serif" },
+      { label: '[Eng] Teko', css: "'Teko', sans-serif" },
+      { label: '[Eng] Rajdhani', css: "'Rajdhani', sans-serif" },
+      { label: '[Eng] Exo 2', css: "'Exo 2', sans-serif" },
+      { label: '[Eng] Varela Round', css: "'Varela Round', sans-serif" },
+      { label: '[Eng] Comfortaa', css: "'Comfortaa', cursive" },
+      { label: '[Eng] Arvo', css: "'Arvo', serif" },
+      { label: '[Eng] Rokkitt', css: "'Rokkitt', serif" },
+      { label: '[Eng] Libre Baskerville', css: "'Libre Baskerville', serif" },
+      { label: '[Eng] EB Garamond', css: "'EB Garamond', serif" },
+      { label: '[Eng] Crimson Text', css: "'Crimson Text', serif" },
+      { label: '[Eng] Noto Sans', css: "'Noto Sans', sans-serif" },
+      { label: '[Eng] Noto Serif', css: "'Noto Serif', serif" },
+      { label: '[Eng] Roboto Slab', css: "'Roboto Slab', serif" },
+      { label: '[Eng] Roboto Mono', css: "'Roboto Mono', monospace" },
+      { label: '[Eng] Source Code Pro', css: "'Source Code Pro', monospace" },
+      { label: '[Eng] JetBrains Mono', css: "'JetBrains Mono', monospace" },
+      { label: '[Eng] Inconsolata', css: "'Inconsolata', monospace" },
+      { label: '[Eng] Fredoka', css: "'Fredoka', sans-serif" },
+      { label: '[Eng] Baloo Tammudu 2', css: "'Baloo Tammudu 2', sans-serif" },
+      { label: '[Eng] Baloo Thambi 2', css: "'Baloo Thambi 2', sans-serif" },
+      { label: '[Eng] Times New Roman', css: "'Times New Roman', Times, serif" },
+      { label: '[Eng] Georgia', css: "Georgia, serif" },
+      { label: '[Eng] Courier New', css: "'Courier New', Courier, monospace" },
+      { label: '[Eng] Verdana', css: "Verdana, Geneva, sans-serif" },
+      { label: '[Eng] Trebuchet MS', css: "'Trebuchet MS', sans-serif" },
+      { label: '[Eng] Impact', css: "Impact, Charcoal, sans-serif" }
+    ];
+
+    document.querySelectorAll('.font-selector-100').forEach(sel => {
+      FONTS_100_PLUS.forEach((f, idx) => {
+        const opt = document.createElement('option');
+        opt.value = f.css;
+        opt.textContent = `${idx + 1}. ${f.label}`;
+        opt.style.fontFamily = f.css;
+        sel.appendChild(opt);
+      });
+    });
+
+    function buildCanvasFontStr(isBold, sizePx, fontCss) {
+      return `${isBold ? '700' : '400'} ${sizePx}px ${fontCss}`;
+    }
 
     document.querySelectorAll('.menu-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1360,7 +1519,7 @@
           edCtx.fillStyle = '#ffffff';
           edCtx.fillRect(it.x, it.y, it.w, it.h);
         } else if (it.type === 'text') {
-          edCtx.font = `bold ${it.size}px Arial`;
+          edCtx.font = buildCanvasFontStr(it.bold, it.size, it.font);
           edCtx.fillStyle = it.color;
           edCtx.fillText(it.text, it.x, it.y + it.size);
           it.w = Math.max(30, edCtx.measureText(it.text).width);
@@ -1377,13 +1536,22 @@
       });
     }
 
-    document.getElementById('edTextInput').oninput = (e) => {
+    function syncSelectedEditorTextStyle() {
       const items = edPageItems[edCurrentPage] || [];
       if (edSelectedIdx >= 0 && items[edSelectedIdx]?.type === 'text') {
-        items[edSelectedIdx].text = e.target.value;
+        items[edSelectedIdx].text = document.getElementById('edTextInput').value;
+        items[edSelectedIdx].font = document.getElementById('edFontFamily').value;
+        items[edSelectedIdx].bold = document.getElementById('edBoldToggle').checked;
+        items[edSelectedIdx].size = parseInt(document.getElementById('edFontSize').value) || 16;
+        items[edSelectedIdx].color = document.getElementById('edColor').value;
         redrawEditorCanvas();
       }
-    };
+    }
+    document.getElementById('edTextInput').oninput = syncSelectedEditorTextStyle;
+    document.getElementById('edFontFamily').onchange = syncSelectedEditorTextStyle;
+    document.getElementById('edBoldToggle').onchange = syncSelectedEditorTextStyle;
+    document.getElementById('edFontSize').oninput = syncSelectedEditorTextStyle;
+    document.getElementById('edColor').oninput = syncSelectedEditorTextStyle;
 
     document.getElementById('edAddImgInput').onchange = async (e) => {
       const f = e.target.files[0];
@@ -1413,12 +1581,15 @@
       if (!edPdfDoc) return;
       const pos = getCanvasMousePos(edCanvas, e);
       const items = edPageItems[edCurrentPage] || [];
+      const curFont = document.getElementById('edFontFamily').value;
+      const curBold = document.getElementById('edBoldToggle').checked;
+      const curColor = document.getElementById('edColor').value;
 
       if (edMode === 'edit_existing') {
         const hit = edExtractedTextBoxes.find(tb => pos.x >= tb.x && pos.x <= tb.x + tb.w && pos.y >= tb.y && pos.y <= tb.y + tb.h);
         if (hit) {
           items.push({ type: 'whiteout', x: hit.x - 2, y: hit.y - 2, w: hit.w + 6, h: hit.h + 4 });
-          items.push({ type: 'text', x: hit.x, y: hit.y, w: hit.w, h: hit.h, text: hit.text, size: hit.fontSize, color: document.getElementById('edColor').value });
+          items.push({ type: 'text', x: hit.x, y: hit.y, w: hit.w, h: hit.h, text: hit.text, size: hit.fontSize, font: curFont, bold: curBold, color: curColor });
           edSelectedIdx = items.length - 1;
           document.getElementById('edTextInput').value = hit.text;
           document.getElementById('edTextInput').focus();
@@ -1430,8 +1601,7 @@
       if (edMode === 'add_text') {
         const txt = document.getElementById('edTextInput').value || 'New Edited Text';
         const size = parseInt(document.getElementById('edFontSize').value) || 16;
-        const color = document.getElementById('edColor').value;
-        items.push({ type: 'text', x: pos.x, y: pos.y - size, w: 100, h: size + 6, text: txt, size, color });
+        items.push({ type: 'text', x: pos.x, y: pos.y - size, w: 100, h: size + 6, text: txt, size, font: curFont, bold: curBold, color: curColor });
         edSelectedIdx = items.length - 1;
         redrawEditorCanvas();
         return;
@@ -1451,7 +1621,11 @@
           edSelectedIdx = i;
           edDragging = true;
           edDragOffset = { x: pos.x - it.x, y: pos.y - it.y };
-          if (it.type === 'text') document.getElementById('edTextInput').value = it.text;
+          if (it.type === 'text') {
+            document.getElementById('edTextInput').value = it.text;
+            if (it.font) document.getElementById('edFontFamily').value = it.font;
+            if (typeof it.bold === 'boolean') document.getElementById('edBoldToggle').checked = it.bold;
+          }
           break;
         }
       }
@@ -1496,7 +1670,8 @@
           if (it.type === 'whiteout') {
             ctx.fillStyle = '#ffffff'; ctx.fillRect(it.x, it.y, it.w, it.h);
           } else if (it.type === 'text') {
-            ctx.font = `bold ${it.size}px Arial`; ctx.fillStyle = it.color;
+            ctx.font = buildCanvasFontStr(it.bold, it.size, it.font);
+            ctx.fillStyle = it.color;
             ctx.fillText(it.text, it.x, it.y + it.size);
           } else if (it.type === 'image' && it.imgObj) {
             ctx.drawImage(it.imgObj, it.x, it.y, it.w, it.h);
@@ -1621,7 +1796,7 @@
       ffCtx.clearRect(0, 0, ffCanvas.width, ffCanvas.height);
       ffCtx.drawImage(ffBgCanvas, 0, 0);
       (ffVisItems[ffVisPage] || []).forEach(it => {
-        ffCtx.font = `bold ${it.size}px Arial`;
+        ffCtx.font = buildCanvasFontStr(it.bold, it.size, it.font);
         ffCtx.fillStyle = '#0f172a';
         ffCtx.fillText(it.text, it.x, it.y);
       });
@@ -1633,7 +1808,9 @@
       if (!txt) return alert('First type the text you want to fill in "Text to Place on Form" box above.');
       const pos = getCanvasMousePos(ffCanvas, e);
       const size = parseInt(document.getElementById('ffVisSize').value) || 15;
-      ffVisItems[ffVisPage].push({ x: pos.x, y: pos.y, text: txt, size });
+      const font = document.getElementById('ffFontFamily').value;
+      const bold = document.getElementById('ffBoldToggle').checked;
+      ffVisItems[ffVisPage].push({ x: pos.x, y: pos.y, text: txt, size, font, bold });
       redrawFfCanvas();
     };
 
@@ -1657,7 +1834,8 @@
           const ctx = c.getContext('2d');
           await page.render({ canvasContext: ctx, viewport: vp }).promise;
           (ffVisItems[pNum] || []).forEach(it => {
-            ctx.font = `bold ${it.size}px Arial`; ctx.fillStyle = '#0f172a';
+            ctx.font = buildCanvasFontStr(it.bold, it.size, it.font);
+            ctx.fillStyle = '#0f172a';
             ctx.fillText(it.text, it.x, it.y);
           });
           const emb = await outPdf.embedJpg(await (await toBlob(c, 'image/jpeg', 0.94)).arrayBuffer());
@@ -1685,7 +1863,7 @@
       addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF Form (${(bytes.length / 1024).toFixed(1)} KB)`);
     };
 
-    // ================= 7. JOIN, CHANGE PHOTO, FRAMES & CREATE =================
+    // ================= 7. JOIN, CHANGE PHOTO, 50 PRO FRAMES & SEPARATE CONTRAST/BRIGHTNESS =================
     const sigCanvas = document.getElementById('sigCanvas');
     const sigCtx = sigCanvas.getContext('2d');
     let drawingSig = false;
@@ -1694,86 +1872,105 @@
     window.addEventListener('mouseup', () => drawingSig = false);
     document.getElementById('clearSigBtn').onclick = () => sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
 
-    // Ready-made procedural decorative frames
-    const BUILTIN_FRAMES = [
-      { id: 'gold_classic', name: 'Classic Gold' },
-      { id: 'royal_double', name: 'Royal Double' },
-      { id: 'polaroid_white', name: 'Polaroid White' },
-      { id: 'modern_black', name: 'Modern Black' },
-      { id: 'corner_ornate', name: 'Ornate Corners' },
-      { id: 'red_cert', name: 'Red & Gold' },
-      { id: 'blue_studio', name: 'Studio Blue' },
-      { id: 'rounded_inner', name: 'Inner Mat' }
-    ];
-    let selectedFrameId = 'gold_classic';
+    // Sync Contrast & Brightness sliders and numbers
+    function bindRangeAndNum(rangeId, numId) {
+      const r = document.getElementById(rangeId), n = document.getElementById(numId);
+      r.oninput = () => n.value = r.value;
+      n.oninput = () => r.value = n.value;
+    }
+    bindRangeAndNum('cbContrastRange', 'cbContrastNum');
+    bindRangeAndNum('cbBrightnessRange', 'cbBrightnessNum');
+    document.getElementById('cbResetBtn').onclick = () => {
+      document.getElementById('cbContrastRange').value = 100; document.getElementById('cbContrastNum').value = 100;
+      document.getElementById('cbBrightnessRange').value = 100; document.getElementById('cbBrightnessNum').value = 100;
+    };
 
-    function drawBuiltinFrameOnCanvas(ctx, w, h, frameId, thickPct) {
-      const t = Math.max(6, Math.round(Math.min(w, h) * (thickPct / 100)));
+    // 50 Ready-Made Pro Frames
+    const PRO_FRAME_NAMES = [
+      'Royal Gold', 'Silver Shine', 'Rose Gold', 'Neon Cyan', 'Neon Magenta',
+      'Obsidian Pro', 'Ivory Mat', 'Champagne Gold', 'Emerald Luxe', 'Sapphire Pro',
+      'Crimson Royal', 'Violet Glow', 'Sunset Amber', 'Mint Studio', 'Polaroid Classic',
+      'Polaroid Dark', 'Double Gold', 'Double Navy', 'Triple Frame', 'Corner Gold',
+      'Corner Silver', 'Corner Red', 'Corner Blue', 'Corner Emerald', 'Corner Purple',
+      'Vintage Parchment', 'Art Deco Gold', 'Minimalist Slate', 'Film Strip', 'Cinema Frame',
+      'Wedding Gold', 'Wedding Rose', 'Award Bronze', 'Award Platinum', 'Modern Teal',
+      'Coral Border', 'Cobalt Grid', 'Indigo Frame', 'Lime Pop', 'Peach Soft',
+      'Steel Metallic', 'Copper Gloss', 'Midnight Gold', 'Ruby Luxe', 'Aqua Frame',
+      'Lavender Soft', 'Mustard Bold', 'Charcoal Mat', 'Pearl White', 'Pro Studio Edge'
+    ];
+    let selectedFrameIndex = 0;
+
+    function drawProFrame(ctx, w, h, idx, thickPct) {
+      const t = Math.max(5, Math.round(Math.min(w, h) * (thickPct / 100)));
+      const palette = [
+        ['#b45309', '#fbbf24', '#fef3c7'], ['#475569', '#cbd5e1', '#f8fafc'],
+        ['#9d174d', '#f472b6', '#fce7f3'], ['#0284c7', '#22d3ee', '#cffafe'],
+        ['#9333ea', '#e879f9', '#fae8ff'], ['#09090b', '#27272a', '#a1a1aa'],
+        ['#d6d3d1', '#fafaf9', '#78716c'], ['#a16207', '#fde047', '#fef9c3'],
+        ['#065f46', '#10b981', '#d1fae5'], ['#1e40af', '#3b82f6', '#dbeafe'],
+        ['#991b1b', '#ef4444', '#fee2e2'], ['#5b21b6', '#8b5cf6', '#ede9fe'],
+        ['#c2410c', '#fb923c', '#ffedd5'], ['#0f766e', '#2dd4bf', '#ccfbf1']
+      ];
+      const [c1, c2, c3] = palette[idx % palette.length];
       ctx.save();
-      if (frameId === 'gold_classic') {
+      const styleType = idx % 5;
+
+      if (styleType === 0) {
         const g = ctx.createLinearGradient(0, 0, w, h);
-        g.addColorStop(0, '#b45309'); g.addColorStop(0.5, '#fbbf24'); g.addColorStop(1, '#92400e');
-        ctx.strokeStyle = g; ctx.lineWidth = t * 2;
-        ctx.strokeRect(0, 0, w, h);
-        ctx.strokeStyle = '#fef3c7'; ctx.lineWidth = Math.max(1, t * 0.18);
+        g.addColorStop(0, c1); g.addColorStop(0.5, c2); g.addColorStop(1, c1);
+        ctx.strokeStyle = g; ctx.lineWidth = t * 2; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = c3; ctx.lineWidth = Math.max(1.5, t * 0.22);
         ctx.strokeRect(t * 0.75, t * 0.75, w - t * 1.5, h - t * 1.5);
-      } else if (frameId === 'royal_double') {
-        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = t * 1.8; ctx.strokeRect(0, 0, w, h);
-        ctx.strokeStyle = '#d97706'; ctx.lineWidth = Math.max(2, t * 0.35);
-        ctx.strokeRect(t * 1.15, t * 1.15, w - t * 2.3, h - t * 2.3);
-      } else if (frameId === 'polaroid_white') {
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = t * 2.2; ctx.strokeRect(0, 0, w, h);
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, h - t * 3.2, w, t * 3.2);
-        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.strokeRect(1, 1, w - 2, h - 2);
-      } else if (frameId === 'modern_black') {
-        ctx.strokeStyle = '#0f172a'; ctx.lineWidth = t * 2; ctx.strokeRect(0, 0, w, h);
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, t * 0.2);
-        ctx.strokeRect(t, t, w - t * 2, h - t * 2);
-      } else if (frameId === 'corner_ornate') {
-        ctx.strokeStyle = '#78350f'; ctx.lineWidth = t * 1.2; ctx.strokeRect(0, 0, w, h);
-        const cs = t * 2.6;
-        ctx.fillStyle = '#d97706';
-        [[0,0],[w-cs,0],[0,h-cs],[w-cs,h-cs]].forEach(([cx, cy]) => ctx.fillRect(cx, cy, cs, cs));
-        ctx.strokeStyle = '#fef08a'; ctx.lineWidth = 2;
-        [[2,2],[w-cs+2,2],[2,h-cs+2],[w-cs+2,h-cs+2]].forEach(([cx, cy]) => ctx.strokeRect(cx, cy, cs-4, cs-4));
-      } else if (frameId === 'red_cert') {
-        ctx.strokeStyle = '#991b1b'; ctx.lineWidth = t * 1.9; ctx.strokeRect(0, 0, w, h);
-        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = Math.max(2, t * 0.3);
-        ctx.strokeRect(t * 0.95, t * 0.95, w - t * 1.9, h - t * 1.9);
-      } else if (frameId === 'blue_studio') {
-        ctx.strokeStyle = '#1d4ed8'; ctx.lineWidth = t * 1.8; ctx.strokeRect(0, 0, w, h);
-        ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = Math.max(2, t * 0.25);
-        ctx.strokeRect(t * 0.9, t * 0.9, w - t * 1.8, h - t * 1.8);
-      } else if (frameId === 'rounded_inner') {
-        ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = t * 2.2; ctx.strokeRect(0, 0, w, h);
-        ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+      } else if (styleType === 1) {
+        ctx.strokeStyle = c1; ctx.lineWidth = t * 1.9; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = c2; ctx.lineWidth = Math.max(2, t * 0.35);
         ctx.strokeRect(t * 1.1, t * 1.1, w - t * 2.2, h - t * 2.2);
+      } else if (styleType === 2) {
+        ctx.strokeStyle = c2; ctx.lineWidth = t * 1.3; ctx.strokeRect(0, 0, w, h);
+        const cs = t * 2.5;
+        ctx.fillStyle = c1;
+        [[0, 0], [w - cs, 0], [0, h - cs], [w - cs, h - cs]].forEach(([cx, cy]) => ctx.fillRect(cx, cy, cs, cs));
+        ctx.strokeStyle = c3; ctx.lineWidth = 2;
+        [[2, 2], [w - cs + 2, 2], [2, h - cs + 2], [w - cs + 2, h - cs + 2]].forEach(([cx, cy]) => ctx.strokeRect(cx, cy, cs - 4, cs - 4));
+      } else if (styleType === 3) {
+        ctx.strokeStyle = c3; ctx.lineWidth = t * 2.1; ctx.strokeRect(0, 0, w, h);
+        ctx.fillStyle = c3; ctx.fillRect(0, h - t * 3.1, w, t * 3.1);
+        ctx.strokeStyle = c1; ctx.lineWidth = 2; ctx.strokeRect(2, 2, w - 4, h - 4);
+      } else {
+        ctx.strokeStyle = c1; ctx.lineWidth = t * 1.5; ctx.strokeRect(t * 0.4, t * 0.4, w - t * 0.8, h - t * 0.8);
+        ctx.setLineDash([t * 1.2, t * 0.6]);
+        ctx.strokeStyle = c2; ctx.lineWidth = Math.max(2, t * 0.35);
+        ctx.strokeRect(t * 1.2, t * 1.2, w - t * 2.4, h - t * 2.4);
+        ctx.setLineDash([]);
       }
       ctx.restore();
     }
 
-    function initFrameGallery() {
+    function init50FrameGallery() {
       const gal = document.getElementById('frameGallery');
       gal.innerHTML = '';
-      BUILTIN_FRAMES.forEach(fr => {
+      PRO_FRAME_NAMES.forEach((name, idx) => {
         const item = document.createElement('div');
-        item.className = 'frame-thumb' + (fr.id === selectedFrameId ? ' selected' : '');
-        const c = document.createElement('canvas'); c.width = 64; c.height = 76;
+        item.className = 'frame-thumb' + (idx === selectedFrameIndex ? ' selected' : '');
+        const c = document.createElement('canvas'); c.width = 58; c.height = 68;
         const ctx = c.getContext('2d');
-        ctx.fillStyle = '#e2e8f0'; ctx.fillRect(10, 12, 44, 52);
-        drawBuiltinFrameOnCanvas(ctx, 64, 76, fr.id, 9);
-        const lbl = document.createElement('span'); lbl.textContent = fr.name;
+        ctx.fillStyle = '#e2e8f0'; ctx.fillRect(8, 10, 42, 48);
+        drawProFrame(ctx, 58, 68, idx, 9);
+        const lbl = document.createElement('span');
+        lbl.textContent = `${String(idx + 1).padStart(2, '0')}. ${name}`;
+        lbl.title = `${String(idx + 1).padStart(2, '0')}. ${name}`;
         item.appendChild(c); item.appendChild(lbl);
         item.onclick = () => {
-          selectedFrameId = fr.id;
+          selectedFrameIndex = idx;
           document.getElementById('customFrameFile').value = '';
           document.querySelectorAll('.frame-thumb').forEach(el => el.classList.remove('selected'));
           item.classList.add('selected');
+          document.getElementById('selectedFrameBadge').textContent = `Selected: ${String(idx + 1).padStart(2, '0')}. ${name}`;
         };
         gal.appendChild(item);
       });
     }
-    initFrameGallery();
+    init50FrameGallery();
 
     function updateEditToolUI() {
       const v = document.getElementById('editToolSelect').value;
@@ -1782,10 +1979,13 @@
       document.getElementById('edImgFileLbl').classList.toggle('hidden', ['sig_maker', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('ndOptionsWrap').classList.toggle('hidden', v !== 'name_date');
       document.getElementById('frameOptionsWrap').classList.toggle('hidden', v !== 'photo_frame');
+      document.getElementById('cbControlsWrap').classList.toggle('hidden', v !== 'img_contrast');
       document.getElementById('edText1Lbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('edText2Lbl').classList.toggle('hidden', v !== 'name_date');
+      document.getElementById('edFontLbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('edBoldLbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('edColorLbl').classList.toggle('hidden', !['name_date', 'add_border', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
-      document.getElementById('edNumWrap').classList.toggle('hidden', !['add_border', 'blur_image', 'img_contrast', 'rotate', 'blur_bg'].includes(v));
+      document.getElementById('edNumWrap').classList.toggle('hidden', !['add_border', 'blur_image', 'rotate', 'blur_bg'].includes(v));
       if (v === 'name_date' && document.getElementById('editColor').value === '#1e293b') {
         document.getElementById('editColor').value = '#ffffff';
       }
@@ -1803,6 +2003,8 @@
       const t2 = document.getElementById('editText2').value;
       const n1 = parseFloat(document.getElementById('editNum1').value) || 10;
       const col = document.getElementById('editColor').value;
+      const chosenFont = document.getElementById('editFontFamily').value;
+      const isBold = document.getElementById('editBoldToggle').checked;
 
       if (tool === 'sig_maker') {
         addDownloadCard(out, await toBlob(sigCanvas, 'image/png', 1), 'signature.png', 'Digital Signature PNG');
@@ -1810,14 +2012,14 @@
       }
 
       if (tool === 'text_handwriting') {
-        const text = document.getElementById('hwLongText').value || t1 || 'Sample Handwritten Note';
+        const text = document.getElementById('hwLongText').value || t1 || 'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ • नमस्ते • Hello';
         const c = document.createElement('canvas'); c.width = 900; c.height = 1200;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, c.width, c.height);
         ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
         for (let y = 110; y < 1150; y += 38) { ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(840, y); ctx.stroke(); }
         ctx.strokeStyle = '#f87171'; ctx.beginPath(); ctx.moveTo(110, 0); ctx.lineTo(110, 1200); ctx.stroke();
-        ctx.fillStyle = col; ctx.font = 'italic 26px "Comic Sans MS", cursive, Georgia';
+        ctx.fillStyle = col; ctx.font = buildCanvasFontStr(isBold, 26, chosenFont);
         const words = text.split(/\s+/);
         let line = '', y = 104;
         for (const w of words) {
@@ -1835,7 +2037,7 @@
         const c = document.createElement('canvas'); c.width = 900; c.height = 240;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
-        ctx.fillStyle = col; ctx.font = 'italic 34px "Times New Roman", Georgia, serif';
+        ctx.fillStyle = col; ctx.font = buildCanvasFontStr(isBold, 34, chosenFont);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(expr, c.width / 2, c.height / 2);
         addDownloadCard(out, await toBlob(c, 'image/png', 1), 'formula_image.png', 'Formula / LaTeX Image');
@@ -1882,7 +2084,11 @@
         c.width = im.width; c.height = im.height;
         if (tool === 'flip') { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
         if (tool === 'blur_image') ctx.filter = `blur(${Math.max(1, n1)}px)`;
-        if (tool === 'img_contrast') ctx.filter = `contrast(${Math.max(20, n1)}%)`;
+        if (tool === 'img_contrast') {
+          const cVal = Math.max(10, parseFloat(document.getElementById('cbContrastNum').value) || 100);
+          const bVal = Math.max(10, parseFloat(document.getElementById('cbBrightnessNum').value) || 100);
+          ctx.filter = `contrast(${cVal}%) brightness(${bVal}%)`;
+        }
         ctx.drawImage(im, 0, 0, c.width, c.height);
         ctx.filter = 'none';
 
@@ -1899,7 +2105,7 @@
             const frameImg = await loadImg(URL.createObjectURL(customF));
             ctx.drawImage(frameImg, 0, 0, c.width, c.height);
           } else {
-            drawBuiltinFrameOnCanvas(ctx, c.width, c.height, selectedFrameId, thickPct);
+            drawProFrame(ctx, c.width, c.height, selectedFrameIndex, thickPct);
           }
         }
 
@@ -1912,16 +2118,16 @@
           const fs = Math.max(16, Math.round(Math.min(c.width, c.height) * (sizePct / 100)));
 
           ctx.save();
-          ctx.font = `bold ${fs}px Arial`;
+          ctx.font = buildCanvasFontStr(isBold, fs, chosenFont);
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          const pad = Math.round(fs * 0.75);
+          const pad = Math.round(fs * 0.85);
           let cx = c.width / 2, cy = c.height - pad * 1.4;
           if (posMode === 'top') { cx = c.width / 2; cy = pad * 1.4; }
           else if (posMode === 'center') { cx = c.width / 2; cy = c.height / 2; }
-          else if (posMode === 'left') { cx = pad * 1.4; cy = c.height / 2; }
-          else if (posMode === 'right') { cx = c.width - pad * 1.4; cy = c.height / 2; }
+          else if (posMode === 'left') { cx = pad * 1.5; cy = c.height / 2; }
+          else if (posMode === 'right') { cx = c.width - pad * 1.5; cy = c.height / 2; }
 
           if (styleMode === 'white_strip') {
             const bh = Math.round(fs * 2.1);
@@ -1946,7 +2152,7 @@
           if (styleMode === 'transparent_outline') {
             ctx.lineJoin = 'round';
             ctx.lineWidth = Math.max(3, Math.round(fs * 0.16));
-            ctx.strokeStyle = (col.toLowerCase() === '#000000') ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.85)';
+            ctx.strokeStyle = (col.toLowerCase() === '#000000') ? 'rgba(255,255,255,0.88)' : 'rgba(0,0,0,0.88)';
             ctx.strokeText(labelStr, 0, 0);
           }
           ctx.fillStyle = col;
@@ -1956,13 +2162,16 @@
 
         if (tool === 'add_text_img') {
           const fs = Math.max(24, Math.round(c.width * 0.05));
-          ctx.fillStyle = col; ctx.font = `bold ${fs}px Arial`; ctx.textAlign = 'center';
+          ctx.fillStyle = col;
+          ctx.font = buildCanvasFontStr(isBold, fs, chosenFont);
+          ctx.textAlign = 'center';
           ctx.fillText(t1 || 'Sample Text', c.width / 2, c.height * 0.88);
         }
         if (tool === 'watermark_img') {
           ctx.save(); ctx.translate(c.width / 2, c.height / 2); ctx.rotate(-Math.PI / 6);
           ctx.fillStyle = col; ctx.globalAlpha = 0.35;
-          ctx.font = `bold ${Math.max(28, Math.round(c.width * 0.06))}px Arial`; ctx.textAlign = 'center';
+          ctx.font = buildCanvasFontStr(isBold, Math.max(28, Math.round(c.width * 0.06)), chosenFont);
+          ctx.textAlign = 'center';
           ctx.fillText(t1 || 'WATERMARK', 0, 0); ctx.restore();
         }
       }
