@@ -176,7 +176,7 @@
             <option value="texture_clone">Smart Patch Erase (Solid Stamp / Logo)</option>
           </select>
         </label>
-        <label>Clean Cutoff (130-220): <input type="number" id="wmThreshold" value="175" min="10" max="245"></label>
+        <label>Clean Cutoff (130-220): <input type="number" id="wmThreshold" value="135" min="10" max="245"></label>
         <label><input type="checkbox" id="wmDarkText" checked> Sharpen Dark Text</label>
         <label><input type="checkbox" id="wmAutoTrim"> Trim White Border</label>
       </div>
@@ -184,8 +184,9 @@
       <div class="presets-row">
         <span>Document / PDF Clean Presets:</span>
         <button type="button" class="chip" onclick="setWmDocPreset(195)">Light Watermark (195)</button>
-        <button type="button" class="chip" onclick="setWmDocPreset(175)">Medium Watermark (175 - Recommended)</button>
-        <button type="button" class="chip" onclick="setWmDocPreset(155)">Dark / Heavy Watermark (155)</button>
+        <button type="button" class="chip" onclick="setWmDocPreset(175)">Medium Watermark (175)</button>
+        <button type="button" class="chip" onclick="setWmDocPreset(155)">Dark Watermark (155)</button>
+        <button type="button" class="chip" onclick="setWmDocPreset(135)">Exam Paper / Heavy (135 - Best)</button>
       </div>
 
       <div id="wmPreviewWrap" class="canvas-box hidden">
@@ -568,7 +569,7 @@
     }
 
     document.getElementById('wmMode').onchange = (e) => {
-      if (e.target.value === 'doc_clean') document.getElementById('wmThreshold').value = 175;
+      if (e.target.value === 'doc_clean') document.getElementById('wmThreshold').value = 135;
       else document.getElementById('wmThreshold').value = 45;
     };
 
@@ -579,7 +580,7 @@
       document.getElementById('wmPreviewWrap').classList.remove('hidden');
       if (f.type === 'application/pdf') {
         document.getElementById('wmMode').value = 'doc_clean';
-        document.getElementById('wmThreshold').value = 175;
+        document.getElementById('wmThreshold').value = 135;
         const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
         const page = await pdf.getPage(1);
         const vp = page.getViewport({ scale: 1.2 });
@@ -626,7 +627,7 @@
     window.addEventListener('mouseup', () => wmDrag = false);
     document.getElementById('wmClearBoxBtn').onclick = () => { wmBox = null; drawWmPreview(); };
 
-    // Adaptive Local Threshold + Ink Stroke Recovery (Keeps thin Punjabi matras unbroken while wiping watermark)
+    // Adaptive Local Threshold + Ink Stroke Recovery
     function cleanDocumentCanvas(ctx, w, h, cutoff, sharpenText, region) {
       const imgData = ctx.getImageData(0, 0, w, h);
       const d = imgData.data;
@@ -802,7 +803,7 @@
       if (!f) return alert('Please select an Image or PDF first.');
 
       const mode = document.getElementById('wmMode').value;
-      const strength = parseInt(document.getElementById('wmThreshold').value) || 175;
+      const strength = parseInt(document.getElementById('wmThreshold').value) || 135;
       const autoTrim = document.getElementById('wmAutoTrim').checked;
       const sharpenText = document.getElementById('wmDarkText').checked;
       const normBox = (wmBox && wmBox.w > 4 && wmBox.h > 4)
