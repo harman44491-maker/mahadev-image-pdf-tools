@@ -1,0 +1,212 @@
+// ================= 3. WATERMARK REMOVER =================
+    const wmFile = document.getElementById('wmFile');
+    const wmCanvas = document.getElementById('wmCanvas');
+    const wmCtx = wmCanvas.getContext('2d');
+    let wmPreviewImg = null, wmDrag = false, wmStartX = 0, wmStartY = 0, wmBox = null;
+
+    function setWmDocPreset(val) {
+      document.getElementById('wmMode').value = 'doc_clean';
+      document.getElementById('wmThreshold').value = val;
+    }
+    document.getElementById('wmMode').onchange = (e) => {
+      document.getElementById('wmThreshold').value = e.target.value === 'doc_clean' ? 135 : 45;
+    };
+    wmFile.onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      wmBox = null;
+      document.getElementById('wmPreviewWrap').classList.remove('hidden');
+      if (f.type === 'application/pdf') {
+        document.getElementById('wmMode').value = 'doc_clean';
+        document.getElementById('wmThreshold').value = 135;
+        const pdf = await openPdfWithPasswordSupport(await f.arrayBuffer());
+        const page = await pdf.getPage(1);
+        const vp = page.getViewport({ scale: 1.2 });
+        const tmp = document.createElement('canvas'); tmp.width = vp.width; tmp.height = vp.height;
+        await page.render({ canvasContext: tmp.getContext('2d'), viewport: vp }).promise;
+        wmPreviewImg = await loadImg(tmp.toDataURL('image/png'));
+      } else {
+        wmPreviewImg = await loadImg(URL.createObjectURL(f));
+      }
+      const scale = Math.min(1, 560 / wmPreviewImg.width);
+      wmCanvas.width = Math.round(wmPreviewImg.width * scale);
+      wmCanvas.height = Math.round(wmPreviewImg.height * scale);
+      drawWmPreview();
+    };
+    function getCanvasMousePos(canvas, evt) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: (evt.clientX - rect.left) * (canvas.width / rect.width), y: (evt.clientY - rect.top) * (canvas.height / rect.height) };
+    }
+    function drawWmPreview() {
+      if (!wmPreviewImg) return;
+      wmCtx.clearRect(0, 0, wmCanvas.width, wmCanvas.height);
+      wmCtx.drawImage(wmPreviewImg, 0, 0, wmCanvas.width, wmCanvas.height);
+      if (wmBox && wmBox.w > 4 && wmBox.h > 4) {
+        wmCtx.strokeStyle = '#ef4444'; wmCtx.lineWidth = 2; wmCtx.strokeRect(wmBox.x, wmBox.y, wmBox.w, wmBox.h);
+        wmCtx.fillStyle = 'rgba(239, 68, 68, 0.25)'; wmCtx.fillRect(wmBox.x, wmBox.y, wmBox.w, wmBox.h);
+      }
+    }
+    wmCanvas.onmousedown = e => { const pos = getCanvasMousePos(wmCanvas, e); wmStartX = pos.x; wmStartY = pos.y; wmDrag = true; };
+    wmCanvas.onmousemove = e => {
+      if (!wmDrag) return;
+      const pos = getCanvasMousePos(wmCanvas, e);
+      wmBox = { x: Math.min(wmStartX, pos.x), y: Math.min(wmStartY, pos.y), w: Math.abs(pos.x - wmStartX), h: Math.abs(pos.y - wmStartY) };
+      drawWmPreview();
+    };
+    window.addEventListener('mouseup', () => wmDrag = false);
+    document.getElementById('wmClearBoxBtn').onclick = () => { wmBox = null; drawWmPreview(); };
+
+    function cleanDocumentCanvas(ctx, w, h, cutoff, sharpenText, region) {
+      const imgData = ctx.getImageData(0, 0, w, h); const d = imgData.data;
+      const x0 = region ? Math.max(0, region.x) : 0, y0 = region ? Math.max(0, region.y) : 0;
+      const x1 = region ? Math.min(w - 1, region.x + region.w) : w - 1, y1 = region ? Math.min(h - 1, region.y + region.h) : h - 1;
+      const lumBuf = new Float32Array(w * h), integral = new Float64Array((w + 1) * (h + 1));
+      for (let y = 0; y < h; y++) {
+        let rowSum = 0;
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          lumBuf[y * w + x] = l; rowSum += l;
+          integral[(y + 1) * (w + 1) + (x + 1)] = integral[y * (w + 1) + (x + 1)] + rowSum;
+        }
+      }
+      const r = 14, contrastDelta = Math.max(12, Math.round((220 - cutoff) * 0.45));
+      for (let y = y0; y <= y1; y++) {
+        const ya = Math.max(0, y - r), yb = Math.min(h - 1, y + r);
+        for (let x = x0; x <= x1; x++) {
+          const xa = Math.max(0, x - r), xb = Math.min(w - 1, x + r);
+          const area = (xb - xa + 1) * (yb - ya + 1);
+          const sum = integral[(yb + 1) * (w + 1) + (xb + 1)] - integral[ya * (w + 1) + (xb + 1)] - integral[(yb + 1) * (w + 1) + xa] + integral[ya * (w + 1) + xa];
+          const localMean = sum / area, curLum = lumBuf[y * w + x], idx = (y * w + x) * 4;
+          if (curLum < localMean - contrastDelta || curLum < 115) {
+            if (sharpenText) {
+              const ink = Math.max(0, Math.min(255, Math.round((curLum / Math.max(1, localMean)) * 95)));
+              d[idx] = ink; d[idx + 1] = ink; d[idx + 2] = ink;
+            }
+          } else { d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255; }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    function organicPatchErase(ctx, w, h, bx, by, bw, bh) {
+      const imgData = ctx.getImageData(0, 0, w, h); const d = imgData.data, orig = new Uint8ClampedArray(d);
+      const x0 = Math.max(2, bx), y0 = Math.max(2, by), x1 = Math.min(w - 3, bx + bw), y1 = Math.min(h - 3, by + bh);
+      const boxW = Math.max(1, x1 - x0), boxH = Math.max(1, y1 - y0);
+      const feather = Math.min(5, Math.floor(Math.min(boxW, boxH) * 0.18));
+      const hash = (a, b) => Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+      for (let y = y0; y <= y1; y++) {
+        const ty = (y - y0) / boxH;
+        for (let x = x0; x <= x1; x++) {
+          const jitterX = Math.round((hash(x, y) - Math.floor(hash(x, y)) - 0.5) * 6);
+          const jitterY = Math.round((hash(y, x) - Math.floor(hash(y, x)) - 0.5) * 8);
+          const sampleX = Math.min(w - 1, Math.max(0, x + jitterX));
+          const topY = Math.max(0, Math.min(h - 1, y0 - 3 - Math.abs(jitterY)));
+          const botY = Math.max(0, Math.min(h - 1, y1 + 3 + Math.abs(jitterY)));
+          const topIdx = (topY * w + sampleX) * 4, botIdx = (botY * w + sampleX) * 4, dstIdx = (y * w + x) * 4;
+          const distEdge = Math.min(x - x0, x1 - x, y - y0, y1 - y);
+          const alpha = feather > 0 ? Math.min(1, (distEdge + 1) / feather) : 1;
+          for (let ch = 0; ch < 3; ch++) {
+            const vMix = orig[topIdx + ch] * (1 - ty) + orig[botIdx + ch] * ty;
+            d[dstIdx + ch] = Math.round(orig[dstIdx + ch] * (1 - alpha) + vMix * alpha);
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    function deblendPhotoWatermark(ctx, w, h, strength, region) {
+      const radii = [3, 7, 12], alphaEst = Math.min(0.62, Math.max(0.22, strength / 85));
+      for (const rad of radii) {
+        const imgData = ctx.getImageData(0, 0, w, h); const d = imgData.data, copy = new Uint8ClampedArray(d);
+        const x0 = region ? Math.max(rad, region.x) : rad, y0 = region ? Math.max(rad, region.y) : rad;
+        const x1 = region ? Math.min(w - rad - 1, region.x + region.w) : w - rad - 1;
+        const y1 = region ? Math.min(h - rad - 1, region.y + region.h) : h - rad - 1;
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            const idx = (y * w + x) * 4, lum = 0.299 * copy[idx] + 0.587 * copy[idx + 1] + 0.114 * copy[idx + 2];
+            const ringOffsets = [((y - rad) * w + x) * 4, ((y + rad) * w + x) * 4, (y * w + (x - rad)) * 4, (y * w + (x + rad)) * 4];
+            let surR = 0, surG = 0, surB = 0;
+            for (const ro of ringOffsets) { surR += copy[ro]; surG += copy[ro + 1]; surB += copy[ro + 2]; }
+            surR /= 4; surG /= 4; surB /= 4;
+            const surLum = 0.299 * surR + 0.587 * surG + 0.114 * surB;
+            const sat = Math.max(copy[idx], copy[idx + 1], copy[idx + 2]) - Math.min(copy[idx], copy[idx + 1], copy[idx + 2]);
+            if (lum - surLum > 12 && sat < 80) {
+              for (let ch = 0; ch < 3; ch++) {
+                const deblended = (copy[idx + ch] - alphaEst * 255) / (1 - alphaEst);
+                const surCh = ch === 0 ? surR : ch === 1 ? surG : surB;
+                d[idx + ch] = Math.min(255, Math.max(0, Math.round(deblended * 0.55 + surCh * 0.45)));
+              }
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+    }
+
+    function trimWhitePadding(canvas) {
+      const w = canvas.width, h = canvas.height, d = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+      let minX = w, minY = h, maxX = 0, maxY = 0, found = false;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          if (d[i] < 248 || d[i + 1] < 248 || d[i + 2] < 248) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; found = true;
+          }
+        }
+      }
+      if (!found || maxX <= minX || maxY <= minY) return canvas;
+      const cw = maxX - minX + 1, ch = maxY - minY + 1;
+      const out = document.createElement('canvas'); out.width = cw; out.height = ch;
+      out.getContext('2d').drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
+      return out;
+    }
+
+    function cleanCanvasWatermark(sourceCanvas, mode, strength, normBox, autoTrim, sharpenText) {
+      const w = sourceCanvas.width, h = sourceCanvas.height;
+      let c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d'); ctx.drawImage(sourceCanvas, 0, 0);
+      const boxPx = normBox ? { x: Math.round(normBox.x * w), y: Math.round(normBox.y * h), w: Math.round(normBox.w * w), h: Math.round(normBox.h * h) } : null;
+      if (mode === 'doc_clean') cleanDocumentCanvas(ctx, w, h, strength, sharpenText, boxPx);
+      else if (mode === 'photo_deblend') deblendPhotoWatermark(ctx, w, h, strength, boxPx);
+      else if (mode === 'texture_clone' && boxPx) organicPatchErase(ctx, w, h, boxPx.x, boxPx.y, boxPx.w, boxPx.h);
+      if (autoTrim) c = trimWhitePadding(c);
+      return c;
+    }
+
+    document.getElementById('wmRunBtn').onclick = async () => {
+      const f = wmFile.files[0], out = document.getElementById('wmOutput'), status = document.getElementById('wmStatus');
+      out.innerHTML = '';
+      if (!f) return alert('Please select an Image or PDF first.');
+      const mode = document.getElementById('wmMode').value;
+      const strength = parseInt(document.getElementById('wmThreshold').value) || 135;
+      const autoTrim = document.getElementById('wmAutoTrim').checked;
+      const sharpenText = document.getElementById('wmDarkText').checked;
+      const normBox = (wmBox && wmBox.w > 4 && wmBox.h > 4) ? { x: wmBox.x / wmCanvas.width, y: wmBox.y / wmCanvas.height, w: wmBox.w / wmCanvas.width, h: wmBox.h / wmCanvas.height } : null;
+      if (mode === 'texture_clone' && !normBox) return alert('Please drag your mouse over the watermark area on the preview image first.');
+      status.textContent = 'Cleaning watermark... please wait.'; status.classList.remove('hidden');
+
+      if (f.type === 'application/pdf') {
+        const pdf = await openPdfWithPasswordSupport(await f.arrayBuffer());
+        const outPdf = await PDFLib.PDFDocument.create();
+        for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
+          const page = await pdf.getPage(pNum), vp = page.getViewport({ scale: 2.1 });
+          const rawC = document.createElement('canvas'); rawC.width = vp.width; rawC.height = vp.height;
+          await page.render({ canvasContext: rawC.getContext('2d'), viewport: vp }).promise;
+          const cleanC = cleanCanvasWatermark(rawC, mode, strength, normBox, false, sharpenText);
+          const jpgBytes = await (await toBlob(cleanC, 'image/jpeg', 0.92)).arrayBuffer();
+          const emb = await outPdf.embedJpg(jpgBytes);
+          const np = outPdf.addPage([emb.width, emb.height]);
+          np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+        }
+        const bytes = await outPdf.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `clean_${f.name}`, `Watermark Cleaned (${(bytes.length / 1024).toFixed(1)} KB)`);
+      } else {
+        const im = await loadImg(URL.createObjectURL(f));
+        const rawC = document.createElement('canvas'); rawC.width = im.width; rawC.height = im.height;
+        rawC.getContext('2d').drawImage(im, 0, 0);
+        const cleanC = cleanCanvasWatermark(rawC, mode, strength, normBox, autoTrim, sharpenText);
+        addDownloadCard(out, await toBlob(cleanC, 'image/jpeg', 0.95), `clean_${f.name.replace(/\.[^/.]+$/, '')}.jpg`, `Watermark Cleaned (${cleanC.width}×${cleanC.height}px)`);
+      }
+      status.classList.add('hidden');
+    };
