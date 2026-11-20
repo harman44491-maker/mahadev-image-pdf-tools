@@ -11,7 +11,7 @@
     let cachedLogoImg = null;
     let cachedTransparentCutout = null;
 
-    // Selected Area Zoom state (normalized 0..1)
+    // Selected Area Zoom state (normalized 0..1) - Works inside ps_auto_retouch
     let zoomSelectionNorm = null;
     let isSelectingZoom = false;
     let zoomDragStart = null;
@@ -22,6 +22,55 @@
     let currentHairStroke = null;
     let lastHairPos = null;
 
+    function getActiveWorkingSource(baseSource) {
+      if (!zoomSelectionNorm || zoomSelectionNorm.w < 0.02 || zoomSelectionNorm.h < 0.02) {
+        return baseSource;
+      }
+      const sw = baseSource.width || baseSource.videoWidth;
+      const sh = baseSource.height || baseSource.videoHeight;
+      if (!sw || !sh) return baseSource;
+
+      const sx = Math.max(0, Math.min(sw - 1, Math.round(zoomSelectionNorm.x * sw)));
+      const sy = Math.max(0, Math.min(sh - 1, Math.round(zoomSelectionNorm.y * sh)));
+      const cw = Math.max(10, Math.min(sw - sx, Math.round(zoomSelectionNorm.w * sw)));
+      const ch = Math.max(10, Math.min(sh - sy, Math.round(zoomSelectionNorm.h * sh)));
+
+      const zoomScale = parseFloat(document.getElementById('psZoomScaleNum')?.value) || 2;
+      const outW = Math.min(3600, Math.max(120, Math.round(cw * Math.max(1, zoomScale * 0.65))));
+      const outH = Math.min(3600, Math.max(120, Math.round(ch * Math.max(1, zoomScale * 0.65))));
+
+      const cropC = document.createElement('canvas');
+      cropC.width = outW;
+      cropC.height = outH;
+      const cctx = cropC.getContext('2d');
+      cctx.imageSmoothingEnabled = true;
+      cctx.imageSmoothingQuality = 'high';
+      cctx.drawImage(baseSource, sx, sy, cw, ch, 0, 0, outW, outH);
+
+      if (document.getElementById('psZoomSharpToggle')?.checked && outW * outH < 2500000) {
+        const imgData = cctx.getImageData(0, 0, outW, outH);
+        const d = imgData.data;
+        const copy = new Uint8ClampedArray(d);
+        const amt = 0.28;
+        for (let y = 1; y < outH - 1; y++) {
+          for (let x = 1; x < outW - 1; x++) {
+            const idx = (y * outW + x) * 4;
+            if (copy[idx + 3] < 10) continue;
+            for (let chIdx = 0; chIdx < 3; chIdx++) {
+              const center = copy[idx + chIdx] * 5;
+              const neighbors = copy[((y - 1) * outW + x) * 4 + chIdx]
+                              + copy[((y + 1) * outW + x) * 4 + chIdx]
+                              + copy[(y * outW + (x - 1)) * 4 + chIdx]
+                              + copy[(y * outW + (x + 1)) * 4 + chIdx];
+              d[idx + chIdx] = Math.min(255, Math.max(0, Math.round(copy[idx + chIdx] * (1 - amt) + (center - neighbors) * amt)));
+            }
+          }
+        }
+        cctx.putImageData(imgData, 0, 0);
+      }
+      return cropC;
+    }
+
     function applyHairSetBrushStrokes(targetCanvas) {
       if (!hairStrokes.length) return targetCanvas;
       const w = targetCanvas.width;
@@ -29,19 +78,37 @@
       const ctx = targetCanvas.getContext('2d');
 
       for (const stroke of hairStrokes) {
-        const rad = Math.max(4, Math.round(stroke.radiusNorm * Math.min(w, h)));
-        for (let i = 0; i < stroke.points.length; i++) {
-          const pt = stroke.points[i];
+        if (!stroke.points || !stroke.points.length) continue;
+        const rad = Math.max(6, Math.round(stroke.radiusNorm * Math.min(w, h)));
+
+        // Interpolate points so fast mouse drags leave no gaps
+        const densePoints = [stroke.points[0]];
+        for (let i = 1; i < stroke.points.length; i++) {
+          const p0 = stroke.points[i - 1];
+          const p1 = stroke.points[i];
+          const distPx = Math.hypot((p1.x - p0.x) * w, (p1.y - p0.y) * h);
+          const steps = Math.max(1, Math.ceil(distPx / Math.max(3, rad * 0.3)));
+          for (let s = 1; s <= steps; s++) {
+            const t = s / steps;
+            densePoints.push({
+              x: p0.x + (p1.x - p0.x) * t,
+              y: p0.y + (p1.y - p0.y) * t
+            });
+          }
+        }
+
+        for (let i = 0; i < densePoints.length; i++) {
+          const pt = densePoints[i];
           const cx = Math.round(pt.x * w);
           const cy = Math.round(pt.y * h);
-          const prev = i > 0 ? stroke.points[i - 1] : pt;
+          const prev = i > 0 ? densePoints[i - 1] : pt;
           const dx = (pt.x - prev.x) * w;
           const dy = (pt.y - prev.y) * h;
 
-          const x0 = Math.max(1, cx - rad);
-          const y0 = Math.max(1, cy - rad);
-          const bw = Math.min(w - x0 - 1, rad * 2);
-          const bh = Math.min(h - y0 - 1, rad * 2);
+          const x0 = Math.max(0, cx - rad);
+          const y0 = Math.max(0, cy - rad);
+          const bw = Math.min(w - x0, rad * 2);
+          const bh = Math.min(h - y0, rad * 2);
           if (bw <= 2 || bh <= 2) continue;
 
           const imgData = ctx.getImageData(x0, y0, bw, bh);
@@ -52,36 +119,46 @@
             for (let px = 0; px < bw; px++) {
               const dist = Math.hypot((x0 + px) - cx, (y0 + py) - cy);
               if (dist > rad) continue;
-              const falloff = Math.pow(1 - dist / rad, 1.4);
+              const falloff = Math.pow(1 - dist / rad, 1.35);
               const idx = (py * bw + px) * 4;
 
               if (stroke.mode === 'erase_stray') {
+                // Clean / Trim Stray Outer Hairs
                 if (copy[idx + 3] > 0) {
-                  d[idx + 3] = Math.max(0, Math.round(copy[idx + 3] * (1 - falloff * 0.92)));
+                  d[idx + 3] = Math.max(0, Math.round(copy[idx + 3] * (1 - falloff * 0.95)));
                 }
               } else if (stroke.mode === 'darken_shine') {
+                // Darken & Neat Hair Shine
                 const lum = 0.299 * copy[idx] + 0.587 * copy[idx + 1] + 0.114 * copy[idx + 2];
-                if (lum < 165) {
-                  const factor = 1 - falloff * 0.34;
-                  d[idx] = Math.max(12, Math.round(copy[idx] * factor));
-                  d[idx + 1] = Math.max(10, Math.round(copy[idx + 1] * factor));
-                  d[idx + 2] = Math.max(10, Math.round(copy[idx + 2] * factor));
+                if (lum < 185) {
+                  const factor = 1 - falloff * 0.42;
+                  d[idx] = Math.max(10, Math.round(copy[idx] * factor));
+                  d[idx + 1] = Math.max(9, Math.round(copy[idx + 1] * factor));
+                  d[idx + 2] = Math.max(9, Math.round(copy[idx + 2] * factor));
                 }
               } else {
-                const shiftX = Math.round(dx * 0.38 * falloff);
-                const shiftY = Math.round(dy * 0.38 * falloff);
-                const sx = Math.min(bw - 1, Math.max(0, px - shiftX));
-                const sy = Math.min(bh - 1, Math.max(0, py - shiftY));
+                // tuck_smooth: Push flyaway hairs smoothly along drag / inward & smooth edge
+                const pushX = dx !== 0 ? -dx * 0.55 * falloff : 0;
+                const pushY = dy !== 0 ? -dy * 0.55 * falloff : falloff * 1.5;
+                const sx = Math.min(bw - 1, Math.max(0, Math.round(px + pushX)));
+                const sy = Math.min(bh - 1, Math.max(0, Math.round(py + pushY)));
                 const sIdx = (sy * bw + sx) * 4;
 
-                const nx = Math.min(bw - 1, Math.max(0, sx + (dx >= 0 ? -1 : 1)));
-                const ny = Math.min(bh - 1, Math.max(0, sy + (dy >= 0 ? -1 : 1)));
-                const nIdx = (ny * bw + nx) * 4;
+                const lx = Math.min(bw - 1, Math.max(0, px - 1));
+                const rx = Math.min(bw - 1, Math.max(0, px + 1));
+                const ty = Math.min(bh - 1, Math.max(0, py - 1));
+                const by = Math.min(bh - 1, Math.max(0, py + 1));
 
-                const blend = falloff * 0.68;
+                const blend = falloff * 0.78;
                 for (let ch = 0; ch < 4; ch++) {
-                  const smoothed = copy[sIdx + ch] * 0.65 + copy[nIdx + ch] * 0.35;
-                  d[idx + ch] = Math.round(copy[idx + ch] * (1 - blend) + smoothed * blend);
+                  const boxAvg = (
+                    copy[(ty * bw + px) * 4 + ch] +
+                    copy[(by * bw + px) * 4 + ch] +
+                    copy[(py * bw + lx) * 4 + ch] +
+                    copy[(py * bw + rx) * 4 + ch] +
+                    copy[sIdx + ch] * 2
+                  ) / 6;
+                  d[idx + ch] = Math.round(copy[idx + ch] * (1 - blend) + boxAvg * blend);
                 }
               }
             }
@@ -92,57 +169,20 @@
       return targetCanvas;
     }
 
-    function buildZoomedSelectionCanvas(srcImg, selNorm, zoomFactor, sharpen) {
-      const box = selNorm || { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
-      const sx = Math.max(0, Math.min(srcImg.width - 1, Math.round(box.x * srcImg.width)));
-      const sy = Math.max(0, Math.min(srcImg.height - 1, Math.round(box.y * srcImg.height)));
-      const sw = Math.max(10, Math.min(srcImg.width - sx, Math.round(box.w * srcImg.width)));
-      const sh = Math.max(10, Math.min(srcImg.height - sy, Math.round(box.h * srcImg.height)));
-
-      const outW = Math.min(3600, Math.max(120, Math.round(sw * zoomFactor)));
-      const outH = Math.min(3600, Math.max(120, Math.round(sh * zoomFactor)));
-
-      const c = document.createElement('canvas');
-      c.width = outW;
-      c.height = outH;
-      const ctx = c.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(srcImg, sx, sy, sw, sh, 0, 0, outW, outH);
-
-      if (sharpen && outW * outH < 2500000) {
-        const imgData = ctx.getImageData(0, 0, outW, outH);
-        const d = imgData.data;
-        const copy = new Uint8ClampedArray(d);
-        const amt = 0.35;
-        for (let y = 1; y < outH - 1; y++) {
-          for (let x = 1; x < outW - 1; x++) {
-            const idx = (y * outW + x) * 4;
-            for (let ch = 0; ch < 3; ch++) {
-              const center = copy[idx + ch] * 5;
-              const neighbors = copy[((y - 1) * outW + x) * 4 + ch]
-                              + copy[((y + 1) * outW + x) * 4 + ch]
-                              + copy[(y * outW + (x - 1)) * 4 + ch]
-                              + copy[(y * outW + (x + 1)) * 4 + ch];
-              d[idx + ch] = Math.min(255, Math.max(0, Math.round(copy[idx + ch] * (1 - amt) + (center - neighbors) * amt)));
-            }
-          }
-        }
-        ctx.putImageData(imgData, 0, 0);
-      }
-      return c;
-    }
-
     const liveEditCanvas = document.getElementById('liveEditCanvas');
     liveEditCanvas.onmousedown = (e) => {
       const tool = document.getElementById('editToolSelect').value;
       if (!cachedMainImg) return;
 
-      if (tool === 'zoom_area') {
+      const zoomModeChecked = tool === 'ps_auto_retouch' && document.getElementById('psZoomSelectMode')?.checked;
+      if (zoomModeChecked) {
         const pos = getCanvasMousePos(liveEditCanvas, e);
-        zoomDragStart = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
+        zoomDragStart = {
+          x: Math.max(0, Math.min(1, pos.x / liveEditCanvas.width)),
+          y: Math.max(0, Math.min(1, pos.y / liveEditCanvas.height))
+        };
         isSelectingZoom = true;
-        zoomSelectionNorm = { x: zoomDragStart.x, y: zoomDragStart.y, w: 0.01, h: 0.01 };
+        zoomSelectionNorm = { x: zoomDragStart.x, y: zoomDragStart.y, w: 0.02, h: 0.02 };
         renderLiveEditPreview();
         return;
       }
@@ -150,7 +190,10 @@
       if (tool === 'ps_auto_retouch' && document.getElementById('hairBrushToggle').checked) {
         isBrushingHair = true;
         const pos = getCanvasMousePos(liveEditCanvas, e);
-        const normPt = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
+        const normPt = {
+          x: Math.max(0, Math.min(1, pos.x / liveEditCanvas.width)),
+          y: Math.max(0, Math.min(1, pos.y / liveEditCanvas.height))
+        };
         const brushPx = parseFloat(document.getElementById('hairBrushSize').value) || 24;
         currentHairStroke = {
           mode: document.getElementById('hairBrushMode').value,
@@ -164,8 +207,7 @@
     };
 
     liveEditCanvas.onmousemove = (e) => {
-      const tool = document.getElementById('editToolSelect').value;
-      if (tool === 'zoom_area' && isSelectingZoom && zoomDragStart) {
+      if (isSelectingZoom && zoomDragStart) {
         const pos = getCanvasMousePos(liveEditCanvas, e);
         const curX = Math.max(0, Math.min(1, pos.x / liveEditCanvas.width));
         const curY = Math.max(0, Math.min(1, pos.y / liveEditCanvas.height));
@@ -181,8 +223,11 @@
 
       if (isBrushingHair && currentHairStroke) {
         const pos = getCanvasMousePos(liveEditCanvas, e);
-        if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 3) return;
-        currentHairStroke.points.push({ x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height });
+        if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 2) return;
+        currentHairStroke.points.push({
+          x: Math.max(0, Math.min(1, pos.x / liveEditCanvas.width)),
+          y: Math.max(0, Math.min(1, pos.y / liveEditCanvas.height))
+        });
         lastHairPos = pos;
         renderLiveEditPreview();
       }
@@ -196,8 +241,19 @@
       zoomDragStart = null;
     });
 
-    document.getElementById('zoomResetBoxBtn').onclick = () => {
+    document.getElementById('psZoomSelectMode').onchange = () => {
+      const zoomOn = document.getElementById('psZoomSelectMode').checked;
+      if (zoomOn) {
+        document.getElementById('hairBrushToggle').checked = false;
+        isBrushingHair = false;
+      }
+      updatePsBgControls();
+      renderLiveEditPreview();
+    };
+
+    document.getElementById('psZoomResetBoxBtn').onclick = () => {
       zoomSelectionNorm = null;
+      cachedTransparentCutout = null;
       renderLiveEditPreview();
     };
 
@@ -214,8 +270,17 @@
 
     document.getElementById('hairBrushToggle').onchange = () => {
       const active = document.getElementById('hairBrushToggle').checked;
+      if (active && document.getElementById('psZoomSelectMode')) {
+        document.getElementById('psZoomSelectMode').checked = false;
+        isSelectingZoom = false;
+      }
       liveEditCanvas.style.cursor = active ? 'cell' : 'default';
       updatePsBgControls();
+      renderLiveEditPreview();
+    };
+
+    document.getElementById('hairBrushMode').onchange = () => {
+      if (hairStrokes.length) renderLiveEditPreview();
     };
 
     function setQuickStudioBg(style, hexCol) {
@@ -229,10 +294,14 @@
     function updatePsBgControls() {
       const enabled = document.getElementById('psRemoveBgToggle').checked;
       const hairActive = document.getElementById('hairBrushToggle').checked;
+      const zoomActive = document.getElementById('psZoomSelectMode')?.checked;
       const bgStyle = document.getElementById('psBgStyleSelect').value;
       document.getElementById('psBgColorControls').classList.toggle('hidden', !enabled);
       document.getElementById('psCustomColorLbl').classList.toggle('hidden', !(enabled && bgStyle === 'solid_custom'));
-      if (hairActive) {
+
+      if (zoomActive) {
+        document.getElementById('livePreviewCaption').textContent = 'Zoom Area Active: Drag box over photo to select area, then click Apply & Download!';
+      } else if (hairActive) {
         document.getElementById('livePreviewCaption').textContent = 'Hair Set Brush Active: Drag mouse over top/side hairs to smooth, tuck & neat!';
       } else {
         document.getElementById('livePreviewCaption').textContent = enabled
@@ -479,7 +548,7 @@
     async function renderLiveEditPreview() {
       const tool = document.getElementById('editToolSelect').value;
       const wrap = document.getElementById('liveEditPreviewWrap');
-      if (!cachedMainImg || !['ps_auto_retouch', 'zoom_area', 'img_contrast', 'add_logo_photo'].includes(tool)) {
+      if (!cachedMainImg || !['ps_auto_retouch', 'img_contrast', 'add_logo_photo'].includes(tool)) {
         wrap.classList.add('hidden');
         return;
       }
@@ -493,27 +562,13 @@
       const lctx = liveEditCanvas.getContext('2d');
       lctx.clearRect(0, 0, pw, ph);
 
-      if (tool === 'zoom_area') {
-        liveEditCanvas.style.cursor = 'crosshair';
-        document.getElementById('livePreviewCaption').textContent = 'Drag mouse over the area you want to zoom, then click Apply & Download:';
-        lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
-        if (zoomSelectionNorm) {
-          const rx = zoomSelectionNorm.x * pw;
-          const ry = zoomSelectionNorm.y * ph;
-          const rw = zoomSelectionNorm.w * pw;
-          const rh = zoomSelectionNorm.h * ph;
-          lctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
-          lctx.fillRect(0, 0, pw, ry);
-          lctx.fillRect(0, ry + rh, pw, ph - (ry + rh));
-          lctx.fillRect(0, ry, rx, rh);
-          lctx.fillRect(rx + rw, ry, pw - (rx + rw), rh);
-          lctx.strokeStyle = '#10b981';
-          lctx.lineWidth = 2.5;
-          lctx.strokeRect(rx, ry, rw, rh);
-        }
-      } else if (tool === 'ps_auto_retouch') {
-        liveEditCanvas.style.cursor = document.getElementById('hairBrushToggle').checked ? 'cell' : 'default';
+      if (tool === 'ps_auto_retouch') {
+        const zoomModeChecked = document.getElementById('psZoomSelectMode')?.checked;
+        const hairBrushChecked = document.getElementById('hairBrushToggle').checked;
+        liveEditCanvas.style.cursor = zoomModeChecked ? 'crosshair' : (hairBrushChecked ? 'cell' : 'default');
+
         const removeBg = document.getElementById('psRemoveBgToggle').checked;
+        let baseSrc = cachedMainImg;
         if (removeBg) {
           if (!cachedTransparentCutout) {
             const st = document.getElementById('editStatus');
@@ -522,22 +577,46 @@
             cachedTransparentCutout = await runSelfieSegmentation(cachedMainImg, 'transparent');
             st.classList.add('hidden');
           }
-          const enhancedSubject = applyPhotoshopDigitalRetouch(cachedTransparentCutout, pw, ph);
-          const finalPreview = compositeBackgroundBehindSubject(enhancedSubject);
-          lctx.drawImage(finalPreview, 0, 0, pw, ph);
+          baseSrc = cachedTransparentCutout;
+        }
+
+        const workingSrc = zoomModeChecked ? baseSrc : getActiveWorkingSource(baseSrc);
+        const enhanced = applyPhotoshopDigitalRetouch(workingSrc, pw, ph);
+        const finalEnhanced = removeBg ? compositeBackgroundBehindSubject(enhanced) : enhanced;
+
+        if (removeBg) {
+          lctx.drawImage(finalEnhanced, 0, 0, pw, ph);
         } else {
-          const enhanced = applyPhotoshopDigitalRetouch(cachedMainImg, pw, ph);
           const splitPct = (parseFloat(document.getElementById('psSplitRange').value) ?? 100) / 100;
           const splitX = Math.round(pw * splitPct);
-          lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
+          lctx.drawImage(workingSrc, 0, 0, pw, ph);
           if (splitX > 0) {
-            lctx.drawImage(enhanced, 0, 0, splitX, ph, 0, 0, splitX, ph);
+            lctx.drawImage(finalEnhanced, 0, 0, splitX, ph, 0, 0, splitX, ph);
           }
           if (splitX > 2 && splitX < pw - 2) {
             lctx.strokeStyle = '#ffffff';
             lctx.lineWidth = 2;
             lctx.beginPath(); lctx.moveTo(splitX, 0); lctx.lineTo(splitX, ph); lctx.stroke();
           }
+        }
+
+        // Draw selection rectangle when Zoom Select Mode is active or box exists
+        if (zoomSelectionNorm && (zoomModeChecked || isSelectingZoom)) {
+          const rx = zoomSelectionNorm.x * pw;
+          const ry = zoomSelectionNorm.y * ph;
+          const rw = zoomSelectionNorm.w * pw;
+          const rh = zoomSelectionNorm.h * ph;
+          lctx.save();
+          lctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+          lctx.fillRect(0, 0, pw, ry);
+          lctx.fillRect(0, ry + rh, pw, ph - (ry + rh));
+          lctx.fillRect(0, ry, rx, rh);
+          lctx.fillRect(rx + rw, ry, pw - (rx + rw), rh);
+          lctx.strokeStyle = '#0284c7';
+          lctx.lineWidth = 2.5;
+          lctx.setLineDash([6, 4]);
+          lctx.strokeRect(rx, ry, rw, rh);
+          lctx.restore();
         }
       } else if (tool === 'img_contrast') {
         liveEditCanvas.style.cursor = 'default';
@@ -572,6 +651,7 @@
 
     function bindRangeAndNum(rangeId, numId, onChangeCb) {
       const r = document.getElementById(rangeId), n = document.getElementById(numId);
+      if (!r || !n) return;
       r.oninput = () => { n.value = r.value; if (onChangeCb) onChangeCb(); };
       n.oninput = () => { r.value = n.value; if (onChangeCb) onChangeCb(); };
     }
@@ -583,8 +663,10 @@
     bindRangeAndNum('cbBrightnessRange', 'cbBrightnessNum', renderLiveEditPreview);
     bindRangeAndNum('logoOpacityRange', 'logoOpacityNum', renderLiveEditPreview);
     bindRangeAndNum('logoSizeRange', 'logoSizeNum', renderLiveEditPreview);
-    bindRangeAndNum('zoomScaleRange', 'zoomScaleNum', renderLiveEditPreview);
-    document.getElementById('zoomSharpToggle').onchange = renderLiveEditPreview;
+    bindRangeAndNum('psZoomScaleRange', 'psZoomScaleNum', renderLiveEditPreview);
+    if (document.getElementById('psZoomSharpToggle')) {
+      document.getElementById('psZoomSharpToggle').onchange = renderLiveEditPreview;
+    }
 
     document.getElementById('psAutoWb').onchange = renderLiveEditPreview;
     document.getElementById('psSplitRange').oninput = renderLiveEditPreview;
@@ -691,7 +773,6 @@
       document.getElementById('hwTextWrap').classList.toggle('hidden', v !== 'text_handwriting');
       document.getElementById('edImgFileLbl').classList.toggle('hidden', ['sig_maker', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('psRetouchWrap').classList.toggle('hidden', v !== 'ps_auto_retouch');
-      document.getElementById('zoomAreaWrap').classList.toggle('hidden', v !== 'zoom_area');
       document.getElementById('ndOptionsWrap').classList.toggle('hidden', v !== 'name_date');
       document.getElementById('logoOptionsWrap').classList.toggle('hidden', v !== 'add_logo_photo');
       document.getElementById('frameOptionsWrap').classList.toggle('hidden', v !== 'photo_frame');
@@ -784,14 +865,6 @@
 
       const im = imgs[0];
 
-      if (tool === 'zoom_area') {
-        const zoomFactor = parseFloat(document.getElementById('zoomScaleNum').value) || 2.5;
-        const sharpen = document.getElementById('zoomSharpToggle').checked;
-        const zoomedC = buildZoomedSelectionCanvas(im, zoomSelectionNorm, zoomFactor, sharpen);
-        addDownloadCard(out, await toBlob(zoomedC, 'image/jpeg', 0.97), `zoomed_${zoomFactor}x_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `Zoomed ${zoomFactor}x (${zoomedC.width}×${zoomedC.height}px)`);
-        return;
-      }
-
       if (tool === 'ps_auto_retouch') {
         const removeBg = document.getElementById('psRemoveBgToggle').checked;
         const bgStyle = document.getElementById('psBgStyleSelect').value;
@@ -800,22 +873,22 @@
           : 'Applying Photoshop Digital Studio Look...';
         status.classList.remove('hidden');
 
-        if (removeBg) {
-          const cutout = cachedTransparentCutout || await runSelfieSegmentation(im, 'transparent');
-          cachedTransparentCutout = cutout;
-          const enhancedSubject = applyPhotoshopDigitalRetouch(cutout, im.width, im.height);
-          const finalCanvas = compositeBackgroundBehindSubject(enhancedSubject);
-          status.classList.add('hidden');
+        const baseSource = removeBg
+          ? (cachedTransparentCutout || (cachedTransparentCutout = await runSelfieSegmentation(im, 'transparent')))
+          : im;
 
-          if (bgStyle === 'transparent') {
-            addDownloadCard(out, await toBlob(finalCanvas, 'image/png', 1.0), `digital_nobg_${files[0].name.replace(/\.[^/.]+$/, '')}.png`, `Transparent PNG • No Background (${im.width}×${im.height}px)`);
-          } else {
-            addDownloadCard(out, await toBlob(finalCanvas, 'image/jpeg', 0.97), `digital_studio_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `Digital Studio + Custom BG (${im.width}×${im.height}px)`);
-          }
+        const workingSrc = getActiveWorkingSource(baseSource);
+        const outW = workingSrc.width || im.width;
+        const outH = workingSrc.height || im.height;
+
+        const enhancedSubject = applyPhotoshopDigitalRetouch(workingSrc, outW, outH);
+        const finalCanvas = removeBg ? compositeBackgroundBehindSubject(enhancedSubject) : enhancedSubject;
+        status.classList.add('hidden');
+
+        if (removeBg && bgStyle === 'transparent') {
+          addDownloadCard(out, await toBlob(finalCanvas, 'image/png', 1.0), `digital_nobg_${files[0].name.replace(/\.[^/.]+$/, '')}.png`, `Transparent PNG • No Background (${outW}×${outH}px)`);
         } else {
-          const retouchedCanvas = applyPhotoshopDigitalRetouch(im, im.width, im.height);
-          status.classList.add('hidden');
-          addDownloadCard(out, await toBlob(retouchedCanvas, 'image/jpeg', 0.97), `ps_digital_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `Digital Studio Retouched (${im.width}×${im.height}px)`);
+          addDownloadCard(out, await toBlob(finalCanvas, 'image/jpeg', 0.97), `digital_studio_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `Digital Studio (${outW}×${outH}px)`);
         }
         return;
       }
