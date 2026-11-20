@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join, Edit & Create - DocX Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Acme&family=Alfa+Slab+One&family=Amatic+SC:wght@700&family=Anton&family=Architects+Daughter&family=Arvo:wght@400;700&family=Baloo+2:wght@400;700&family=Baloo+Bhai+2:wght@400;700&family=Baloo+Bhaina+2:wght@400;700&family=Baloo+Da+2:wght@400;700&family=Baloo+Paaji+2:wght@400;700&family=Baloo+Tamma+2:wght@400;700&family=Baloo+Tammudu+2:wght@400;700&family=Baloo+Thambi+2:wght@400;700&family=Bangers&family=Bebas+Neue&family=Bitter:wght@400;700&family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Comfortaa:wght@400;700&family=Cookie&family=Courgette&family=Creepster&family=Crimson+Text:wght@400;700&family=Dancing+Script:wght@400;700&family=DM+Sans:wght@400;700&family=DM+Serif+Display&family=EB+Garamond:wght@400;700&family=Exo+2:wght@400;700&family=Fira+Code:wght@400;700&family=Fredoka:wght@400;700&family=Gloria+Hallelujah&family=Great+Vibes&family=Hind:wght@400;700&family=Hind+Siliguri:wght@400;700&family=Hind+Vadodara:wght@400;700&family=Indie+Flower&family=Inconsolata:wght@400;700&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Josefin+Sans:wght@400;700&family=Kalam:wght@400;700&family=Kaushan+Script:wght@400;700&family=Khand:wght@400;700&family=Laila:wght@400;700&family=Lato:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Lobster&family=Lora:wght@400;700&family=Merriweather:wght@400;700&family=Modak&family=Montserrat:wght@400;700&family=Mukta:wght@400;700&family=Mukta+Mahee:wght@400;700&family=Mukta+Malayalam:wght@400;700&family=Mukta+Vaani:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Noto+Serif:wght@400;700&family=Noto+Serif+Devanagari:wght@400;700&family=Noto+Serif+Gurmukhi:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;700&family=Outfit:wght@400;700&family=Pacifico&family=Patrick+Hand&family=Permanent+Marker&family=Playfair+Display:wght@400;700&family=Plus+Jakarta+Sans:wght@400;700&family=Poppins:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Serif:wght@400;700&family=Quicksand:wght@400;700&family=Rajdhani:wght@400;700&family=Raleway:wght@400;700&family=Righteous&family=Roboto:wght@400;700&family=Roboto+Mono:wght@400;700&family=Roboto+Slab:wght@400;700&family=Rokkitt:wght@400;700&family=Rozha+One&family=Rubik:wght@400;700&family=Sacramento&family=Satisfy&family=Shadows+Into+Light&family=Source+Code+Pro:wght@400;700&family=Space+Grotesk:wght@400;700&family=Teko:wght@400;700&family=Tiro+Devanagari+Hindi&family=Tiro+Gurmukhi&family=Ubuntu:wght@400;700&family=Varela+Round:wght@400;700&family=Work+Sans:wght@400;700&family=Yatra+One&family=Zeyada&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-inner">
+      <div class="brand">
+        <div class="brand-top">
+          <span class="brand-badge">PRO</span>
+          <span>DOCX STUDIO</span>
+        </div>
+        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
+      </div>
+      <nav class="menu">
+        <a href="index.html" class="menu-btn">Image Resizer</a>
+        <a href="passport.html" class="menu-btn">Passport Photo</a>
+        <a href="watermark.html" class="menu-btn">Watermark Remover</a>
+        <a href="pdf-tools.html" class="menu-btn">PDF Tools & Security</a>
+        <a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a>
+        <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
+        <a href="join-edit.html" class="menu-btn active">Join, Edit & Create</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="tab-edit-join" class="panel active">
+      <h1>Join Images, Photo Effects &amp; Create Tools</h1>
+      <div class="tool-selector">
+        <select id="editToolSelect">
+          <optgroup label="JOIN">
+            <option value="merge_photo_sig">Merge Photo and Signature (Vertical)</option>
+            <option value="join_images">Join Images (Horizontal)</option>
+          </optgroup>
+          <optgroup label="CHANGE PHOTO">
+            <option value="ps_auto_retouch" selected>Photoshop Auto Retouch, Hair Set &amp; Digital Studio</option>
+            <option value="zoom_area">Zoom Selected Area (Crop &amp; Magnify)</option>
+            <option value="name_date">Add Name and Date on Photo (Transparent / Strip)</option>
+            <option value="add_logo_photo">Add Logo on Photo (Transparent / Custom Opacity)</option>
+            <option value="photo_frame">Photo Frame &amp; Border (50 Pro Frames + Upload)</option>
+            <option value="add_border">Add Simple Solid Border to Photo</option>
+            <option value="blur_image">Blur Image</option>
+            <option value="img_contrast">Image Contrast &amp; Brightness (Live Preview)</option>
+            <option value="rotate">Rotate Image</option>
+            <option value="add_text_img">Add Text to Image</option>
+            <option value="watermark_img">Watermark Image</option>
+            <option value="flip">Flip Image</option>
+            <option value="blur_bg">AI Blur Background (Portrait Mode)</option>
+          </optgroup>
+          <optgroup label="CREATE">
+            <option value="sig_maker">Digital Signature Maker</option>
+            <option value="text_handwriting">Text to Handwriting Page</option>
+            <option value="latex_img">Formula / LaTeX to Image</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="inputs-row">
+        <label id="edImgFileLbl">Photo File(s): <input type="file" id="editFiles" accept="image/*" multiple></label>
+        <label id="edText1Lbl">Name / Text: <input type="text" id="editText1" placeholder="Enter Name / Text"></label>
+        <label id="edText2Lbl">Date / Subtext: <input type="text" id="editText2" placeholder="DD/MM/YYYY"></label>
+        <label id="edFontLbl">Font (100 Eng/Hin/Punjabi): <select class="font-selector-100" id="editFontFamily" style="max-width:210px;"></select></label>
+        <label id="edBoldLbl"><input type="checkbox" id="editBoldToggle" checked> <strong>Bold</strong></label>
+        <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
+      </div>
+
+      <!-- ZOOM SELECTED AREA CONTROLS -->
+      <div id="zoomAreaWrap" class="inputs-row hidden">
+        <label>Zoom Scale:
+          <input type="range" id="zoomScaleRange" min="1.5" max="5" step="0.25" value="2.5">
+          <input type="number" id="zoomScaleNum" min="1.5" max="5" step="0.25" value="2.5" style="width:68px;">x
+        </label>
+        <label><input type="checkbox" id="zoomSharpToggle" checked> HD Detail Sharpen</label>
+        <button type="button" class="chip" id="zoomResetBoxBtn">Reset Selection</button>
+      </div>
+
+      <!-- PHOTOSHOP AUTO RETOUCH & DIGITAL STUDIO + HAIR SET TOOL + OPTIONAL BG REMOVER -->
+      <div id="psRetouchWrap" class="hidden">
+        <div class="inputs-row">
+          <label>Digital Look Preset:
+            <select id="psPresetSelect">
+              <option value="digital_crisp" selected>Digital DSLR Studio (Rich Contrast + Clarity)</option>
+              <option value="studio_natural">Natural Studio Portrait (Balanced Tone + Sharp)</option>
+              <option value="passport_clean">Passport / ID Clean Digital</option>
+              <option value="deep_vibrant">Deep Rich Colors &amp; Micro-Detail</option>
+              <option value="soft_retouch">Soft Skin Retouch + Digital Edge</option>
+            </select>
+          </label>
+          <label>Digital Contrast &amp; Depth (%):
+            <input type="range" id="psDepthRange" min="0" max="100" value="65">
+            <input type="number" id="psDepthNum" min="0" max="100" value="65" style="width:62px;">
+          </label>
+          <label>Balanced Light / Shadow (%):
+            <input type="range" id="psToneRange" min="0" max="100" value="35">
+            <input type="number" id="psToneNum" min="0" max="100" value="35" style="width:62px;">
+          </label>
+        </div>
+        <div class="inputs-row">
+          <label>Skin Smooth (%):
+            <input type="range" id="psSmoothRange" min="0" max="100" value="45">
+            <input type="number" id="psSmoothNum" min="0" max="100" value="45" style="width:62px;">
+          </label>
+          <label>HD Digital Clarity (%):
+            <input type="range" id="psSharpRange" min="0" max="100" value="75">
+            <input type="number" id="psSharpNum" min="0" max="100" value="75" style="width:62px;">
+          </label>
+          <label><input type="checkbox" id="psAutoWb" checked> Auto White Balance</label>
+          <label>Before / After Split (%):
+            <input type="range" id="psSplitRange" min="0" max="100" value="100">
+          </label>
+        </div>
+
+        <!-- HAIR SET & FLYAWAY HAIR RETOUCH BRUSH -->
+        <div class="hair-box-highlight">
+          <div class="inputs-row" style="margin-bottom:0;">
+            <label style="background:#fff;border-color:#f59e0b;font-weight:700;color:#78350f;">
+              <input type="checkbox" id="hairBrushToggle"> Hair Set &amp; Stray Hair Brush (Drag on Photo)
+            </label>
+            <label style="background:#fff;">Brush Action:
+              <select id="hairBrushMode">
+                <option value="tuck_smooth" selected>Set / Tuck Flyaway Hairs (Push &amp; Smooth)</option>
+                <option value="darken_shine">Darken &amp; Neat Hair Shine</option>
+                <option value="erase_stray">Clean / Trim Stray Outer Hairs</option>
+              </select>
+            </label>
+            <label style="background:#fff;">Brush Size:
+              <input type="range" id="hairBrushSize" min="8" max="65" value="24" style="width:85px;">
+            </label>
+            <button type="button" class="chip" id="hairUndoBtn">Undo Stroke</button>
+            <button type="button" class="chip" id="hairResetBtn">Reset Hair</button>
+          </div>
+        </div>
+
+        <!-- OPTIONAL AI BACKGROUND REMOVAL & COLOR FIT -->
+        <div class="bg-box-highlight">
+          <div class="inputs-row" style="margin-bottom:0;">
+            <label style="background:#fff;border-color:#14b8a6;font-weight:700;color:#115e59;">
+              <input type="checkbox" id="psRemoveBgToggle"> Optional: AI Remove Background
+            </label>
+            <div id="psBgColorControls" class="hidden" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <label style="background:#fff;">Background Fill:
+                <select id="psBgStyleSelect">
+                  <option value="transparent" selected>Transparent Only (No Background / PNG)</option>
+                  <option value="solid_custom">Custom Solid Color (Pick Color)</option>
+                  <option value="passport_blue">Passport Sky Blue (#3b82f6)</option>
+                  <option value="studio_slate">Studio Dark Grey (#334155)</option>
+                  <option value="studio_gradient">Studio Radial Light Fit</option>
+                  <option value="pure_white">Pure White (#ffffff)</option>
+                </select>
+              </label>
+              <label id="psCustomColorLbl" class="hidden" style="background:#fff;">Pick Color:
+                <input type="color" id="psBgCustomColor" value="#2563eb">
+              </label>
+              <button type="button" class="chip" onclick="setQuickStudioBg('transparent')">None (Transparent)</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('solid_custom', '#2563eb')">Blue</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('solid_custom', '#dc2626')">Red</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('solid_custom', '#334155')">Grey</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('solid_custom', '#ffffff')">White</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADD LOGO ON PHOTO (TRANSPARENT) CONTROLS -->
+      <div id="logoOptionsWrap" class="hidden">
+        <div class="inputs-row">
+          <label>Upload Logo Image: <input type="file" id="logoOverlayFile" accept="image/*"></label>
+          <label>Opacity (Transparency %):
+            <input type="range" id="logoOpacityRange" min="10" max="100" value="65">
+            <input type="number" id="logoOpacityNum" min="10" max="100" value="65" style="width:65px;">
+          </label>
+          <label>Logo Size (%):
+            <input type="range" id="logoSizeRange" min="5" max="80" value="25">
+            <input type="number" id="logoSizeNum" min="5" max="80" value="25" style="width:65px;">
+          </label>
+        </div>
+        <div class="inputs-row">
+          <label>Position:
+            <select id="logoPosition">
+              <option value="bottom-right" selected>Bottom Right</option>
+              <option value="bottom-left">Bottom Left</option>
+              <option value="top-right">Top Right</option>
+              <option value="top-left">Top Left</option>
+              <option value="center">Center (Watermark Style)</option>
+              <option value="tiled">Diagonal Repeat (Full Photo)</option>
+            </select>
+          </label>
+          <label>Margin (px): <input type="number" id="logoMargin" value="20" min="0" max="200" style="width:70px;"></label>
+          <label><input type="checkbox" id="logoRemoveWhiteBg"> Auto Remove White BG from Logo</label>
+        </div>
+      </div>
+
+      <!-- SEPARATE CONTRAST & BRIGHTNESS CONTROLS (LIVE PREVIEW) -->
+      <div id="cbControlsWrap" class="inputs-row hidden">
+        <label>Contrast (%):
+          <input type="range" id="cbContrastRange" min="20" max="250" value="110">
+          <input type="number" id="cbContrastNum" min="20" max="250" value="110">
+        </label>
+        <label>Brightness (%):
+          <input type="range" id="cbBrightnessRange" min="20" max="250" value="105">
+          <input type="number" id="cbBrightnessNum" min="20" max="250" value="105">
+        </label>
+        <button type="button" class="chip" id="cbResetBtn">Reset 100%</button>
+      </div>
+
+      <!-- NAME & DATE ADVANCED OPTIONS -->
+      <div id="ndOptionsWrap" class="inputs-row hidden">
+        <label>Style:
+          <select id="ndBgStyle">
+            <option value="transparent_outline" selected>Transparent Over Photo (No Crop / Clean Outline)</option>
+            <option value="transparent_glass">Transparent Frosted Strip Over Photo (No Crop)</option>
+            <option value="white_strip">Solid White Bottom Strip</option>
+          </select>
+        </label>
+        <label>Position:
+          <select id="ndPosition">
+            <option value="bottom" selected>Bottom (Niche)</option>
+            <option value="top">Top (Upar)</option>
+            <option value="center">Center (Beech Me)</option>
+            <option value="left">Left Side</option>
+            <option value="right">Right Side</option>
+          </select>
+        </label>
+        <label>Orientation:
+          <select id="ndOrientation">
+            <option value="horizontal" selected>Horizontal (Seedha)</option>
+            <option value="vertical">Vertical (Khada / 90°)</option>
+          </select>
+        </label>
+        <label>Text Size (%): <input type="number" id="ndFontSizePct" value="5" min="2" max="15"></label>
+      </div>
+
+      <!-- PHOTO FRAME UPLOAD & 50 SELECTABLE READY-MADE FRAMES -->
+      <div id="frameOptionsWrap" class="hidden">
+        <div class="inputs-row">
+          <label>Upload Custom Frame (PNG): <input type="file" id="customFrameFile" accept="image/*"></label>
+          <label>Frame Thickness (%): <input type="number" id="frameThickness" value="6" min="2" max="20"></label>
+          <span id="selectedFrameBadge" style="font-size:.82rem;font-weight:700;color:#059669;">Selected: 01. Royal Gold</span>
+        </div>
+        <p style="text-align:center;font-size:.84rem;color:#475569;margin-bottom:6px;">50 Ready-Made Pro Frames (Click any frame to select):</p>
+        <div class="frame-gallery" id="frameGallery"></div>
+      </div>
+
+      <div id="edNumWrap" class="inputs-row hidden">
+        <label>Value (Angle / Blur / Border px): <input type="number" id="editNum1" value="10"></label>
+      </div>
+
+      <div id="hwTextWrap" class="controls-row hidden">
+        <textarea id="hwLongText" placeholder="Type or paste paragraph here to convert into realistic handwriting page..."></textarea>
+      </div>
+
+      <div id="sigPadWrap" class="canvas-box hidden">
+        <p style="margin-bottom:6px;font-size:.9rem;">Draw your signature below:</p>
+        <canvas id="sigCanvas" class="interactive" width="460" height="150"></canvas>
+        <div class="controls-row" style="margin-top:8px;">
+          <button type="button" class="chip" id="clearSigBtn">Clear Signature</button>
+        </div>
+      </div>
+
+      <!-- LIVE PREVIEW CANVAS FOR PS RETOUCH, HAIR SET, ZOOM AREA, CONTRAST/BRIGHTNESS & LOGO -->
+      <div id="liveEditPreviewWrap" class="canvas-box hidden">
+        <p id="livePreviewCaption" style="font-size:.84rem;color:#0f766e;font-weight:700;margin-bottom:6px;">Live Digital Studio Preview (Left: Digital Retouched • Right: Original):</p>
+        <canvas id="liveEditCanvas" class="live-preview"></canvas>
+      </div>
+
+      <div class="controls-row">
+        <button type="button" class="btn-blue" id="editRunBtn">Apply &amp; Download</button>
+      </div>
+      <div id="editStatus" class="status-note hidden"></div>
+      <div class="output-area" id="editOutput"></div>
+    </section>
+  </main>
+
+  <script src="js/shared.js"></script>
+  <script src="js/join-edit.js"></script>
+</body>
+</html>

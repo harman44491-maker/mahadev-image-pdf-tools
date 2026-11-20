@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Editor (Text/Img) - DocX Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Acme&family=Alfa+Slab+One&family=Amatic+SC:wght@700&family=Anton&family=Architects+Daughter&family=Arvo:wght@400;700&family=Baloo+2:wght@400;700&family=Baloo+Bhai+2:wght@400;700&family=Baloo+Bhaina+2:wght@400;700&family=Baloo+Da+2:wght@400;700&family=Baloo+Paaji+2:wght@400;700&family=Baloo+Tamma+2:wght@400;700&family=Baloo+Tammudu+2:wght@400;700&family=Baloo+Thambi+2:wght@400;700&family=Bangers&family=Bebas+Neue&family=Bitter:wght@400;700&family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Comfortaa:wght@400;700&family=Cookie&family=Courgette&family=Creepster&family=Crimson+Text:wght@400;700&family=Dancing+Script:wght@400;700&family=DM+Sans:wght@400;700&family=DM+Serif+Display&family=EB+Garamond:wght@400;700&family=Exo+2:wght@400;700&family=Fira+Code:wght@400;700&family=Fredoka:wght@400;700&family=Gloria+Hallelujah&family=Great+Vibes&family=Hind:wght@400;700&family=Hind+Siliguri:wght@400;700&family=Hind+Vadodara:wght@400;700&family=Indie+Flower&family=Inconsolata:wght@400;700&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Josefin+Sans:wght@400;700&family=Kalam:wght@400;700&family=Kaushan+Script:wght@400;700&family=Khand:wght@400;700&family=Laila:wght@400;700&family=Lato:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Lobster&family=Lora:wght@400;700&family=Merriweather:wght@400;700&family=Modak&family=Montserrat:wght@400;700&family=Mukta:wght@400;700&family=Mukta+Mahee:wght@400;700&family=Mukta+Malayalam:wght@400;700&family=Mukta+Vaani:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Noto+Serif:wght@400;700&family=Noto+Serif+Devanagari:wght@400;700&family=Noto+Serif+Gurmukhi:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;700&family=Outfit:wght@400;700&family=Pacifico&family=Patrick+Hand&family=Permanent+Marker&family=Playfair+Display:wght@400;700&family=Plus+Jakarta+Sans:wght@400;700&family=Poppins:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Serif:wght@400;700&family=Quicksand:wght@400;700&family=Rajdhani:wght@400;700&family=Raleway:wght@400;700&family=Righteous&family=Roboto:wght@400;700&family=Roboto+Mono:wght@400;700&family=Roboto+Slab:wght@400;700&family=Rokkitt:wght@400;700&family=Rozha+One&family=Rubik:wght@400;700&family=Sacramento&family=Satisfy&family=Shadows+Into+Light&family=Source+Code+Pro:wght@400;700&family=Space+Grotesk:wght@400;700&family=Teko:wght@400;700&family=Tiro+Devanagari+Hindi&family=Tiro+Gurmukhi&family=Ubuntu:wght@400;700&family=Varela+Round:wght@400;700&family=Work+Sans:wght@400;700&family=Yatra+One&family=Zeyada&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-inner">
+      <div class="brand">
+        <div class="brand-top">
+          <span class="brand-badge">PRO</span>
+          <span>DOCX STUDIO</span>
+        </div>
+        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
+      </div>
+      <nav class="menu">
+        <a href="index.html" class="menu-btn">Image Resizer</a>
+        <a href="passport.html" class="menu-btn">Passport Photo</a>
+        <a href="watermark.html" class="menu-btn">Watermark Remover</a>
+        <a href="pdf-tools.html" class="menu-btn">PDF Tools & Security</a>
+        <a href="pdf-editor.html" class="menu-btn active">PDF Editor (Text/Img)</a>
+        <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
+        <a href="join-edit.html" class="menu-btn">Join, Edit & Create</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="tab-pdf-editor" class="panel active">
+      <h1>Visual PDF Editor (Edit Text, Add Images, Erase &amp; Password Protect)</h1>
+      <div class="inputs-row">
+        <label>Upload PDF to Edit: <input type="file" id="edPdfFile" accept="application/pdf"></label>
+        <label>Open Password (if locked): <input type="password" id="edOpenPass" placeholder="Optional"></label>
+        <button type="button" class="btn-blue" id="edLoadBtn">Load / Open PDF</button>
+        <label>Page:
+          <select id="edPageSelect"></select>
+        </label>
+        <label>New Output Password: <input type="password" id="edPdfPassword" placeholder="Optional"></label>
+      </div>
+
+      <div class="editor-toolbar" id="edToolbar">
+        <button type="button" class="chip active" data-edmode="select">Select / Move Item</button>
+        <button type="button" class="chip" data-edmode="edit_existing">Click Existing Text to Edit</button>
+        <button type="button" class="chip" data-edmode="add_text">+ Add New Text</button>
+        <button type="button" class="chip" data-edmode="whiteout">+ Whiteout / Erase Area</button>
+        <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
+          + Add Image/Sign: <input type="file" id="edAddImgInput" accept="image/*" style="width:170px;">
+        </label>
+        <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
+          Font (Eng/Hin/Punjabi): <select class="font-selector-100" id="edFontFamily" style="max-width:210px;"></select>
+        </label>
+        <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
+          <input type="checkbox" id="edBoldToggle" checked> <strong>Bold</strong>
+        </label>
+        <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
+          Font Size: <input type="number" id="edFontSize" value="16" min="8" max="72" style="width:60px;">
+        </label>
+        <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
+          Color: <input type="color" id="edColor" value="#111827">
+        </label>
+        <button type="button" class="btn-red" id="edDeleteItemBtn">Delete Selected</button>
+      </div>
+
+      <div class="inputs-row">
+        <label style="flex:1;max-width:520px;">Text Content: <input type="text" id="edTextInput" placeholder="Click PDF to place or click existing text to edit" style="width:100%;"></label>
+        <button type="button" class="btn-green" id="edSavePdfBtn">Save &amp; Download Edited PDF</button>
+      </div>
+
+      <div id="edStatus" class="status-note hidden"></div>
+      <div class="canvas-box">
+        <canvas id="edCanvas" class="interactive"></canvas>
+      </div>
+      <div class="output-area" id="edOutput"></div>
+    </section>
+  </main>
+
+  <script src="js/shared.js"></script>
+  <script src="js/pdf-editor.js"></script>
+</body>
+</html>

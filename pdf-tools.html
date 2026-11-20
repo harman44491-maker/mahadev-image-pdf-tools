@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Tools & Security - DocX Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-inner">
+      <div class="brand">
+        <div class="brand-top">
+          <span class="brand-badge">PRO</span>
+          <span>DOCX STUDIO</span>
+        </div>
+        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
+      </div>
+      <nav class="menu">
+        <a href="index.html" class="menu-btn">Image Resizer</a>
+        <a href="passport.html" class="menu-btn">Passport Photo</a>
+        <a href="watermark.html" class="menu-btn">Watermark Remover</a>
+        <a href="pdf-tools.html" class="menu-btn active">PDF Tools & Security</a>
+        <a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a>
+        <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
+        <a href="join-edit.html" class="menu-btn">Join, Edit & Create</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="tab-pdf-resize" class="panel active">
+      <h1>Complete PDF Resize, Convert, Change, Crop &amp; Security Tools</h1>
+      <div class="tool-selector">
+        <select id="pdfToolSelect">
+          <optgroup label="SIZE & RESIZE">
+            <option value="resize_pdf_custom" selected>Resize / Increase PDF to Exact Target KB / MB</option>
+            <option value="resize_pdf_page">Resize PDF Page Dimensions (A4 / Letter / Legal)</option>
+          </optgroup>
+          <optgroup label="FROM PDF">
+            <option value="pdf_to_jpg">PDF to Images (JPG)</option>
+            <option value="pdf_to_word">PDF to Word (.doc)</option>
+            <option value="pdf_to_excel">PDF to Excel (.csv)</option>
+          </optgroup>
+          <optgroup label="TO PDF">
+            <option value="img_to_pdf">Images to PDF</option>
+            <option value="jpg_to_pdf_100">JPG to PDF Exact 100KB</option>
+            <option value="word_to_pdf">Word (.docx) to PDF</option>
+            <option value="excel_to_pdf">Excel (.xlsx / .csv) to PDF</option>
+            <option value="ppt_to_pdf">PowerPoint (.pptx) to PDF</option>
+          </optgroup>
+          <optgroup label="CHANGE PDF">
+            <option value="sign_pdf">Sign PDF (Add Signature)</option>
+            <option value="add_img_pdf">Add Image to PDF</option>
+            <option value="ocr_pdf">OCR PDF (Extract Searchable Text)</option>
+            <option value="page_num_pdf">Add Page Numbers to PDF</option>
+            <option value="watermark_pdf">Watermark PDF</option>
+            <option value="contrast_pdf">PDF Contrast &amp; Brightness Editor</option>
+            <option value="bw_pdf">PDF to Black and White</option>
+            <option value="merge_pdf">Merge PDFs</option>
+            <option value="split_pdf">Split PDF (Extract Pages)</option>
+          </optgroup>
+          <optgroup label="CROP PDF">
+            <option value="crop_pdf">Crop PDF Margins</option>
+            <option value="flipkart_crop">Flipkart Label Cropper (Auto 4×6 Label)</option>
+          </optgroup>
+          <optgroup label="SECURITY">
+            <option value="protect_pdf">Protect PDF (Set Password)</option>
+            <option value="unlock_pdf">Remove PDF Password (Unlock)</option>
+            <option value="redact_pdf">Redact PDF (Blackout Sensitive Area)</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="inputs-row">
+        <label>Primary File(s): <input type="file" id="pdfFiles" multiple></label>
+        <label id="pdfSecondFileBox" class="hidden">Sign / Overlay Image: <input type="file" id="pdfOverlayFile" accept="image/*"></label>
+
+        <label id="pdfTargetBox">Target PDF Size:
+          <input type="number" id="pdfTargetSize" value="150" min="10">
+          <select id="pdfTargetUnit">
+            <option value="KB" selected>KB</option>
+            <option value="MB">MB</option>
+          </select>
+        </label>
+
+        <label id="pdfPageSizeBox" class="hidden">Paper Size:
+          <select id="pdfPaperFormat">
+            <option value="a4" selected>A4 (210 × 297 mm)</option>
+            <option value="letter">Letter (8.5 × 11 in)</option>
+            <option value="legal">Legal (8.5 × 14 in)</option>
+          </select>
+        </label>
+
+        <label id="pdfRangeLbl" class="hidden">Pages (e.g. 1-2): <input type="text" id="pdfRange" value="1-1"></label>
+        <label id="pdfTextLbl" class="hidden">Watermark Text: <input type="text" id="pdfCustomText" placeholder="CONFIDENTIAL"></label>
+        <label id="pdfContrastLbl" class="hidden">Contrast (%): <input type="number" id="pdfContrastVal" value="140" min="50" max="250"></label>
+        <label id="pdfPassLbl" class="hidden">PDF Password: <input type="password" id="pdfPasswordInput" placeholder="Enter password"></label>
+        <label id="pdfCropLbl" class="hidden">Crop Margin % (T,R,B,L): <input type="text" id="pdfCropMargins" value="5,5,5,5" style="width:110px;"></label>
+      </div>
+
+      <div class="presets-row" id="pdfQuickPresets">
+        <span>Quick PDF Target Size:</span>
+        <button type="button" class="chip" onclick="setPdfTarget(50, 'KB')">50 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(100, 'KB')">100 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(200, 'KB')">200 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(300, 'KB')">300 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(500, 'KB')">500 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(1, 'MB')">1 MB</button>
+      </div>
+
+      <div class="controls-row">
+        <button type="button" class="btn-green" id="pdfRunBtn">Process PDF Tool</button>
+      </div>
+      <div id="pdfStatus" class="status-note hidden"></div>
+      <div id="pdfTextResultBox" class="canvas-box hidden">
+        <textarea id="pdfExtractedText" readonly></textarea>
+      </div>
+      <div class="output-area" id="pdfOutput"></div>
+    </section>
+  </main>
+
+  <script src="js/shared.js"></script>
+  <script src="js/pdf-tools.js"></script>
+</body>
+</html>

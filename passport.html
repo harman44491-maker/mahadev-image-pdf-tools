@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Passport Photo - DocX Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-inner">
+      <div class="brand">
+        <div class="brand-top">
+          <span class="brand-badge">PRO</span>
+          <span>DOCX STUDIO</span>
+        </div>
+        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
+      </div>
+      <nav class="menu">
+        <a href="index.html" class="menu-btn">Image Resizer</a>
+        <a href="passport.html" class="menu-btn active">Passport Photo</a>
+        <a href="watermark.html" class="menu-btn">Watermark Remover</a>
+        <a href="pdf-tools.html" class="menu-btn">PDF Tools & Security</a>
+        <a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a>
+        <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
+        <a href="join-edit.html" class="menu-btn">Join, Edit & Create</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="tab-passport" class="panel active">
+      <h1>Passport Size Photo Maker (Auto White Background + HD Retouch)</h1>
+      <div class="inputs-row">
+        <label>Upload Simple Photo: <input type="file" id="ppFile" accept="image/*"></label>
+        <label>Size:
+          <select id="ppSizePreset">
+            <option value="3.5x4.5" selected>Standard Passport (3.5 × 4.5 cm)</option>
+            <option value="5.1x5.1">US / Visa (2 × 2 in / 5.1 × 5.1 cm)</option>
+            <option value="3.5x3.5">Square (3.5 × 3.5 cm)</option>
+          </select>
+        </label>
+        <label>Output Sheet:
+          <select id="ppSheet">
+            <option value="both" selected>Single HD Photo + 4×6 Sheet</option>
+            <option value="single">Single HD Passport Photo Only</option>
+            <option value="4x6">4×6 inch Print Sheet</option>
+            <option value="a4">A4 Print Sheet</option>
+          </select>
+        </label>
+        <label>Copies: <input type="number" id="ppCopies" value="8" min="1" max="48"></label>
+      </div>
+      <div class="inputs-row">
+        <label><input type="checkbox" id="ppAutoWhiteBg" checked> AI Auto White Background</label>
+        <label><input type="checkbox" id="ppHdRetouch" checked> Studio Retouch &amp; HD High-Resolution</label>
+        <label><input type="checkbox" id="ppBorder" checked> Thin Cut Border</label>
+      </div>
+      <div class="controls-row">
+        <button type="button" class="btn-green" id="ppGenerateBtn">Make HD White-BG Passport Photo</button>
+      </div>
+      <div id="ppStatus" class="status-note hidden"></div>
+      <div class="output-area" id="ppOutput"></div>
+    </section>
+  </main>
+
+  <script src="js/shared.js"></script>
+  <script src="js/passport.js"></script>
+</body>
+</html>
