@@ -30,6 +30,72 @@
 
       for (const stroke of hairStrokes) {
         const rad = Math.max(4, Math.round(stroke.radiusNorm * Math.min(w, h)));
+
+        // Circle and rectangle are drag-to-select area brushes; freehand remains a continuous stroke.
+        if (stroke.shape === 'circle' || stroke.shape === 'rectangle') {
+          const a = stroke.start || stroke.points[0];
+          const b = stroke.end || a;
+          const left = Math.max(1, Math.floor(Math.min(a.x, b.x) * w));
+          const top = Math.max(1, Math.floor(Math.min(a.y, b.y) * h));
+          const right = Math.min(w - 1, Math.ceil(Math.max(a.x, b.x) * w));
+          const bottom = Math.min(h - 1, Math.ceil(Math.max(a.y, b.y) * h));
+          const bw = right - left;
+          const bh = bottom - top;
+          if (bw <= 2 || bh <= 2) continue;
+
+          const imgData = ctx.getImageData(left, top, bw, bh);
+          const d = imgData.data;
+          const copy = new Uint8ClampedArray(d);
+          const cx = (left + right) / 2;
+          const cy = (top + bottom) / 2;
+          const rx = Math.max(2, bw / 2);
+          const ry = Math.max(2, bh / 2);
+          const feather = Math.max(2, Math.min(rx, ry) * 0.18);
+          const dx = (b.x - a.x) * w;
+          const dy = (b.y - a.y) * h;
+
+          for (let py = 0; py < bh; py++) {
+            for (let px = 0; px < bw; px++) {
+              const gx = left + px;
+              const gy = top + py;
+              let edgeDistance;
+              if (stroke.shape === 'circle') {
+                const ellipseDist = Math.sqrt(((gx - cx) / rx) ** 2 + ((gy - cy) / ry) ** 2);
+                if (ellipseDist > 1) continue;
+                edgeDistance = (1 - ellipseDist) * Math.min(rx, ry);
+              } else {
+                edgeDistance = Math.min(gx - left, right - gx, gy - top, bottom - gy);
+              }
+              const falloff = Math.max(0.08, Math.min(1, edgeDistance / feather));
+              const idx = (py * bw + px) * 4;
+
+              if (stroke.mode === 'erase_stray') {
+                d[idx + 3] = Math.max(0, Math.round(copy[idx + 3] * (1 - falloff * 0.92)));
+              } else if (stroke.mode === 'darken_shine') {
+                const lum = 0.299 * copy[idx] + 0.587 * copy[idx + 1] + 0.114 * copy[idx + 2];
+                if (lum < 165) {
+                  const factor = 1 - falloff * 0.34;
+                  d[idx] = Math.max(12, Math.round(copy[idx] * factor));
+                  d[idx + 1] = Math.max(10, Math.round(copy[idx + 1] * factor));
+                  d[idx + 2] = Math.max(10, Math.round(copy[idx + 2] * factor));
+                }
+              } else {
+                const shiftX = Math.round(dx * 0.12 * falloff);
+                const shiftY = Math.round(dy * 0.12 * falloff);
+                const sx = Math.min(bw - 1, Math.max(0, px - shiftX));
+                const sy = Math.min(bh - 1, Math.max(0, py - shiftY));
+                const sIdx = (sy * bw + sx) * 4;
+                const blend = falloff * 0.42;
+                for (let ch = 0; ch < 4; ch++) {
+                  d[idx + ch] = Math.round(copy[idx + ch] * (1 - blend) + copy[sIdx + ch] * blend);
+                }
+              }
+            }
+          }
+          ctx.putImageData(imgData, left, top);
+          continue;
+        }
+
         for (let i = 0; i < stroke.points.length; i++) {
           const pt = stroke.points[i];
           const cx = Math.round(pt.x * w);
@@ -37,13 +103,11 @@
           const prev = i > 0 ? stroke.points[i - 1] : pt;
           const dx = (pt.x - prev.x) * w;
           const dy = (pt.y - prev.y) * h;
-
           const x0 = Math.max(1, cx - rad);
           const y0 = Math.max(1, cy - rad);
           const bw = Math.min(w - x0 - 1, rad * 2);
           const bh = Math.min(h - y0 - 1, rad * 2);
           if (bw <= 2 || bh <= 2) continue;
-
           const imgData = ctx.getImageData(x0, y0, bw, bh);
           const d = imgData.data;
           const copy = new Uint8ClampedArray(d);
@@ -54,11 +118,8 @@
               if (dist > rad) continue;
               const falloff = Math.pow(1 - dist / rad, 1.4);
               const idx = (py * bw + px) * 4;
-
               if (stroke.mode === 'erase_stray') {
-                if (copy[idx + 3] > 0) {
-                  d[idx + 3] = Math.max(0, Math.round(copy[idx + 3] * (1 - falloff * 0.92)));
-                }
+                if (copy[idx + 3] > 0) d[idx + 3] = Math.max(0, Math.round(copy[idx + 3] * (1 - falloff * 0.92)));
               } else if (stroke.mode === 'darken_shine') {
                 const lum = 0.299 * copy[idx] + 0.587 * copy[idx + 1] + 0.114 * copy[idx + 2];
                 if (lum < 165) {
@@ -73,11 +134,9 @@
                 const sx = Math.min(bw - 1, Math.max(0, px - shiftX));
                 const sy = Math.min(bh - 1, Math.max(0, py - shiftY));
                 const sIdx = (sy * bw + sx) * 4;
-
                 const nx = Math.min(bw - 1, Math.max(0, sx + (dx >= 0 ? -1 : 1)));
                 const ny = Math.min(bh - 1, Math.max(0, sy + (dy >= 0 ? -1 : 1)));
                 const nIdx = (ny * bw + nx) * 4;
-
                 const blend = falloff * 0.68;
                 for (let ch = 0; ch < 4; ch++) {
                   const smoothed = copy[sIdx + ch] * 0.65 + copy[nIdx + ch] * 0.35;
@@ -152,10 +211,14 @@
         const pos = getCanvasMousePos(liveEditCanvas, e);
         const normPt = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
         const brushPx = parseFloat(document.getElementById('hairBrushSize').value) || 24;
+        const shape = document.getElementById('hairBrushShape').value;
         currentHairStroke = {
           mode: document.getElementById('hairBrushMode').value,
+          shape,
           radiusNorm: brushPx / Math.min(liveEditCanvas.width, liveEditCanvas.height),
-          points: [normPt]
+          points: [normPt],
+          start: normPt,
+          end: normPt
         };
         hairStrokes.push(currentHairStroke);
         lastHairPos = pos;
@@ -181,8 +244,13 @@
 
       if (isBrushingHair && currentHairStroke) {
         const pos = getCanvasMousePos(liveEditCanvas, e);
-        if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 3) return;
-        currentHairStroke.points.push({ x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height });
+        const normPt = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
+        if (currentHairStroke.shape === 'freehand') {
+          if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 3) return;
+          currentHairStroke.points.push(normPt);
+        } else {
+          currentHairStroke.end = normPt;
+        }
         lastHairPos = pos;
         renderLiveEditPreview();
       }
