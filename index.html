@@ -30,7 +30,7 @@
     .inputs-row, .controls-row, .presets-row, .tool-selector { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
     .inputs-row label { display: flex; align-items: center; gap: 6px; font-size: .9rem; background: #f8fafc; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 5px; }
     .inputs-row input[type="number"], .inputs-row input[type="text"], .controls-row input[type="number"], select { padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: .9rem; }
-    .inputs-row input[type="number"], .controls-row input[type="number"] { width: 82px; }
+    .inputs-row input[type="number"], .controls-row input[type="number"] { width: 88px; }
 
     .drop-box { border: 2px dashed #94a3b8; border-radius: 8px; padding: 28px 16px; text-align: center; background: #fafbfd; margin-bottom: 16px; cursor: pointer; }
     .drop-box.drag { border-color: #0b7a5c; background: #ecfdf5; }
@@ -47,6 +47,7 @@
     .sig-wrap { text-align: center; margin: 12px 0; }
     #sigCanvas { border: 1px solid #94a3b8; background: #fff; border-radius: 4px; touch-action: none; }
     .hidden { display: none !important; }
+    .status-note { text-align: center; font-size: .9rem; color: #1d4ed8; margin-top: 8px; font-weight: 600; }
 
     .output-area { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
     .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; background: #fff; }
@@ -73,7 +74,7 @@
   </header>
 
   <main class="container">
-    <!-- TAB 1: RESIZER (20KB + PIXELS/MM/CM) -->
+    <!-- TAB 1: IMAGE RESIZER (20KB + PIXELS/MM/CM) -->
     <section id="tab-resizer" class="panel active">
       <h1>Resize Image To Target KB - Image Resizer Tool</h1>
       <div class="dim-bar">
@@ -202,11 +203,19 @@
       <div class="output-area" id="editOutput"></div>
     </section>
 
-    <!-- TAB 4: CONVERT & PDF TOOLS -->
+    <!-- TAB 4: CONVERT & PDF TOOLS (WITH PDF RESIZE) -->
     <section id="tab-convert-pdf" class="panel">
-      <h1>Convert &amp; PDF Tools</h1>
+      <h1>Convert, Resize &amp; PDF Tools</h1>
       <div class="tool-selector">
         <select id="pdfToolSelect">
+          <optgroup label="PDF RESIZE & SIZE PRESETS">
+            <option value="resize_pdf_custom" selected>Resize PDF to Exact Target KB / MB</option>
+            <option value="resize_pdf_page">Resize PDF Page Size (A4 / Letter / Legal)</option>
+            <option value="compress_pdf_50">Compress PDF to ~50KB</option>
+            <option value="compress_pdf_100">Compress PDF to ~100KB</option>
+            <option value="compress_pdf_200">Compress PDF to ~200KB</option>
+            <option value="compress_pdf_500">Compress PDF to ~500KB</option>
+          </optgroup>
           <optgroup label="IMAGE <-> PDF & FORMAT">
             <option value="img_to_pdf">Image to PDF</option>
             <option value="jpg_to_pdf_500">JPG to PDF under 500KB</option>
@@ -215,11 +224,7 @@
             <option value="jpeg_to_png">JPEG to PNG</option>
             <option value="pdf_to_jpg">PDF to Images (JPG)</option>
           </optgroup>
-          <optgroup label="PDF SIZE & ORGANIZE">
-            <option value="compress_pdf_200">Compress PDF to ~200KB</option>
-            <option value="compress_pdf_500">Compress PDF to ~500KB</option>
-            <option value="compress_pdf_100">Compress PDF to ~100KB</option>
-            <option value="compress_pdf_50">Compress PDF to ~50KB</option>
+          <optgroup label="ORGANIZE PDF">
             <option value="merge_pdf">Merge PDFs</option>
             <option value="split_pdf">Split PDF (Extract Pages)</option>
           </optgroup>
@@ -228,12 +233,40 @@
 
       <div class="inputs-row">
         <label>Select Files: <input type="file" id="pdfFiles" multiple></label>
+
+        <label id="pdfTargetBox">Target Size:
+          <input type="number" id="pdfTargetSize" value="150" min="10">
+          <select id="pdfTargetUnit">
+            <option value="KB" selected>KB</option>
+            <option value="MB">MB</option>
+          </select>
+        </label>
+
+        <label id="pdfPageSizeBox" class="hidden">Paper Size:
+          <select id="pdfPaperFormat">
+            <option value="a4" selected>A4 (210 × 297 mm)</option>
+            <option value="letter">Letter (8.5 × 11 in)</option>
+            <option value="legal">Legal (8.5 × 14 in)</option>
+          </select>
+        </label>
+
         <label id="pdfRangeLbl" class="hidden">Page Range (e.g. 1-2): <input type="text" id="pdfRange" value="1-1"></label>
       </div>
 
-      <div class="controls-row">
-        <button type="button" class="btn-green" id="pdfRunBtn">Process Tool</button>
+      <div class="presets-row" id="pdfQuickPresets">
+        <span>Quick PDF Size Presets:</span>
+        <button type="button" class="chip" onclick="setPdfTarget(50, 'KB')">50 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(100, 'KB')">100 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(200, 'KB')">200 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(300, 'KB')">300 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(500, 'KB')">500 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(1, 'MB')">1 MB</button>
       </div>
+
+      <div class="controls-row">
+        <button type="button" class="btn-green" id="pdfRunBtn">Process PDF / File</button>
+      </div>
+      <div id="pdfStatus" class="status-note hidden"></div>
       <div class="output-area" id="pdfOutput"></div>
     </section>
   </main>
@@ -273,7 +306,7 @@
       container.appendChild(card);
     }
 
-    // 1. RESIZER
+    // 1. IMAGE RESIZER
     let resUnit = 'px', resFiles = [];
     document.querySelectorAll('#dimUnitGroup .seg').forEach(b => {
       b.addEventListener('click', () => {
@@ -513,17 +546,110 @@
       addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.92), `${tool}_result.jpg`, 'Processed image');
     };
 
-    // 4. CONVERT & PDF TOOLS
-    document.getElementById('pdfToolSelect').onchange = e => {
-      document.getElementById('pdfRangeLbl').classList.toggle('hidden', e.target.value !== 'split_pdf');
-    };
+    // 4. CONVERT & PDF TOOLS (WITH PDF RESIZE ENGINE)
+    function setPdfTarget(val, unit) {
+      document.getElementById('pdfToolSelect').value = 'resize_pdf_custom';
+      document.getElementById('pdfTargetSize').value = val;
+      document.getElementById('pdfTargetUnit').value = unit;
+      updatePdfControls();
+    }
+
+    function updatePdfControls() {
+      const tool = document.getElementById('pdfToolSelect').value;
+      document.getElementById('pdfTargetBox').classList.toggle('hidden', tool !== 'resize_pdf_custom');
+      document.getElementById('pdfQuickPresets').classList.toggle('hidden', tool !== 'resize_pdf_custom');
+      document.getElementById('pdfPageSizeBox').classList.toggle('hidden', tool !== 'resize_pdf_page');
+      document.getElementById('pdfRangeLbl').classList.toggle('hidden', tool !== 'split_pdf');
+    }
+    document.getElementById('pdfToolSelect').onchange = updatePdfControls;
+
+    async function buildCompressedPdfFromPages(pdf, scale, quality) {
+      const outPdf = await PDFLib.PDFDocument.create();
+      for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
+        const page = await pdf.getPage(pNum);
+        const vp = page.getViewport({ scale });
+        const c = document.createElement('canvas');
+        c.width = Math.max(50, Math.round(vp.width));
+        c.height = Math.max(50, Math.round(vp.height));
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        const jpgBytes = await (await toBlob(c, 'image/jpeg', quality)).arrayBuffer();
+        const emb = await outPdf.embedJpg(jpgBytes);
+        const np = outPdf.addPage([emb.width, emb.height]);
+        np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+      }
+      return await outPdf.save();
+    }
 
     document.getElementById('pdfRunBtn').onclick = async () => {
       const tool = document.getElementById('pdfToolSelect').value;
       const files = Array.from(document.getElementById('pdfFiles').files);
       const out = document.getElementById('pdfOutput');
+      const status = document.getElementById('pdfStatus');
       out.innerHTML = '';
+      status.classList.add('hidden');
       if (!files.length) return alert('Please select file(s).');
+
+      // PDF RESIZE TO EXACT TARGET KB / MB
+      if (tool === 'resize_pdf_custom') {
+        status.textContent = 'Resizing PDF to match your target size... please wait.';
+        status.classList.remove('hidden');
+
+        const targetVal = parseFloat(document.getElementById('pdfTargetSize').value) || 150;
+        const mult = document.getElementById('pdfTargetUnit').value === 'MB' ? 1048576 : 1024;
+        const targetBytes = Math.floor(targetVal * mult * 0.97);
+
+        const pdfData = await files[0].arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+
+        let bestBytes = null;
+        const scales = [1.4, 1.1, 0.85, 0.65, 0.5];
+        for (const sc of scales) {
+          let lo = 0.15, hi = 0.92, candidate = null;
+          for (let step = 0; step < 5; step++) {
+            const midQ = (lo + hi) / 2;
+            const bytes = await buildCompressedPdfFromPages(pdf, sc, midQ);
+            if (bytes.length <= targetBytes) {
+              candidate = bytes;
+              lo = midQ;
+            } else {
+              hi = midQ;
+            }
+          }
+          if (candidate) {
+            bestBytes = candidate;
+            break;
+          }
+          bestBytes = await buildCompressedPdfFromPages(pdf, sc, 0.15);
+        }
+
+        status.classList.add('hidden');
+        const outName = `resized_${targetVal}${document.getElementById('pdfTargetUnit').value.toLowerCase()}_${files[0].name}`;
+        addDownloadCard(out, new Blob([bestBytes], { type: 'application/pdf' }), outName, `Final Size: ${(bestBytes.length / 1024).toFixed(1)} KB`);
+        return;
+      }
+
+      // RESIZE PDF PAGE DIMENSIONS (A4 / LETTER / LEGAL)
+      if (tool === 'resize_pdf_page') {
+        const paper = document.getElementById('pdfPaperFormat').value;
+        const dims = paper === 'letter' ? [612, 792] : paper === 'legal' ? [612, 1008] : [595.28, 841.89];
+        const srcDoc = await PDFLib.PDFDocument.load(await files[0].arrayBuffer());
+        const newDoc = await PDFLib.PDFDocument.create();
+        const embeddedPages = await newDoc.embedPages(srcDoc.getPages());
+
+        for (const ep of embeddedPages) {
+          const page = newDoc.addPage(dims);
+          const scale = Math.min(dims[0] / ep.width, dims[1] / ep.height);
+          const w = ep.width * scale;
+          const h = ep.height * scale;
+          page.drawPage(ep, { x: (dims[0] - w) / 2, y: (dims[1] - h) / 2, width: w, height: h });
+        }
+        const bytes = await newDoc.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `${paper}_${files[0].name}`, `Resized to ${paper.toUpperCase()} (${(bytes.length / 1024).toFixed(1)} KB)`);
+        return;
+      }
 
       if (tool === 'img_to_jpg' || tool === 'jpeg_to_png') {
         const mime = tool === 'jpeg_to_png' ? 'image/png' : 'image/jpeg';
@@ -589,27 +715,20 @@
         const pdfData = await files[0].arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
         const isCompress = tool.startsWith('compress_pdf_');
-        const outPdf = isCompress ? await PDFLib.PDFDocument.create() : null;
         const scale = tool === 'compress_pdf_50' ? 0.9 : tool === 'compress_pdf_100' ? 1.1 : 1.35;
         const q = tool === 'compress_pdf_50' ? 0.45 : tool === 'compress_pdf_100' ? 0.6 : 0.75;
 
-        for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
-          const page = await pdf.getPage(pNum);
-          const vp = page.getViewport({ scale });
-          const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
-          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-          if (isCompress) {
-            const jpgBytes = await (await toBlob(c, 'image/jpeg', q)).arrayBuffer();
-            const emb = await outPdf.embedJpg(jpgBytes);
-            const np = outPdf.addPage([emb.width, emb.height]);
-            np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
-          } else {
-            addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.9), `page_${pNum}.jpg`, `Page ${pNum}`);
-          }
-        }
         if (isCompress) {
-          const bytes = await outPdf.save();
+          const bytes = await buildCompressedPdfFromPages(pdf, scale, q);
           addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `compressed_${files[0].name}`, `${(bytes.length / 1024).toFixed(1)} KB`);
+        } else {
+          for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
+            const page = await pdf.getPage(pNum);
+            const vp = page.getViewport({ scale: 1.5 });
+            const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+            await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+            addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.92), `page_${pNum}.jpg`, `Page ${pNum}`);
+          }
         }
       }
     };
