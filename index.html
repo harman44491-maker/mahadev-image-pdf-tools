@@ -128,7 +128,7 @@
       <div class="output-area" id="resOutput"></div>
     </section>
 
-    <!-- TAB 2: PASSPORT SIZE PHOTO (AUTO WHITE BG + HD RETOUCH) -->
+    <!-- TAB 2: PASSPORT SIZE PHOTO -->
     <section id="tab-passport" class="panel">
       <h1>Passport Size Photo Maker (Auto White Background + HD Retouch)</h1>
       <div class="inputs-row">
@@ -164,24 +164,24 @@
       <div class="output-area" id="ppOutput"></div>
     </section>
 
-    <!-- TAB 3: WATERMARK REMOVER (TEXTURE CLONE + MULTI-SCALE AUTO) -->
+    <!-- TAB 3: WATERMARK REMOVER (IMAGE & PDF) -->
     <section id="tab-watermark" class="panel">
       <h1>Auto Watermark Remover (Image &amp; PDF)</h1>
       <div class="inputs-row">
         <label>Upload Image or PDF: <input type="file" id="wmFile" accept="image/*,application/pdf"></label>
         <label>Removal Mode:
           <select id="wmMode">
-            <option value="photo_deblend" selected>Auto Photo Overlay Watermark Remover (Text + Border)</option>
-            <option value="texture_clone">Texture-Clone Selected Area (No Blur Patch)</option>
+            <option value="photo_deblend" selected>Auto Photo Overlay Watermark Remover (Recommended)</option>
+            <option value="texture_clone">Smart Patch Erase (Solid Stamp / Logo)</option>
             <option value="doc_clean">Document / PDF Light Background Cleaner</option>
           </select>
         </label>
-        <label>Strength: <input type="number" id="wmThreshold" value="48" min="10" max="245"></label>
-        <label><input type="checkbox" id="wmAutoTrim"> Trim Extra White Border</label>
+        <label>Strength: <input type="number" id="wmThreshold" value="32" min="10" max="245"></label>
+        <label><input type="checkbox" id="wmAutoTrim" checked> Trim Extra White Border</label>
       </div>
 
       <div id="wmPreviewWrap" class="canvas-box hidden">
-        <p style="font-size:.86rem;color:#475569;margin-bottom:6px;">Drag mouse over any watermark text/logo below to target only that area (or leave empty for full image):</p>
+        <p style="font-size:.86rem;color:#475569;margin-bottom:6px;">Tip: Drag a box over the watermark so ONLY that area is cleaned (keeps rest of the photo 100% untouched):</p>
         <canvas id="wmCanvas" class="interactive"></canvas>
         <div class="controls-row" style="margin-top:8px;">
           <button type="button" class="chip" id="wmClearBoxBtn">Clear Marked Area</button>
@@ -548,7 +548,7 @@
       status.classList.add('hidden');
     };
 
-    // ================= 3. TEXTURE-CLONE & MULTI-SCALE WATERMARK REMOVER =================
+    // ================= 3. WATERMARK REMOVER =================
     const wmFile = document.getElementById('wmFile');
     const wmCanvas = document.getElementById('wmCanvas');
     const wmCtx = wmCanvas.getContext('2d');
@@ -606,61 +606,51 @@
     window.addEventListener('mouseup', () => wmDrag = false);
     document.getElementById('wmClearBoxBtn').onclick = () => { wmBox = null; drawWmPreview(); };
 
-    // Texture-Preserving Clone Patch (copies real surrounding vertical/horizontal structure instead of blur)
-    function textureCloneBox(ctx, w, h, bx, by, bw, bh) {
+    // Jittered Organic Patch Inpainting (eliminates parallel stripes completely)
+    function organicPatchErase(ctx, w, h, bx, by, bw, bh) {
       const imgData = ctx.getImageData(0, 0, w, h);
       const d = imgData.data;
       const orig = new Uint8ClampedArray(d);
 
-      const x0 = Math.max(2, bx);
-      const y0 = Math.max(2, by);
-      const x1 = Math.min(w - 3, bx + bw);
-      const y1 = Math.min(h - 3, by + bh);
-      const boxH = Math.max(1, y1 - y0);
-      const boxW = Math.max(1, x1 - x0);
+      const x0 = Math.max(2, bx), y0 = Math.max(2, by);
+      const x1 = Math.min(w - 3, bx + bw), y1 = Math.min(h - 3, by + bh);
+      const boxW = Math.max(1, x1 - x0), boxH = Math.max(1, y1 - y0);
+      const feather = Math.min(5, Math.floor(Math.min(boxW, boxH) * 0.18));
 
-      // Sample texture strips directly above & below (and left & right) of the box
-      const stripDepth = Math.min(28, Math.max(10, Math.round(boxH * 0.6)));
-      const feather = Math.min(6, Math.floor(Math.min(boxW, boxH) * 0.2));
+      // Deterministic pseudo-noise helper to break up repeating stripes
+      const hash = (a, b) => Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
 
       for (let y = y0; y <= y1; y++) {
         const ty = (y - y0) / boxH;
-        // Mirror-sample from above and below strips to preserve natural tree/leaf grain
-        const relY = y - y0;
-        const topSrcY = Math.max(0, y0 - 1 - (relY % stripDepth));
-        const botSrcY = Math.min(h - 1, y1 + 1 + ((boxH - relY) % stripDepth));
-
         for (let x = x0; x <= x1; x++) {
           const tx = (x - x0) / boxW;
-          const relX = x - x0;
-          const leftSrcX = Math.max(0, x0 - 1 - (relX % stripDepth));
-          const rightSrcX = Math.min(w - 1, x1 + 1 + ((boxW - relX) % stripDepth));
+          const jitterX = Math.round((hash(x, y) - Math.floor(hash(x, y)) - 0.5) * 6);
+          const jitterY = Math.round((hash(y, x) - Math.floor(hash(y, x)) - 0.5) * 8);
 
-          const topIdx = (topSrcY * w + x) * 4;
-          const botIdx = (botSrcY * w + x) * 4;
-          const leftIdx = (y * w + leftSrcX) * 4;
-          const rightIdx = (y * w + rightSrcX) * 4;
+          const sampleX = Math.min(w - 1, Math.max(0, x + jitterX));
+          const topY = Math.max(0, Math.min(h - 1, y0 - 3 - Math.abs(jitterY)));
+          const botY = Math.max(0, Math.min(h - 1, y1 + 3 + Math.abs(jitterY)));
+
+          const topIdx = (topY * w + sampleX) * 4;
+          const botIdx = (botY * w + sampleX) * 4;
           const dstIdx = (y * w + x) * 4;
 
-          // Edge feather alpha for seamless transition
           const distEdge = Math.min(x - x0, x1 - x, y - y0, y1 - y);
           const alpha = feather > 0 ? Math.min(1, (distEdge + 1) / feather) : 1;
 
           for (let ch = 0; ch < 3; ch++) {
-            const vSample = orig[topIdx + ch] * (1 - ty) + orig[botIdx + ch] * ty;
-            const hSample = orig[leftIdx + ch] * (1 - tx) + orig[rightIdx + ch] * tx;
-            const cloned = vSample * 0.72 + hSample * 0.28;
-            d[dstIdx + ch] = Math.round(orig[dstIdx + ch] * (1 - alpha) + cloned * alpha);
+            const vMix = orig[topIdx + ch] * (1 - ty) + orig[botIdx + ch] * ty;
+            d[dstIdx + ch] = Math.round(orig[dstIdx + ch] * (1 - alpha) + vMix * alpha);
           }
         }
       }
       ctx.putImageData(imgData, 0, 0);
     }
 
-    // Multi-Scale Deblend (removes both text strokes AND outer border lines on photos)
-    function deblendPhotoWatermarkMultiScale(ctx, w, h, strength, region) {
-      const radii = [4, 9, 14];
-      const alphaEst = Math.min(0.52, Math.max(0.18, strength / 100));
+    // Targeted Auto Deblend (removes watermark text & border while preserving photo details)
+    function deblendPhotoWatermark(ctx, w, h, strength, region) {
+      const radii = [4, 9];
+      const alphaEst = Math.min(0.45, Math.max(0.15, strength / 100));
 
       for (const rad of radii) {
         const imgData = ctx.getImageData(0, 0, w, h);
@@ -691,7 +681,7 @@
             const surLum = 0.299 * surR + 0.587 * surG + 0.114 * surB;
             const sat = Math.max(copy[idx], copy[idx + 1], copy[idx + 2]) - Math.min(copy[idx], copy[idx + 1], copy[idx + 2]);
 
-            if (lum - surLum > 14 && sat < 75) {
+            if (lum - surLum > 16 && sat < 65) {
               for (let ch = 0; ch < 3; ch++) {
                 const deblended = (copy[idx + ch] - alphaEst * 255) / (1 - alphaEst);
                 const surCh = ch === 0 ? surR : ch === 1 ? surG : surB;
@@ -753,9 +743,9 @@
         }
         ctx.putImageData(imgData, 0, 0);
       } else if (mode === 'photo_deblend') {
-        deblendPhotoWatermarkMultiScale(ctx, w, h, strength, boxPx);
+        deblendPhotoWatermark(ctx, w, h, strength, boxPx);
       } else if (mode === 'texture_clone') {
-        if (boxPx) textureCloneBox(ctx, w, h, boxPx.x, boxPx.y, boxPx.w, boxPx.h);
+        if (boxPx) organicPatchErase(ctx, w, h, boxPx.x, boxPx.y, boxPx.w, boxPx.h);
       }
 
       if (autoTrim) c = trimWhitePadding(c);
@@ -770,7 +760,7 @@
       if (!f) return alert('Please select an Image or PDF first.');
 
       const mode = document.getElementById('wmMode').value;
-      const strength = parseInt(document.getElementById('wmThreshold').value) || 48;
+      const strength = parseInt(document.getElementById('wmThreshold').value) || 32;
       const autoTrim = document.getElementById('wmAutoTrim').checked;
       const normBox = (wmBox && wmBox.w > 4 && wmBox.h > 4)
         ? { x: wmBox.x / wmCanvas.width, y: wmBox.y / wmCanvas.height, w: wmBox.w / wmCanvas.width, h: wmBox.h / wmCanvas.height }
