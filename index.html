@@ -67,7 +67,6 @@
     .card img { max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #e2e8f0; margin-bottom: 8px; }
     .card-title { padding: 14px 6px; font-weight: bold; word-break: break-word; overflow-wrap: anywhere; font-size: .88rem; }
     .dl-btn { display: inline-block; margin-top: 8px; background: #0b7a5c; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 4px; font-size: .85rem; font-weight: 600; }
-    .footer { text-align: center; padding: 18px; color: #64748b; font-size: .84rem; }
   </style>
 </head>
 <body>
@@ -213,7 +212,7 @@
       <div class="output-area" id="wmOutput"></div>
     </section>
 
-    <!-- TAB 4: ALL PDF TOOLS (FROM IMAGES 2 & 3) -->
+    <!-- TAB 4: ALL PDF TOOLS & SECURITY -->
     <section id="tab-pdf-resize" class="panel">
       <h1>Complete PDF Resize, Convert, Change, Crop &amp; Security Tools</h1>
       <div class="tool-selector">
@@ -278,7 +277,7 @@
         </label>
 
         <label id="pdfRangeLbl" class="hidden">Pages (e.g. 1-2): <input type="text" id="pdfRange" value="1-1"></label>
-        <label id="pdfTextLbl" class="hidden">Watermark / Text: <input type="text" id="pdfCustomText" placeholder="MAHADEV NET CAFE"></label>
+        <label id="pdfTextLbl" class="hidden">Watermark Text: <input type="text" id="pdfCustomText" placeholder="CONFIDENTIAL"></label>
         <label id="pdfContrastLbl" class="hidden">Contrast (%): <input type="number" id="pdfContrastVal" value="140" min="50" max="250"></label>
         <label id="pdfPassLbl" class="hidden">PDF Password: <input type="password" id="pdfPasswordInput" placeholder="Enter password"></label>
         <label id="pdfCropLbl" class="hidden">Crop Margin % (T,R,B,L): <input type="text" id="pdfCropMargins" value="5,5,5,5" style="width:110px;"></label>
@@ -304,15 +303,17 @@
       <div class="output-area" id="pdfOutput"></div>
     </section>
 
-    <!-- TAB 5: FULL VISUAL PDF EDITOR (EDIT TEXT, IMAGES, SIGN & PASSWORD) -->
+    <!-- TAB 5: FULL VISUAL PDF EDITOR -->
     <section id="tab-pdf-editor" class="panel">
       <h1>Visual PDF Editor (Edit Text, Add Images, Erase &amp; Password Protect)</h1>
       <div class="inputs-row">
         <label>Upload PDF to Edit: <input type="file" id="edPdfFile" accept="application/pdf"></label>
+        <label>Open Password (if locked): <input type="password" id="edOpenPass" placeholder="Optional"></label>
+        <button type="button" class="btn-blue" id="edLoadBtn">Load / Open PDF</button>
         <label>Page:
           <select id="edPageSelect"></select>
         </label>
-        <label>Optional Output Password: <input type="password" id="edPdfPassword" placeholder="Leave blank for none"></label>
+        <label>New Output Password: <input type="password" id="edPdfPassword" placeholder="Optional"></label>
       </div>
 
       <div class="editor-toolbar" id="edToolbar">
@@ -337,30 +338,49 @@
         <button type="button" class="btn-green" id="edSavePdfBtn">Save &amp; Download Edited PDF</button>
       </div>
 
+      <div id="edStatus" class="status-note hidden"></div>
       <div class="canvas-box">
         <canvas id="edCanvas" class="interactive"></canvas>
       </div>
-      <div id="edStatus" class="status-note hidden"></div>
       <div class="output-area" id="edOutput"></div>
     </section>
 
     <!-- TAB 6: PDF FORM FILLER -->
     <section id="tab-pdf-form" class="panel">
-      <h1>PDF Form Filling Tool (Auto-Detect Fillable Fields &amp; Flatten)</h1>
+      <h1>PDF Form Filling Tool (Auto-Detect Fillable Fields &amp; Visual Form Fill)</h1>
       <div class="inputs-row">
-        <label>Upload Fillable PDF Form: <input type="file" id="ffPdfFile" accept="application/pdf"></label>
-        <label><input type="checkbox" id="ffFlatten" checked> Lock / Flatten Fields After Filling</label>
-        <label>Optional Password: <input type="password" id="ffPassword" placeholder="Optional"></label>
+        <label>Upload PDF Form: <input type="file" id="ffPdfFile" accept="application/pdf"></label>
+        <label>Open Password (if locked): <input type="password" id="ffOpenPass" placeholder="Enter PDF password"></label>
+        <button type="button" class="btn-green" id="ffLoadBtn">Open / Detect Form Fields</button>
       </div>
+      <div class="inputs-row">
+        <label><input type="checkbox" id="ffFlatten" checked> Lock / Flatten Fields After Filling</label>
+        <label>Set Output Password: <input type="password" id="ffPassword" placeholder="Optional"></label>
+      </div>
+
       <div id="ffStatus" class="status-note hidden"></div>
       <div id="ffFieldsContainer" class="form-fields-grid"></div>
+
+      <!-- Visual fallback form filler when PDF has no digital AcroForm fields -->
+      <div id="ffVisualWrap" class="hidden">
+        <div class="inputs-row">
+          <label>Page: <select id="ffPageSelect"></select></label>
+          <label>Text to Place on Form: <input type="text" id="ffVisText" placeholder="Type name, date, ✓ etc."></label>
+          <label>Font Size: <input type="number" id="ffVisSize" value="15" min="8" max="48" style="width:65px;"></label>
+          <button type="button" class="chip" id="ffUndoVisBtn">Undo Last Text</button>
+        </div>
+        <div class="canvas-box">
+          <canvas id="ffCanvas" class="interactive"></canvas>
+        </div>
+      </div>
+
       <div class="controls-row">
         <button type="button" class="btn-blue hidden" id="ffSaveBtn">Fill &amp; Download PDF Form</button>
       </div>
       <div class="output-area" id="ffOutput"></div>
     </section>
 
-    <!-- TAB 7: JOIN, EDIT & CREATE (ALL TOOLS FROM IMAGE 1) -->
+    <!-- TAB 7: JOIN, EDIT & CREATE -->
     <section id="tab-edit-join" class="panel">
       <h1>Join Images, Photo Effects &amp; Create Tools</h1>
       <div class="tool-selector">
@@ -416,10 +436,6 @@
     </section>
   </main>
 
-  <footer class="footer">
-    Mahadev Net Cafe &amp; Common Service Center &bull; Prem Colony, Near CIA Staff, Patiala &bull; Contact: 8146244491
-  </footer>
-
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -456,7 +472,24 @@
       container.appendChild(card);
     }
 
-    // ================= 1. IMAGE RESIZER (EXACT TARGET KB/MB) =================
+    async function openPdfWithPasswordSupport(arrayBuffer, initialPass = '') {
+      let pass = initialPass;
+      while (true) {
+        try {
+          return await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pass || undefined }).promise;
+        } catch (err) {
+          if (err && (err.name === 'PasswordException' || String(err).toLowerCase().includes('password'))) {
+            const entered = prompt(pass ? 'Incorrect password. Enter PDF password:' : 'This PDF is password protected. Enter PDF password:');
+            if (entered === null) throw new Error('Password entry cancelled.');
+            pass = entered;
+          } else {
+            throw err;
+          }
+        }
+      }
+    }
+
+    // ================= 1. IMAGE RESIZER =================
     let resUnit = 'px', resFiles = [];
     document.querySelectorAll('#dimUnitGroup .seg').forEach(b => {
       b.addEventListener('click', () => {
@@ -711,7 +744,7 @@
       if (f.type === 'application/pdf') {
         document.getElementById('wmMode').value = 'doc_clean';
         document.getElementById('wmThreshold').value = 135;
-        const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+        const pdf = await openPdfWithPasswordSupport(await f.arrayBuffer());
         const page = await pdf.getPage(1);
         const vp = page.getViewport({ scale: 1.2 });
         const tmp = document.createElement('canvas'); tmp.width = vp.width; tmp.height = vp.height;
@@ -879,7 +912,7 @@
       status.textContent = 'Cleaning watermark... please wait.'; status.classList.remove('hidden');
 
       if (f.type === 'application/pdf') {
-        const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+        const pdf = await openPdfWithPasswordSupport(await f.arrayBuffer());
         const outPdf = await PDFLib.PDFDocument.create();
         for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
           const page = await pdf.getPage(pNum), vp = page.getViewport({ scale: 2.1 });
@@ -981,7 +1014,7 @@
           const targetVal = parseFloat(document.getElementById('pdfTargetSize').value) || 150;
           const unitStr = document.getElementById('pdfTargetUnit').value;
           const exactTargetBytes = Math.round(targetVal * (unitStr === 'MB' ? 1048576 : 1024));
-          const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer() }).promise;
+          const pdf = await openPdfWithPasswordSupport(await files[0].arrayBuffer());
           let bestBytes = null;
           for (const sc of [2.0, 1.5, 1.15, 0.85, 0.65, 0.5]) {
             let lo = 0.15, hi = 0.98, candidate = null;
@@ -1013,7 +1046,7 @@
         }
 
         else if (tool === 'pdf_to_jpg') {
-          const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer() }).promise;
+          const pdf = await openPdfWithPasswordSupport(await files[0].arrayBuffer());
           for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
             const page = await pdf.getPage(pNum), vp = page.getViewport({ scale: 1.5 });
             const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
@@ -1023,7 +1056,7 @@
         }
 
         else if (tool === 'pdf_to_word' || tool === 'pdf_to_excel') {
-          const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer() }).promise;
+          const pdf = await openPdfWithPasswordSupport(await files[0].arrayBuffer());
           let fullText = '', csvRows = [];
           for (let p = 1; p <= pdf.numPages; p++) {
             const page = await pdf.getPage(p);
@@ -1099,7 +1132,7 @@
         }
 
         else if (tool === 'ocr_pdf') {
-          const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer() }).promise;
+          const pdf = await openPdfWithPasswordSupport(await files[0].arrayBuffer());
           let ocrAll = '';
           for (let p = 1; p <= pdf.numPages; p++) {
             status.textContent = `Running OCR on Page ${p} of ${pdf.numPages}...`;
@@ -1117,7 +1150,7 @@
         else if (tool === 'page_num_pdf' || tool === 'watermark_pdf') {
           const pdfDoc = await PDFLib.PDFDocument.load(await files[0].arrayBuffer());
           const pages = pdfDoc.getPages();
-          const wmTxt = document.getElementById('pdfCustomText').value || 'MAHADEV NET CAFE';
+          const wmTxt = document.getElementById('pdfCustomText').value || 'CONFIDENTIAL';
           pages.forEach((p, idx) => {
             if (tool === 'page_num_pdf') {
               p.drawText(`Page ${idx + 1} of ${pages.length}`, { x: p.getWidth() / 2 - 35, y: 20, size: 11, color: PDFLib.rgb(0.2, 0.2, 0.2) });
@@ -1129,7 +1162,7 @@
         }
 
         else if (tool === 'contrast_pdf' || tool === 'bw_pdf') {
-          const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer() }).promise;
+          const pdf = await openPdfWithPasswordSupport(await files[0].arrayBuffer());
           const cVal = document.getElementById('pdfContrastVal').value || 140;
           const filter = tool === 'bw_pdf' ? 'grayscale(100%) contrast(135%)' : `contrast(${cVal}%)`;
           const bytes = await buildCompressedPdfFromPages(pdf, 1.5, 0.9, filter);
@@ -1165,7 +1198,7 @@
 
         else if (tool === 'unlock_pdf') {
           const pass = document.getElementById('pdfPasswordInput').value;
-          const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer(), password: pass }).promise;
+          const pdf = await openPdfWithPasswordSupport(await files[0].arrayBuffer(), pass);
           const bytes = await buildCompressedPdfFromPages(pdf, 1.6, 0.94);
           addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `unlocked_${files[0].name}`, 'PDF Password Removed');
         }
@@ -1194,10 +1227,9 @@
       status.classList.add('hidden');
     };
 
-    // ================= 5. VISUAL PDF EDITOR (EDIT TEXT, IMAGES & PASSWORD) =================
-    let edPdfDoc = null, edPdfBytes = null, edCurrentPage = 1, edMode = 'select';
-    let edPageItems = {}; // { pageNum: [ { type:'text'|'whiteout'|'image', x, y, w, h, text, size, color, imgObj, imgDataUrl } ] }
-    let edExtractedTextBoxes = [];
+    // ================= 5. VISUAL PDF EDITOR =================
+    let edPdfDoc = null, edCurrentPage = 1, edMode = 'select';
+    let edPageItems = {}, edExtractedTextBoxes = [];
     let edSelectedIdx = -1, edDragging = false, edDragOffset = { x: 0, y: 0 }, edDrawStart = null;
     const edCanvas = document.getElementById('edCanvas');
     const edCtx = edCanvas.getContext('2d');
@@ -1208,25 +1240,36 @@
         document.querySelectorAll('#edToolbar .chip').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         edMode = btn.dataset.edmode;
+        redrawEditorCanvas();
       };
     });
 
-    document.getElementById('edPdfFile').onchange = async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      edPdfBytes = await f.arrayBuffer();
-      edPdfDoc = await pdfjsLib.getDocument({ data: edPdfBytes }).promise;
-      edPageItems = {};
-      const sel = document.getElementById('edPageSelect');
-      sel.innerHTML = '';
-      for (let i = 1; i <= edPdfDoc.numPages; i++) {
-        edPageItems[i] = [];
-        const opt = document.createElement('option'); opt.value = i; opt.textContent = `Page ${i} of ${edPdfDoc.numPages}`;
-        sel.appendChild(opt);
+    async function loadPdfIntoEditor() {
+      const f = document.getElementById('edPdfFile').files[0];
+      const status = document.getElementById('edStatus');
+      if (!f) return alert('Please choose a PDF file first.');
+      status.textContent = 'Opening PDF in editor...'; status.classList.remove('hidden');
+      try {
+        const openPass = document.getElementById('edOpenPass').value;
+        edPdfDoc = await openPdfWithPasswordSupport(await f.arrayBuffer(), openPass);
+        edPageItems = {};
+        const sel = document.getElementById('edPageSelect');
+        sel.innerHTML = '';
+        for (let i = 1; i <= edPdfDoc.numPages; i++) {
+          edPageItems[i] = [];
+          const opt = document.createElement('option'); opt.value = i; opt.textContent = `Page ${i} of ${edPdfDoc.numPages}`;
+          sel.appendChild(opt);
+        }
+        edCurrentPage = 1;
+        await renderEditorPage(1);
+        status.classList.add('hidden');
+      } catch (err) {
+        status.textContent = 'Could not open PDF: ' + err.message;
       }
-      edCurrentPage = 1;
-      await renderEditorPage(1);
-    };
+    }
+
+    document.getElementById('edPdfFile').onchange = loadPdfIntoEditor;
+    document.getElementById('edLoadBtn').onclick = loadPdfIntoEditor;
 
     document.getElementById('edPageSelect').onchange = async (e) => {
       edCurrentPage = parseInt(e.target.value);
@@ -1242,7 +1285,6 @@
       edBgCanvas.width = vp.width; edBgCanvas.height = vp.height;
       await page.render({ canvasContext: edBgCanvas.getContext('2d'), viewport: vp }).promise;
 
-      // Extract existing PDF text coordinates so user can click & edit any existing text
       const tc = await page.getTextContent();
       edExtractedTextBoxes = tc.items.map(item => {
         const tx = pdfjsLib.Util.transform(vp.transform, item.transform);
@@ -1304,7 +1346,7 @@
         const imgObj = await loadImg(reader.result);
         const w = Math.min(180, imgObj.width);
         const h = (imgObj.height / imgObj.width) * w;
-        edPageItems[edCurrentPage].push({ type: 'image', x: 60, y: 60, w, h, imgObj, imgDataUrl: reader.result });
+        edPageItems[edCurrentPage].push({ type: 'image', x: 60, y: 60, w, h, imgObj });
         edSelectedIdx = edPageItems[edCurrentPage].length - 1;
         redrawEditorCanvas();
       };
@@ -1328,7 +1370,6 @@
       if (edMode === 'edit_existing') {
         const hit = edExtractedTextBoxes.find(tb => pos.x >= tb.x && pos.x <= tb.x + tb.w && pos.y >= tb.y && pos.y <= tb.y + tb.h);
         if (hit) {
-          // Cover original text with whiteout box and place editable text right over it
           items.push({ type: 'whiteout', x: hit.x - 2, y: hit.y - 2, w: hit.w + 6, h: hit.h + 4 });
           items.push({ type: 'text', x: hit.x, y: hit.y, w: hit.w, h: hit.h, text: hit.text, size: hit.fontSize, color: document.getElementById('edColor').value });
           edSelectedIdx = items.length - 1;
@@ -1356,7 +1397,6 @@
         return;
       }
 
-      // Select / Move mode
       edSelectedIdx = -1;
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
@@ -1391,7 +1431,7 @@
     window.addEventListener('mouseup', () => { edDragging = false; edDrawStart = null; });
 
     document.getElementById('edSavePdfBtn').onclick = async () => {
-      if (!edPdfDoc) return alert('Please upload a PDF first.');
+      if (!edPdfDoc) return alert('Please upload and load a PDF first.');
       const status = document.getElementById('edStatus');
       const out = document.getElementById('edOutput');
       out.innerHTML = '';
@@ -1427,86 +1467,180 @@
       status.classList.add('hidden');
     };
 
-    // ================= 6. PDF FORM FILLER =================
-    let ffLoadedDoc = null, ffFieldsList = [];
-    document.getElementById('ffPdfFile').onchange = async (e) => {
-      const f = e.target.files[0];
+    // ================= 6. PDF FORM FILLER (ACROFORM + VISUAL FALLBACK + PASSWORD) =================
+    let ffLoadedDoc = null, ffFieldsList = [], ffIsVisualMode = false;
+    let ffVisPdfDoc = null, ffVisPage = 1, ffVisItems = {};
+    const ffCanvas = document.getElementById('ffCanvas');
+    const ffCtx = ffCanvas.getContext('2d');
+    let ffBgCanvas = document.createElement('canvas');
+
+    async function loadPdfFormHandler() {
+      const f = document.getElementById('ffPdfFile').files[0];
       const grid = document.getElementById('ffFieldsContainer');
       const status = document.getElementById('ffStatus');
-      grid.innerHTML = ''; ffFieldsList = [];
-      if (!f) return;
+      const visWrap = document.getElementById('ffVisualWrap');
+      const saveBtn = document.getElementById('ffSaveBtn');
+      grid.innerHTML = ''; ffFieldsList = []; ffIsVisualMode = false;
+      visWrap.classList.add('hidden'); saveBtn.classList.add('hidden');
+      if (!f) return alert('Please choose a PDF file first.');
 
-      ffLoadedDoc = await PDFLib.PDFDocument.load(await f.arrayBuffer());
-      const form = ffLoadedDoc.getForm();
-      const fields = form.getFields();
+      status.textContent = 'Opening PDF form...'; status.classList.remove('hidden');
+      const buf = await f.arrayBuffer();
+      const openPass = document.getElementById('ffOpenPass').value;
 
-      if (!fields.length) {
-        status.textContent = 'No digital AcroForm fields found in this PDF. Tip: Use the "PDF Editor (Text/Img)" tab to type directly onto scanned or flat PDF forms!';
-        status.classList.remove('hidden');
-        document.getElementById('ffSaveBtn').classList.add('hidden');
-        return;
-      }
+      // Try AcroForm detection first (if unencrypted)
+      try {
+        ffLoadedDoc = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
+        const form = ffLoadedDoc.getForm();
+        const fields = form.getFields();
 
-      status.textContent = `${fields.length} fillable form fields detected. Fill details below:`;
-      status.classList.remove('hidden');
-      document.getElementById('ffSaveBtn').classList.remove('hidden');
+        if (fields.length > 0 && !ffLoadedDoc.isEncrypted) {
+          status.textContent = `${fields.length} fillable form fields detected. Fill details below:`;
+          saveBtn.classList.remove('hidden');
 
-      fields.forEach((field, idx) => {
-        const name = field.getName();
-        const type = field.constructor.name;
-        const card = document.createElement('div');
-        card.className = 'field-card';
-        const lbl = document.createElement('label');
-        lbl.textContent = `${idx + 1}. ${name}`;
-        card.appendChild(lbl);
+          fields.forEach((field, idx) => {
+            const name = field.getName();
+            const type = field.constructor.name;
+            const card = document.createElement('div');
+            card.className = 'field-card';
+            const lbl = document.createElement('label');
+            lbl.textContent = `${idx + 1}. ${name}`;
+            card.appendChild(lbl);
 
-        let inputEl;
-        if (type.includes('CheckBox')) {
-          inputEl = document.createElement('input');
-          inputEl.type = 'checkbox';
-          inputEl.checked = field.isChecked();
-        } else if (type.includes('Dropdown')) {
-          inputEl = document.createElement('select');
-          field.getOptions().forEach(opt => {
-            const o = document.createElement('option'); o.value = opt; o.textContent = opt;
-            inputEl.appendChild(o);
+            let inputEl;
+            if (type.includes('CheckBox')) {
+              inputEl = document.createElement('input');
+              inputEl.type = 'checkbox';
+              inputEl.checked = field.isChecked();
+            } else if (type.includes('Dropdown')) {
+              inputEl = document.createElement('select');
+              field.getOptions().forEach(opt => {
+                const o = document.createElement('option'); o.value = opt; o.textContent = opt;
+                inputEl.appendChild(o);
+              });
+            } else {
+              inputEl = document.createElement('input');
+              inputEl.type = 'text';
+              try { inputEl.value = field.getText() || ''; } catch (e) {}
+              inputEl.placeholder = `Enter ${name}`;
+            }
+            card.appendChild(inputEl);
+            grid.appendChild(card);
+            ffFieldsList.push({ field, type, inputEl });
           });
-        } else {
-          inputEl = document.createElement('input');
-          inputEl.type = 'text';
-          try { inputEl.value = field.getText() || ''; } catch (e) {}
-          inputEl.placeholder = `Enter ${name}`;
+          return;
         }
-        card.appendChild(inputEl);
-        grid.appendChild(card);
-        ffFieldsList.push({ field, type, inputEl });
+      } catch (e) {}
+
+      // Fallback: Open in Visual Form Filler (supports password-protected & flat/scanned PDFs)
+      try {
+        ffVisPdfDoc = await openPdfWithPasswordSupport(buf, openPass);
+        ffIsVisualMode = true;
+        ffVisItems = {};
+        const sel = document.getElementById('ffPageSelect');
+        sel.innerHTML = '';
+        for (let i = 1; i <= ffVisPdfDoc.numPages; i++) {
+          ffVisItems[i] = [];
+          const opt = document.createElement('option'); opt.value = i; opt.textContent = `Page ${i} of ${ffVisPdfDoc.numPages}`;
+          sel.appendChild(opt);
+        }
+        ffVisPage = 1;
+        visWrap.classList.remove('hidden');
+        saveBtn.classList.remove('hidden');
+        status.textContent = 'PDF opened in Visual Form Fill mode! Type your text above and click anywhere on the form to fill.';
+        await renderFfVisualPage(1);
+      } catch (err) {
+        status.textContent = 'Error opening PDF: ' + err.message;
+      }
+    }
+
+    document.getElementById('ffPdfFile').onchange = loadPdfFormHandler;
+    document.getElementById('ffLoadBtn').onclick = loadPdfFormHandler;
+
+    document.getElementById('ffPageSelect').onchange = async (e) => {
+      ffVisPage = parseInt(e.target.value);
+      await renderFfVisualPage(ffVisPage);
+    };
+
+    async function renderFfVisualPage(pageNum) {
+      if (!ffVisPdfDoc) return;
+      const page = await ffVisPdfDoc.getPage(pageNum);
+      const vp = page.getViewport({ scale: 1.5 });
+      ffCanvas.width = vp.width; ffCanvas.height = vp.height;
+      ffBgCanvas.width = vp.width; ffBgCanvas.height = vp.height;
+      await page.render({ canvasContext: ffBgCanvas.getContext('2d'), viewport: vp }).promise;
+      redrawFfCanvas();
+    }
+
+    function redrawFfCanvas() {
+      ffCtx.clearRect(0, 0, ffCanvas.width, ffCanvas.height);
+      ffCtx.drawImage(ffBgCanvas, 0, 0);
+      (ffVisItems[ffVisPage] || []).forEach(it => {
+        ffCtx.font = `bold ${it.size}px Arial`;
+        ffCtx.fillStyle = '#0f172a';
+        ffCtx.fillText(it.text, it.x, it.y);
       });
+    }
+
+    ffCanvas.onmousedown = (e) => {
+      if (!ffIsVisualMode) return;
+      const txt = document.getElementById('ffVisText').value.trim();
+      if (!txt) return alert('First type the text you want to fill in "Text to Place on Form" box above.');
+      const pos = getCanvasMousePos(ffCanvas, e);
+      const size = parseInt(document.getElementById('ffVisSize').value) || 15;
+      ffVisItems[ffVisPage].push({ x: pos.x, y: pos.y, text: txt, size });
+      redrawFfCanvas();
+    };
+
+    document.getElementById('ffUndoVisBtn').onclick = () => {
+      if (ffVisItems[ffVisPage]?.length) {
+        ffVisItems[ffVisPage].pop();
+        redrawFfCanvas();
+      }
     };
 
     document.getElementById('ffSaveBtn').onclick = async () => {
-      if (!ffLoadedDoc) return;
       const out = document.getElementById('ffOutput'); out.innerHTML = '';
+      const pass = document.getElementById('ffPassword').value;
+
+      if (ffIsVisualMode && ffVisPdfDoc) {
+        const outPdf = await PDFLib.PDFDocument.create();
+        for (let pNum = 1; pNum <= ffVisPdfDoc.numPages; pNum++) {
+          const page = await ffVisPdfDoc.getPage(pNum);
+          const vp = page.getViewport({ scale: 1.5 });
+          const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+          const ctx = c.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport: vp }).promise;
+          (ffVisItems[pNum] || []).forEach(it => {
+            ctx.font = `bold ${it.size}px Arial`; ctx.fillStyle = '#0f172a';
+            ctx.fillText(it.text, it.x, it.y);
+          });
+          const emb = await outPdf.embedJpg(await (await toBlob(c, 'image/jpeg', 0.94)).arrayBuffer());
+          const np = outPdf.addPage([emb.width, emb.height]);
+          np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+        }
+        const bytes = pass ? await outPdf.save({ userPassword: pass, ownerPassword: pass }) : await outPdf.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF (${(bytes.length / 1024).toFixed(1)} KB)`);
+        return;
+      }
+
+      if (!ffLoadedDoc) return;
       ffFieldsList.forEach(({ field, type, inputEl }) => {
         try {
-          if (type.includes('CheckBox')) {
-            inputEl.checked ? field.check() : field.uncheck();
-          } else if (type.includes('Dropdown')) {
-            field.select(inputEl.value);
-          } else {
-            field.setText(inputEl.value);
-          }
+          if (type.includes('CheckBox')) inputEl.checked ? field.check() : field.uncheck();
+          else if (type.includes('Dropdown')) field.select(inputEl.value);
+          else field.setText(inputEl.value);
         } catch (err) {}
       });
 
       if (document.getElementById('ffFlatten').checked) {
         try { ffLoadedDoc.getForm().flatten(); } catch (e) {}
       }
-      const pass = document.getElementById('ffPassword').value;
       const bytes = pass ? await ffLoadedDoc.save({ userPassword: pass, ownerPassword: pass }) : await ffLoadedDoc.save();
       addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF Form (${(bytes.length / 1024).toFixed(1)} KB)`);
     };
 
-    // ================= 7. JOIN, CHANGE PHOTO & CREATE (ALL TOOLS FROM IMAGE 1) =================
+    // ================= 7. JOIN, CHANGE PHOTO & CREATE =================
     const sigCanvas = document.getElementById('sigCanvas');
     const sigCtx = sigCanvas.getContext('2d');
     let drawingSig = false;
@@ -1539,7 +1673,7 @@
       }
 
       if (tool === 'text_handwriting') {
-        const text = document.getElementById('hwLongText').value || t1 || 'Mahadev Net Cafe, Patiala';
+        const text = document.getElementById('hwLongText').value || t1 || 'Sample Handwritten Note';
         const c = document.createElement('canvas'); c.width = 900; c.height = 1200;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, c.width, c.height);
@@ -1631,7 +1765,7 @@
           ctx.save(); ctx.translate(c.width / 2, c.height / 2); ctx.rotate(-Math.PI / 6);
           ctx.fillStyle = col; ctx.globalAlpha = 0.35;
           ctx.font = `bold ${Math.max(28, Math.round(c.width * 0.06))}px Arial`; ctx.textAlign = 'center';
-          ctx.fillText(t1 || 'MAHADEV NET CAFE', 0, 0); ctx.restore();
+          ctx.fillText(t1 || 'WATERMARK', 0, 0); ctx.restore();
         }
       }
       addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.94), `${tool}_result.jpg`, 'Processed Image');
