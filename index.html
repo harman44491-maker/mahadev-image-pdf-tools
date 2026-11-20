@@ -58,7 +58,7 @@
 
     .canvas-box { text-align: center; margin: 12px 0; overflow-x: auto; }
     canvas.interactive { border: 1px solid #94a3b8; background: #fff; border-radius: 4px; max-width: 100%; cursor: crosshair; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-    canvas.live-preview { border: 2px solid #cbd5e1; background: #f8fafc; border-radius: 6px; max-width: 100%; max-height: 360px; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+    canvas.live-preview { border: 2px solid #cbd5e1; background: #f8fafc; border-radius: 6px; max-width: 100%; max-height: 380px; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
     .hidden { display: none !important; }
     .status-note { text-align: center; font-size: .9rem; color: #1d4ed8; margin: 10px 0; font-weight: 600; }
 
@@ -409,7 +409,8 @@
             <option value="join_images">Join Images (Horizontal)</option>
           </optgroup>
           <optgroup label="CHANGE PHOTO">
-            <option value="name_date" selected>Add Name and Date on Photo (Transparent / Strip)</option>
+            <option value="ps_auto_retouch" selected>Photoshop Auto Retouch &amp; HD Enhance (Studio Pro)</option>
+            <option value="name_date">Add Name and Date on Photo (Transparent / Strip)</option>
             <option value="add_logo_photo">Add Logo on Photo (Transparent / Custom Opacity)</option>
             <option value="photo_frame">Photo Frame &amp; Border (50 Pro Frames + Upload)</option>
             <option value="add_border">Add Simple Solid Border to Photo</option>
@@ -436,6 +437,39 @@
         <label id="edFontLbl">Font (100 Eng/Hin/Punjabi): <select class="font-selector-100" id="editFontFamily" style="max-width:210px;"></select></label>
         <label id="edBoldLbl"><input type="checkbox" id="editBoldToggle" checked> <strong>Bold</strong></label>
         <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
+      </div>
+
+      <!-- PHOTOSHOP AUTO RETOUCH & HD ENHANCE PLUGIN CONTROLS -->
+      <div id="psRetouchWrap" class="hidden">
+        <div class="inputs-row">
+          <label>Studio Preset:
+            <select id="psPresetSelect">
+              <option value="studio_pro" selected>Photoshop Studio Pro (Balanced)</option>
+              <option value="passport_hd">Passport / ID Card Crisp HD</option>
+              <option value="portrait_glow">Portrait Soft Skin &amp; Glow</option>
+              <option value="vivid_hdr">Vivid Color &amp; HDR Clarity</option>
+              <option value="old_photo_restore">Old / Dull Photo Restore</option>
+            </select>
+          </label>
+          <label>Skin Smooth (%):
+            <input type="range" id="psSmoothRange" min="0" max="100" value="45">
+            <input type="number" id="psSmoothNum" min="0" max="100" value="45" style="width:62px;">
+          </label>
+          <label>HD Sharpness (%):
+            <input type="range" id="psSharpRange" min="0" max="100" value="55">
+            <input type="number" id="psSharpNum" min="0" max="100" value="55" style="width:62px;">
+          </label>
+        </div>
+        <div class="inputs-row">
+          <label>Studio Light &amp; Tone (%):
+            <input type="range" id="psToneRange" min="0" max="100" value="50">
+            <input type="number" id="psToneNum" min="0" max="100" value="50" style="width:62px;">
+          </label>
+          <label><input type="checkbox" id="psAutoWb" checked> Auto White Balance &amp; Color Fix</label>
+          <label>Before / After Split (%):
+            <input type="range" id="psSplitRange" min="0" max="100" value="100">
+          </label>
+        </div>
       </div>
 
       <!-- ADD LOGO ON PHOTO (TRANSPARENT) CONTROLS -->
@@ -481,7 +515,7 @@
       </div>
 
       <!-- NAME & DATE ADVANCED OPTIONS -->
-      <div id="ndOptionsWrap" class="inputs-row">
+      <div id="ndOptionsWrap" class="inputs-row hidden">
         <label>Style:
           <select id="ndBgStyle">
             <option value="transparent_outline" selected>Transparent Over Photo (No Crop / Clean Outline)</option>
@@ -534,9 +568,9 @@
         </div>
       </div>
 
-      <!-- LIVE PREVIEW CANVAS FOR CONTRAST/BRIGHTNESS & LOGO -->
+      <!-- LIVE PREVIEW CANVAS FOR PS RETOUCH, CONTRAST/BRIGHTNESS & LOGO -->
       <div id="liveEditPreviewWrap" class="canvas-box hidden">
-        <p style="font-size:.84rem;color:#0b7a5c;font-weight:700;margin-bottom:6px;">Live Preview (Changes update automatically as you adjust sliders):</p>
+        <p style="font-size:.84rem;color:#0b7a5c;font-weight:700;margin-bottom:6px;">Live Studio Preview (Changes update automatically):</p>
         <canvas id="liveEditCanvas" class="live-preview"></canvas>
       </div>
 
@@ -1897,7 +1931,7 @@
       addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF Form (${(bytes.length / 1024).toFixed(1)} KB)`);
     };
 
-    // ================= 7. JOIN, CHANGE PHOTO, 50 PRO FRAMES, LIVE CONTRAST/BRIGHTNESS & TRANSPARENT LOGO =================
+    // ================= 7. JOIN, CHANGE PHOTO, PS AUTO RETOUCH PLUGIN, 50 PRO FRAMES, LIVE CONTRAST & TRANSPARENT LOGO =================
     const sigCanvas = document.getElementById('sigCanvas');
     const sigCtx = sigCanvas.getContext('2d');
     let drawingSig = false;
@@ -1908,6 +1942,122 @@
 
     let cachedMainImg = null;
     let cachedLogoImg = null;
+
+    // Photoshop Auto Retouch & HD Enhance Engine
+    function applyPhotoshopAutoRetouch(sourceImg, targetW, targetH) {
+      const smoothPct = (parseFloat(document.getElementById('psSmoothNum').value) || 0) / 100;
+      const sharpPct = (parseFloat(document.getElementById('psSharpNum').value) || 0) / 100;
+      const tonePct = (parseFloat(document.getElementById('psToneNum').value) || 0) / 100;
+      const autoWb = document.getElementById('psAutoWb').checked;
+
+      const c = document.createElement('canvas');
+      c.width = targetW; c.height = targetH;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // Step 1: Studio Tone, Clarity & Exposure Lift
+      const bright = 1 + tonePct * 0.09;
+      const contrast = 1 + tonePct * 0.14;
+      const saturate = 1 + tonePct * 0.12;
+      ctx.filter = `brightness(${bright.toFixed(3)}) contrast(${contrast.toFixed(3)}) saturate(${saturate.toFixed(3)})`;
+      ctx.drawImage(sourceImg, 0, 0, targetW, targetH);
+      ctx.filter = 'none';
+
+      // Step 2: Frequency Separation Style Skin Smooth (Surface Blur Blend)
+      if (smoothPct > 0.02) {
+        const blurC = document.createElement('canvas');
+        blurC.width = targetW; blurC.height = targetH;
+        const bCtx = blurC.getContext('2d');
+        const blurRad = Math.max(1.5, Math.round(Math.min(targetW, targetH) * 0.006 * smoothPct));
+        bCtx.filter = `blur(${blurRad}px)`;
+        bCtx.drawImage(c, 0, 0);
+        bCtx.filter = 'none';
+
+        const baseData = ctx.getImageData(0, 0, targetW, targetH);
+        const blurData = bCtx.getImageData(0, 0, targetW, targetH);
+        const bd = baseData.data, sd = blurData.data;
+
+        for (let i = 0; i < bd.length; i += 4) {
+          const r = bd[i], g = bd[i + 1], b = bd[i + 2];
+          // Edge-preserving threshold so eyes/hair/text stay sharp while skin/noise smooths
+          const diff = (Math.abs(r - sd[i]) + Math.abs(g - sd[i + 1]) + Math.abs(b - sd[i + 2])) / 3;
+          if (diff < 32) {
+            const isSkin = (r > 75 && g > 40 && b > 20 && r > g && r > b && (r - g) > 10);
+            const blend = smoothPct * (isSkin ? 0.68 : 0.32) * (1 - diff / 32);
+            bd[i] = Math.round(r * (1 - blend) + sd[i] * blend);
+            bd[i + 1] = Math.round(g * (1 - blend) + sd[i + 1] * blend);
+            bd[i + 2] = Math.round(b * (1 - blend) + sd[i + 2] * blend);
+          }
+        }
+        ctx.putImageData(baseData, 0, 0);
+      }
+
+      // Step 3: Auto White Balance & Levels Stretch
+      if (autoWb) {
+        const imgData = ctx.getImageData(0, 0, targetW, targetH);
+        const d = imgData.data;
+        let sumR = 0, sumG = 0, sumB = 0, count = 0;
+        const step = Math.max(4, Math.floor((d.length / 4) / 25000) * 4);
+        for (let i = 0; i < d.length; i += step) {
+          sumR += d[i]; sumG += d[i + 1]; sumB += d[i + 2]; count++;
+        }
+        const avgR = sumR / count, avgG = sumG / count, avgB = sumB / count;
+        const avgGray = (avgR + avgG + avgB) / 3;
+        const scaleR = Math.min(1.18, Math.max(0.85, 1 + ((avgGray / Math.max(1, avgR)) - 1) * 0.45));
+        const scaleG = Math.min(1.18, Math.max(0.85, 1 + ((avgGray / Math.max(1, avgG)) - 1) * 0.45));
+        const scaleB = Math.min(1.18, Math.max(0.85, 1 + ((avgGray / Math.max(1, avgB)) - 1) * 0.45));
+
+        for (let i = 0; i < d.length; i += 4) {
+          d[i] = Math.min(255, Math.max(0, Math.round(d[i] * scaleR)));
+          d[i + 1] = Math.min(255, Math.max(0, Math.round(d[i + 1] * scaleG)));
+          d[i + 2] = Math.min(255, Math.max(0, Math.round(d[i + 2] * scaleB)));
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+
+      // Step 4: Photoshop High-Pass / Unsharp Mask HD Detail Sharpening
+      if (sharpPct > 0.02) {
+        const imgData = ctx.getImageData(0, 0, targetW, targetH);
+        const d = imgData.data;
+        const copy = new Uint8ClampedArray(d);
+        const amt = sharpPct * 0.52;
+        for (let y = 1; y < targetH - 1; y++) {
+          for (let x = 1; x < targetW - 1; x++) {
+            const idx = (y * targetW + x) * 4;
+            for (let ch = 0; ch < 3; ch++) {
+              const center = copy[idx + ch] * 5;
+              const neighbors = copy[((y - 1) * targetW + x) * 4 + ch]
+                              + copy[((y + 1) * targetW + x) * 4 + ch]
+                              + copy[(y * targetW + (x - 1)) * 4 + ch]
+                              + copy[(y * targetW + (x + 1)) * 4 + ch];
+              const sharpVal = center - neighbors;
+              d[idx + ch] = Math.min(255, Math.max(0, Math.round(copy[idx + ch] * (1 - amt) + sharpVal * amt)));
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+
+      return c;
+    }
+
+    document.getElementById('psPresetSelect').onchange = (e) => {
+      const p = e.target.value;
+      const presets = {
+        studio_pro: { sm: 45, sh: 55, tn: 50, wb: true },
+        passport_hd: { sm: 35, sh: 75, tn: 60, wb: true },
+        portrait_glow: { sm: 75, sh: 40, tn: 55, wb: true },
+        vivid_hdr: { sm: 25, sh: 70, tn: 80, wb: true },
+        old_photo_restore: { sm: 60, sh: 80, tn: 70, wb: true }
+      };
+      const cfg = presets[p] || presets.studio_pro;
+      document.getElementById('psSmoothRange').value = cfg.sm; document.getElementById('psSmoothNum').value = cfg.sm;
+      document.getElementById('psSharpRange').value = cfg.sh; document.getElementById('psSharpNum').value = cfg.sh;
+      document.getElementById('psToneRange').value = cfg.tn; document.getElementById('psToneNum').value = cfg.tn;
+      document.getElementById('psAutoWb').checked = cfg.wb;
+      renderLiveEditPreview();
+    };
 
     function prepareLogoSource(logoImg, removeWhiteBg) {
       const c = document.createElement('canvas');
@@ -1968,27 +2118,44 @@
       const tool = document.getElementById('editToolSelect').value;
       const wrap = document.getElementById('liveEditPreviewWrap');
       const liveCanvas = document.getElementById('liveEditCanvas');
-      if (!cachedMainImg || !['img_contrast', 'add_logo_photo'].includes(tool)) {
+      if (!cachedMainImg || !['ps_auto_retouch', 'img_contrast', 'add_logo_photo'].includes(tool)) {
         wrap.classList.add('hidden');
         return;
       }
       wrap.classList.remove('hidden');
       const maxDim = 540;
       const sc = Math.min(1, maxDim / Math.max(cachedMainImg.width, cachedMainImg.height));
-      liveCanvas.width = Math.round(cachedMainImg.width * sc);
-      liveCanvas.height = Math.round(cachedMainImg.height * sc);
+      const pw = Math.round(cachedMainImg.width * sc);
+      const ph = Math.round(cachedMainImg.height * sc);
+      liveCanvas.width = pw;
+      liveCanvas.height = ph;
       const lctx = liveCanvas.getContext('2d');
-      lctx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
+      lctx.clearRect(0, 0, pw, ph);
 
-      if (tool === 'img_contrast') {
+      if (tool === 'ps_auto_retouch') {
+        const enhanced = applyPhotoshopAutoRetouch(cachedMainImg, pw, ph);
+        const splitPct = (parseFloat(document.getElementById('psSplitRange').value) ?? 100) / 100;
+        const splitX = Math.round(pw * splitPct);
+        // Draw Original first
+        lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
+        // Draw Retouched on left side of split
+        if (splitX > 0) {
+          lctx.drawImage(enhanced, 0, 0, splitX, ph, 0, 0, splitX, ph);
+        }
+        if (splitX > 2 && splitX < pw - 2) {
+          lctx.strokeStyle = '#ffffff';
+          lctx.lineWidth = 2;
+          lctx.beginPath(); lctx.moveTo(splitX, 0); lctx.lineTo(splitX, ph); lctx.stroke();
+        }
+      } else if (tool === 'img_contrast') {
         const cVal = Math.max(10, parseFloat(document.getElementById('cbContrastNum').value) || 100);
         const bVal = Math.max(10, parseFloat(document.getElementById('cbBrightnessNum').value) || 100);
         lctx.filter = `contrast(${cVal}%) brightness(${bVal}%)`;
-        lctx.drawImage(cachedMainImg, 0, 0, liveCanvas.width, liveCanvas.height);
+        lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
         lctx.filter = 'none';
       } else if (tool === 'add_logo_photo') {
-        lctx.drawImage(cachedMainImg, 0, 0, liveCanvas.width, liveCanvas.height);
-        drawLogoOverlayOnCanvas(lctx, liveCanvas.width, liveCanvas.height, cachedLogoImg);
+        lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
+        drawLogoOverlayOnCanvas(lctx, pw, ph, cachedLogoImg);
       }
     }
 
@@ -2011,11 +2178,16 @@
       r.oninput = () => { n.value = r.value; if (onChangeCb) onChangeCb(); };
       n.oninput = () => { r.value = n.value; if (onChangeCb) onChangeCb(); };
     }
+    bindRangeAndNum('psSmoothRange', 'psSmoothNum', renderLiveEditPreview);
+    bindRangeAndNum('psSharpRange', 'psSharpNum', renderLiveEditPreview);
+    bindRangeAndNum('psToneRange', 'psToneNum', renderLiveEditPreview);
     bindRangeAndNum('cbContrastRange', 'cbContrastNum', renderLiveEditPreview);
     bindRangeAndNum('cbBrightnessRange', 'cbBrightnessNum', renderLiveEditPreview);
     bindRangeAndNum('logoOpacityRange', 'logoOpacityNum', renderLiveEditPreview);
     bindRangeAndNum('logoSizeRange', 'logoSizeNum', renderLiveEditPreview);
 
+    document.getElementById('psAutoWb').onchange = renderLiveEditPreview;
+    document.getElementById('psSplitRange').oninput = renderLiveEditPreview;
     document.getElementById('logoPosition').onchange = renderLiveEditPreview;
     document.getElementById('logoMargin').oninput = renderLiveEditPreview;
     document.getElementById('logoRemoveWhiteBg').onchange = renderLiveEditPreview;
@@ -2118,6 +2290,7 @@
       document.getElementById('sigPadWrap').classList.toggle('hidden', v !== 'sig_maker');
       document.getElementById('hwTextWrap').classList.toggle('hidden', v !== 'text_handwriting');
       document.getElementById('edImgFileLbl').classList.toggle('hidden', ['sig_maker', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('psRetouchWrap').classList.toggle('hidden', v !== 'ps_auto_retouch');
       document.getElementById('ndOptionsWrap').classList.toggle('hidden', v !== 'name_date');
       document.getElementById('logoOptionsWrap').classList.toggle('hidden', v !== 'add_logo_photo');
       document.getElementById('frameOptionsWrap').classList.toggle('hidden', v !== 'photo_frame');
@@ -2208,6 +2381,16 @@
       }
 
       const im = imgs[0];
+
+      if (tool === 'ps_auto_retouch') {
+        status.textContent = 'Applying Photoshop Auto Retouch & HD Enhance...';
+        status.classList.remove('hidden');
+        const retouchedCanvas = applyPhotoshopAutoRetouch(im, im.width, im.height);
+        status.classList.add('hidden');
+        addDownloadCard(out, await toBlob(retouchedCanvas, 'image/jpeg', 0.97), `ps_retouched_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `HD Studio Retouched (${im.width}×${im.height}px)`);
+        return;
+      }
+
       if (tool === 'blur_bg') {
         status.textContent = 'Applying AI Portrait Background Blur...'; status.classList.remove('hidden');
         const blurred = await runSelfieSegmentation(im, 'blur_bg', Math.max(4, n1));
