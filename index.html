@@ -1,4 +1,632 @@
-// Adaptive Local Threshold + Ink Stroke Recovery (Keeps thin Punjabi matras unbroken while wiping watermark)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mahadev Net Cafe - Complete Image & PDF Toolkit</title>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
+    body { background: #f4f6f9; color: #1f2937; }
+    .navbar { background: #3f4898; color: #fff; position: sticky; top: 0; z-index: 50; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+    .nav-inner { max-width: 1180px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.05rem; }
+    .brand-badge { background: #fff; color: #3f4898; padding: 3px 7px; border-radius: 4px; font-weight: 800; }
+    .menu { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+    .menu-btn { background: transparent; color: #e0e7ff; border: 1px solid rgba(255,255,255,.28); padding: 7px 11px; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: .85rem; }
+    .menu-btn.active, .menu-btn:hover { background: #fff; color: #3f4898; }
+
+    .container { max-width: 1180px; margin: 24px auto; padding: 0 16px; }
+    .panel { display: none; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    .panel.active { display: block; }
+    h1 { text-align: center; font-size: 1.45rem; margin-bottom: 18px; color: #111827; }
+
+    .dim-bar { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .seg-group { display: inline-flex; background: #eef2f7; padding: 3px; border-radius: 6px; }
+    .seg { border: none; background: transparent; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+    .seg.active { background: #3f4898; color: #fff; }
+
+    .inputs-row, .controls-row, .presets-row, .tool-selector { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .inputs-row label { display: flex; align-items: center; gap: 6px; font-size: .88rem; background: #f8fafc; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 5px; }
+    .inputs-row input[type="number"], .inputs-row input[type="text"], .controls-row input[type="number"], select { padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: .9rem; }
+    .inputs-row input[type="number"], .controls-row input[type="number"] { width: 88px; }
+
+    .drop-box { border: 2px dashed #94a3b8; border-radius: 8px; padding: 28px 16px; text-align: center; background: #fafbfd; margin-bottom: 16px; cursor: pointer; }
+    .drop-box.drag { border-color: #0b7a5c; background: #ecfdf5; }
+    .file-info { margin-top: 8px; font-size: .85rem; color: #64748b; }
+
+    .btn-green { background: #0b7a5c; color: #fff; border: none; padding: 10px 22px; border-radius: 5px; font-weight: 700; cursor: pointer; }
+    .btn-green:hover { background: #09624a; }
+    .btn-blue { background: #4a55a2; color: #fff; border: none; padding: 10px 24px; border-radius: 5px; font-weight: 700; cursor: pointer; }
+    .btn-blue:hover { background: #384182; }
+
+    .chip { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 5px 11px; border-radius: 14px; font-size: .82rem; cursor: pointer; }
+    .chip:hover { background: #3f4898; color: #fff; }
+
+    .canvas-box { text-align: center; margin: 12px 0; }
+    canvas.interactive { border: 1px solid #94a3b8; background: #fff; border-radius: 4px; max-width: 100%; cursor: crosshair; }
+    .hidden { display: none !important; }
+    .status-note { text-align: center; font-size: .9rem; color: #1d4ed8; margin: 10px 0; font-weight: 600; }
+
+    .output-area { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; background: #fff; }
+    .card img { max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #e2e8f0; margin-bottom: 8px; }
+    .dl-btn { display: inline-block; margin-top: 8px; background: #0b7a5c; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 4px; font-size: .86rem; font-weight: 600; }
+    .footer { text-align: center; padding: 18px; color: #64748b; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-inner">
+      <div class="brand">
+        <span class="brand-badge">MNC</span>
+        <span>MAHADEV NET CAFE</span>
+      </div>
+      <nav class="menu">
+        <button class="menu-btn active" data-tab="resizer">Image Resizer (20KB)</button>
+        <button class="menu-btn" data-tab="passport">Passport Photo (Auto White BG + HD)</button>
+        <button class="menu-btn" data-tab="watermark">Watermark Remover (Image &amp; PDF)</button>
+        <button class="menu-btn" data-tab="pdf-resize">PDF Resize &amp; Tools</button>
+        <button class="menu-btn" data-tab="edit-join">Join, Edit &amp; Create</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- TAB 1: IMAGE RESIZER -->
+    <section id="tab-resizer" class="panel active">
+      <h1>Resize Image To Target KB - Image Resizer Tool</h1>
+      <div class="dim-bar">
+        <span>Image Dimensions:</span>
+        <div class="seg-group" id="dimUnitGroup">
+          <button type="button" class="seg active" data-unit="px">Pixels</button>
+          <button type="button" class="seg" data-unit="mm">MM</button>
+          <button type="button" class="seg" data-unit="cm">CM</button>
+        </div>
+      </div>
+
+      <div class="inputs-row">
+        <label>Width (<span class="u-lbl">px</span>): <input type="number" id="resW" placeholder="Auto" min="1"></label>
+        <label>Height (<span class="u-lbl">px</span>): <input type="number" id="resH" placeholder="Auto" min="1"></label>
+        <label>DPI: <input type="number" id="resDpi" value="300" min="72" max="600"></label>
+        <label><input type="checkbox" id="resLock" checked> Lock Aspect</label>
+      </div>
+
+      <div class="drop-box" id="resDrop">
+        <p>Select Or Drag &amp; Drop JPEG / PNG / WEBP Images Here</p>
+        <input type="file" id="resFile" accept="image/*" multiple hidden>
+        <button type="button" class="btn-green" id="resSelectBtn">Select Images</button>
+        <div class="file-info" id="resFileInfo">No files selected</div>
+      </div>
+
+      <div class="controls-row">
+        <label>Size: <input type="number" id="resTargetSize" value="20" min="1"></label>
+        <select id="resSizeUnit">
+          <option value="KB" selected>KB</option>
+          <option value="MB">MB</option>
+        </select>
+        <label>Format:
+          <select id="resFormat">
+            <option value="image/jpeg" selected>JPEG / JPG</option>
+            <option value="image/png">PNG</option>
+            <option value="image/webp">WEBP</option>
+          </select>
+        </label>
+        <button type="button" class="btn-blue" id="resRunBtn">Resize</button>
+      </div>
+
+      <div class="presets-row">
+        <span>Quick Form Presets:</span>
+        <button type="button" class="chip" onclick="setResPreset(20, 'KB', 'px', '', '')">20 KB Photo</button>
+        <button type="button" class="chip" onclick="setResPreset(10, 'KB', 'px', '', '')">10 KB Signature</button>
+        <button type="button" class="chip" onclick="setResPreset(50, 'KB', 'px', '', '')">50 KB Document</button>
+        <button type="button" class="chip" onclick="setResPreset(20, 'KB', 'cm', 3.5, 4.5)">3.5×4.5 cm Passport</button>
+      </div>
+
+      <div class="output-area" id="resOutput"></div>
+    </section>
+
+    <!-- TAB 2: PASSPORT SIZE PHOTO -->
+    <section id="tab-passport" class="panel">
+      <h1>Passport Size Photo Maker (Auto White Background + HD Retouch)</h1>
+      <div class="inputs-row">
+        <label>Upload Simple Photo: <input type="file" id="ppFile" accept="image/*"></label>
+        <label>Size:
+          <select id="ppSizePreset">
+            <option value="3.5x4.5" selected>Standard Passport (3.5 × 4.5 cm)</option>
+            <option value="5.1x5.1">US / Visa (2 × 2 in / 5.1 × 5.1 cm)</option>
+            <option value="3.5x3.5">Square (3.5 × 3.5 cm)</option>
+          </select>
+        </label>
+        <label>Output Sheet:
+          <select id="ppSheet">
+            <option value="both" selected>Single HD Photo + 4×6 Sheet</option>
+            <option value="single">Single HD Passport Photo Only</option>
+            <option value="4x6">4×6 inch Print Sheet</option>
+            <option value="a4">A4 Print Sheet</option>
+          </select>
+        </label>
+        <label>Copies: <input type="number" id="ppCopies" value="8" min="1" max="48"></label>
+      </div>
+
+      <div class="inputs-row">
+        <label><input type="checkbox" id="ppAutoWhiteBg" checked> AI Auto White Background</label>
+        <label><input type="checkbox" id="ppHdRetouch" checked> Studio Retouch &amp; HD High-Resolution</label>
+        <label><input type="checkbox" id="ppBorder" checked> Thin Cut Border</label>
+      </div>
+
+      <div class="controls-row">
+        <button type="button" class="btn-green" id="ppGenerateBtn">Make HD White-BG Passport Photo</button>
+      </div>
+      <div id="ppStatus" class="status-note hidden"></div>
+      <div class="output-area" id="ppOutput"></div>
+    </section>
+
+    <!-- TAB 3: WATERMARK REMOVER (IMAGE & PDF) -->
+    <section id="tab-watermark" class="panel">
+      <h1>Auto Watermark Remover (Image &amp; PDF)</h1>
+      <div class="inputs-row">
+        <label>Upload Image or PDF: <input type="file" id="wmFile" accept="image/*,application/pdf"></label>
+        <label>Removal Mode:
+          <select id="wmMode">
+            <option value="doc_clean" selected>Document / PDF Light Background &amp; Watermark Cleaner (Sharp Text)</option>
+            <option value="photo_deblend">Photo Overlay Watermark Remover (Text + Border)</option>
+            <option value="texture_clone">Smart Patch Erase (Solid Stamp / Logo)</option>
+          </select>
+        </label>
+        <label>Clean Cutoff (130-220): <input type="number" id="wmThreshold" value="175" min="10" max="245"></label>
+        <label><input type="checkbox" id="wmDarkText" checked> Sharpen Dark Text</label>
+        <label><input type="checkbox" id="wmAutoTrim"> Trim White Border</label>
+      </div>
+
+      <div class="presets-row">
+        <span>Document / PDF Clean Presets:</span>
+        <button type="button" class="chip" onclick="setWmDocPreset(195)">Light Watermark (195)</button>
+        <button type="button" class="chip" onclick="setWmDocPreset(175)">Medium Watermark (175 - Recommended)</button>
+        <button type="button" class="chip" onclick="setWmDocPreset(155)">Dark / Heavy Watermark (155)</button>
+      </div>
+
+      <div id="wmPreviewWrap" class="canvas-box hidden">
+        <p style="font-size:.86rem;color:#475569;margin-bottom:6px;">Optional: Drag a box over a specific watermark area to clean only that region:</p>
+        <canvas id="wmCanvas" class="interactive"></canvas>
+        <div class="controls-row" style="margin-top:8px;">
+          <button type="button" class="chip" id="wmClearBoxBtn">Clear Marked Area</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <button type="button" class="btn-blue" id="wmRunBtn">Remove Watermark</button>
+      </div>
+      <div id="wmStatus" class="status-note hidden"></div>
+      <div class="output-area" id="wmOutput"></div>
+    </section>
+
+    <!-- TAB 4: PDF RESIZE & TOOLS -->
+    <section id="tab-pdf-resize" class="panel">
+      <h1>PDF Resize, Compress &amp; Convert Tools</h1>
+      <div class="tool-selector">
+        <select id="pdfToolSelect">
+          <optgroup label="PDF RESIZE">
+            <option value="resize_pdf_custom" selected>Resize PDF to Exact Target KB / MB</option>
+            <option value="resize_pdf_page">Resize PDF Page Dimensions (A4 / Letter / Legal)</option>
+          </optgroup>
+          <optgroup label="CONVERT & ORGANIZE PDF">
+            <option value="img_to_pdf">Images to PDF</option>
+            <option value="jpg_to_pdf_100">JPG to PDF under 100KB</option>
+            <option value="pdf_to_jpg">PDF to Images (JPG)</option>
+            <option value="merge_pdf">Merge PDFs</option>
+            <option value="split_pdf">Split PDF (Extract Pages)</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="inputs-row">
+        <label>Select File(s): <input type="file" id="pdfFiles" multiple></label>
+
+        <label id="pdfTargetBox">Target PDF Size:
+          <input type="number" id="pdfTargetSize" value="150" min="10">
+          <select id="pdfTargetUnit">
+            <option value="KB" selected>KB</option>
+            <option value="MB">MB</option>
+          </select>
+        </label>
+
+        <label id="pdfPageSizeBox" class="hidden">Paper Size:
+          <select id="pdfPaperFormat">
+            <option value="a4" selected>A4 (210 × 297 mm)</option>
+            <option value="letter">Letter (8.5 × 11 in)</option>
+            <option value="legal">Legal (8.5 × 14 in)</option>
+          </select>
+        </label>
+
+        <label id="pdfRangeLbl" class="hidden">Pages (e.g. 1-2): <input type="text" id="pdfRange" value="1-1"></label>
+      </div>
+
+      <div class="presets-row" id="pdfQuickPresets">
+        <span>Quick PDF Resize Presets:</span>
+        <button type="button" class="chip" onclick="setPdfTarget(50, 'KB')">50 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(100, 'KB')">100 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(200, 'KB')">200 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(300, 'KB')">300 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(500, 'KB')">500 KB</button>
+        <button type="button" class="chip" onclick="setPdfTarget(1, 'MB')">1 MB</button>
+      </div>
+
+      <div class="controls-row">
+        <button type="button" class="btn-green" id="pdfRunBtn">Resize / Process PDF</button>
+      </div>
+      <div id="pdfStatus" class="status-note hidden"></div>
+      <div class="output-area" id="pdfOutput"></div>
+    </section>
+
+    <!-- TAB 5: JOIN, EDIT & CREATE TOOLS -->
+    <section id="tab-edit-join" class="panel">
+      <h1>Join Images, Photo Edit &amp; Signature Maker</h1>
+      <div class="tool-selector">
+        <select id="editToolSelect">
+          <option value="merge_photo_sig">Merge Photo and Signature (Vertical)</option>
+          <option value="join_images">Join Images (Horizontal)</option>
+          <option value="name_date">Add Name and Date on Photo</option>
+          <option value="add_border">Add Border to Photo</option>
+          <option value="rotate">Rotate Image</option>
+          <option value="flip">Flip Image</option>
+          <option value="sig_maker">Digital Signature Maker</option>
+        </select>
+      </div>
+
+      <div class="inputs-row">
+        <label>Files: <input type="file" id="editFiles" accept="image/*" multiple></label>
+        <label>Name / Text: <input type="text" id="editText1" placeholder="Enter name"></label>
+        <label>Date: <input type="text" id="editText2" placeholder="DD/MM/YYYY"></label>
+        <label>Angle / Border: <input type="number" id="editNum1" value="90"></label>
+        <label>Color: <input type="color" id="editColor" value="#1e293b"></label>
+      </div>
+
+      <div id="sigPadWrap" class="canvas-box hidden">
+        <p style="margin-bottom:6px;font-size:.9rem;">Draw your signature below:</p>
+        <canvas id="sigCanvas" class="interactive" width="460" height="150"></canvas>
+        <div class="controls-row" style="margin-top:8px;">
+          <button type="button" class="chip" id="clearSigBtn">Clear Signature</button>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <button type="button" class="btn-blue" id="editRunBtn">Apply Tool</button>
+      </div>
+      <div class="output-area" id="editOutput"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Mahadev Net Cafe &amp; Common Service Center &bull; Prem Colony, Near CIA Staff, Patiala &bull; Contact: 8146244491
+  </footer>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    document.querySelectorAll('.menu-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    function loadImg(src) {
+      return new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = src; });
+    }
+    function toBlob(canvas, type, q) {
+      return new Promise(r => canvas.toBlob(b => r(b), type, q));
+    }
+    function addDownloadCard(container, blobOrUrl, filename, labelText) {
+      const url = typeof blobOrUrl === 'string' ? blobOrUrl : URL.createObjectURL(blobOrUrl);
+      const card = document.createElement('div');
+      card.className = 'card';
+      const isImg = filename.match(/\.(jpg|jpeg|png|webp)$/i);
+      card.innerHTML = `
+        ${isImg ? `<img src="${url}" alt="${filename}">` : `<div style="padding:24px;font-weight:bold;">${filename}</div>`}
+        <div style="font-size:.85rem;color:#334155;">${labelText}</div>
+        <a class="dl-btn" href="${url}" download="${filename}">Download ${filename.split('.').pop().toUpperCase()}</a>
+      `;
+      container.appendChild(card);
+    }
+
+    // ================= 1. IMAGE RESIZER =================
+    let resUnit = 'px', resFiles = [];
+    document.querySelectorAll('#dimUnitGroup .seg').forEach(b => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('#dimUnitGroup .seg').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        resUnit = b.dataset.unit;
+        document.querySelectorAll('.u-lbl').forEach(s => s.textContent = resUnit);
+      });
+    });
+
+    const resDrop = document.getElementById('resDrop');
+    const resFile = document.getElementById('resFile');
+    document.getElementById('resSelectBtn').onclick = e => { e.stopPropagation(); resFile.click(); };
+    resDrop.onclick = () => resFile.click();
+    resDrop.ondragover = e => { e.preventDefault(); resDrop.classList.add('drag'); };
+    resDrop.ondragleave = () => resDrop.classList.remove('drag');
+    resDrop.ondrop = e => { e.preventDefault(); resDrop.classList.remove('drag'); setResFiles(e.dataTransfer.files); };
+    resFile.onchange = e => setResFiles(e.target.files);
+
+    function setResFiles(list) {
+      resFiles = Array.from(list).filter(f => f.type.startsWith('image/'));
+      document.getElementById('resFileInfo').textContent = resFiles.length ? resFiles.map(f => f.name).join(', ') : 'No files selected';
+    }
+    function setResPreset(size, sUnit, dUnit, w, h) {
+      document.getElementById('resTargetSize').value = size;
+      document.getElementById('resSizeUnit').value = sUnit;
+      resUnit = dUnit;
+      document.querySelectorAll('#dimUnitGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.unit === dUnit));
+      document.querySelectorAll('.u-lbl').forEach(s => s.textContent = dUnit);
+      document.getElementById('resW').value = w;
+      document.getElementById('resH').value = h;
+    }
+    function toPx(val, unit, dpi) {
+      if (!val || val <= 0) return null;
+      if (unit === 'px') return Math.round(val);
+      if (unit === 'cm') return Math.round((val / 2.54) * dpi);
+      if (unit === 'mm') return Math.round((val / 25.4) * dpi);
+      return Math.round(val);
+    }
+
+    async function compressToBytes(img, w, h, maxBytes, mime) {
+      const c = document.createElement('canvas');
+      const ctx = c.getContext('2d');
+      let scale = 1, best = null;
+      for (let s = 0; s < 6; s++) {
+        c.width = Math.max(10, Math.round(w * scale));
+        c.height = Math.max(10, Math.round(h * scale));
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        if (mime === 'image/png') {
+          const b = await toBlob(c, 'image/png', 1);
+          best = b;
+          if (b.size <= maxBytes) break;
+        } else {
+          let lo = 0.05, hi = 0.98, ok = null;
+          for (let i = 0; i < 10; i++) {
+            const mid = (lo + hi) / 2;
+            const b = await toBlob(c, mime, mid);
+            if (b.size <= maxBytes) { ok = b; lo = mid; } else { hi = mid; }
+          }
+          if (ok) { best = ok; break; }
+          best = await toBlob(c, mime, 0.05);
+        }
+        scale *= 0.78;
+      }
+      return { blob: best, w: c.width, h: c.height };
+    }
+
+    document.getElementById('resRunBtn').onclick = async () => {
+      const out = document.getElementById('resOutput');
+      out.innerHTML = '';
+      if (!resFiles.length) return alert('Please select images first.');
+      const sizeVal = parseFloat(document.getElementById('resTargetSize').value) || 20;
+      const mult = document.getElementById('resSizeUnit').value === 'MB' ? 1048576 : 1024;
+      const targetBytes = Math.floor(sizeVal * mult * 0.97);
+      const dpi = parseInt(document.getElementById('resDpi').value) || 300;
+      const reqW = toPx(parseFloat(document.getElementById('resW').value), resUnit, dpi);
+      const reqH = toPx(parseFloat(document.getElementById('resH').value), resUnit, dpi);
+      const lock = document.getElementById('resLock').checked;
+      const mime = document.getElementById('resFormat').value;
+      const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+
+      for (const f of resFiles) {
+        const img = await loadImg(URL.createObjectURL(f));
+        let fw = img.width, fh = img.height;
+        if (reqW && reqH) { fw = reqW; fh = reqH; }
+        else if (reqW) { fw = reqW; fh = lock ? Math.round((img.height / img.width) * reqW) : img.height; }
+        else if (reqH) { fh = reqH; fw = lock ? Math.round((img.width / img.height) * reqH) : img.width; }
+        const r = await compressToBytes(img, fw, fh, targetBytes, mime);
+        const name = `${f.name.replace(/\.[^/.]+$/, '')}_${sizeVal}kb.${ext}`;
+        addDownloadCard(out, r.blob, name, `${(r.blob.size / 1024).toFixed(1)} KB (${r.w}×${r.h}px)`);
+      }
+    };
+
+    // ================= 2. PASSPORT SIZE PHOTO =================
+    async function removeBgToWhite(img) {
+      return new Promise(async (resolve) => {
+        try {
+          const selfieSeg = new SelfieSegmentation({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+          });
+          selfieSeg.setOptions({ modelSelection: 1 });
+          const outCanvas = document.createElement('canvas');
+          outCanvas.width = img.width; outCanvas.height = img.height;
+          const ctx = outCanvas.getContext('2d');
+          selfieSeg.onResults((results) => {
+            ctx.save();
+            ctx.clearRect(0, 0, outCanvas.width, outCanvas.height);
+            ctx.drawImage(results.segmentationMask, 0, 0, outCanvas.width, outCanvas.height);
+            ctx.globalCompositeOperation = 'source-in';
+            ctx.drawImage(results.image, 0, 0, outCanvas.width, outCanvas.height);
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+            ctx.restore();
+            resolve(outCanvas);
+          });
+          await selfieSeg.send({ image: img });
+        } catch (err) {
+          const c = document.createElement('canvas');
+          c.width = img.width; c.height = img.height;
+          c.getContext('2d').drawImage(img, 0, 0);
+          resolve(c);
+        }
+      });
+    }
+
+    function applyStudioRetouchAndSharpen(sourceCanvas, targetW, targetH) {
+      const hdW = targetW * 2, hdH = targetH * 2;
+      const c = document.createElement('canvas');
+      c.width = hdW; c.height = hdH;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.filter = 'brightness(1.06) contrast(1.08) saturate(1.07)';
+      const scale = Math.max(hdW / sourceCanvas.width, hdH / sourceCanvas.height);
+      const dw = sourceCanvas.width * scale, dh = sourceCanvas.height * scale;
+      ctx.drawImage(sourceCanvas, (hdW - dw) / 2, (hdH - dh) / 2, dw, dh);
+      ctx.filter = 'none';
+
+      const imgData = ctx.getImageData(0, 0, hdW, hdH);
+      const d = imgData.data;
+      const copy = new Uint8ClampedArray(d);
+      const amount = 0.35;
+      for (let y = 1; y < hdH - 1; y++) {
+        for (let x = 1; x < hdW - 1; x++) {
+          const idx = (y * hdW + x) * 4;
+          for (let ch = 0; ch < 3; ch++) {
+            const center = copy[idx + ch] * 5;
+            const neighbors = copy[((y - 1) * hdW + x) * 4 + ch] + copy[((y + 1) * hdW + x) * 4 + ch] + copy[(y * hdW + (x - 1)) * 4 + ch] + copy[(y * hdW + (x + 1)) * 4 + ch];
+            d[idx + ch] = Math.min(255, Math.max(0, copy[idx + ch] * (1 - amount) + (center - neighbors) * amount));
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+      return c;
+    }
+
+    document.getElementById('ppGenerateBtn').onclick = async () => {
+      const file = document.getElementById('ppFile').files[0];
+      const out = document.getElementById('ppOutput');
+      const status = document.getElementById('ppStatus');
+      out.innerHTML = '';
+      if (!file) return alert('Please select a photo first.');
+
+      status.textContent = 'Processing AI White Background & Studio HD Retouch...';
+      status.classList.remove('hidden');
+
+      const img = await loadImg(URL.createObjectURL(file));
+      let baseCanvas = document.getElementById('ppAutoWhiteBg').checked ? await removeBgToWhite(img) : (() => {
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); return c;
+      })();
+
+      const dpi = 300;
+      const preset = document.getElementById('ppSizePreset').value;
+      let pw = preset === '5.1x5.1' ? Math.round(2 * dpi) : Math.round((3.5 / 2.54) * dpi);
+      let ph = preset === '5.1x5.1' ? Math.round(2 * dpi) : preset === '3.5x3.5' ? Math.round((3.5 / 2.54) * dpi) : Math.round((4.5 / 2.54) * dpi);
+
+      let finalPhotoCanvas = document.getElementById('ppHdRetouch').checked
+        ? applyStudioRetouchAndSharpen(baseCanvas, pw, ph)
+        : (() => {
+            const c = document.createElement('canvas'); c.width = pw; c.height = ph;
+            const sc = Math.max(pw / baseCanvas.width, ph / baseCanvas.height);
+            c.getContext('2d').drawImage(baseCanvas, (pw - baseCanvas.width * sc) / 2, (ph - baseCanvas.height * sc) / 2, baseCanvas.width * sc, baseCanvas.height * sc);
+            return c;
+          })();
+
+      if (document.getElementById('ppBorder').checked) {
+        const bCtx = finalPhotoCanvas.getContext('2d');
+        bCtx.strokeStyle = '#94a3b8';
+        bCtx.lineWidth = Math.max(3, Math.round(finalPhotoCanvas.width * 0.008));
+        bCtx.strokeRect(2, 2, finalPhotoCanvas.width - 4, finalPhotoCanvas.height - 4);
+      }
+
+      const sheetMode = document.getElementById('ppSheet').value;
+      if (sheetMode === 'single' || sheetMode === 'both') {
+        const singleBlob = await toBlob(finalPhotoCanvas, 'image/jpeg', 0.98);
+        addDownloadCard(out, singleBlob, 'passport_HD_white_bg.jpg', `HD Passport (${finalPhotoCanvas.width}×${finalPhotoCanvas.height}px)`);
+      }
+      if (sheetMode !== 'single') {
+        const sheetType = sheetMode === 'a4' ? 'a4' : '4x6';
+        const sCanvas = document.createElement('canvas');
+        sCanvas.width = sheetType === 'a4' ? Math.round(8.27 * dpi) : Math.round(4 * dpi);
+        sCanvas.height = sheetType === 'a4' ? Math.round(11.69 * dpi) : Math.round(6 * dpi);
+        const sCtx = sCanvas.getContext('2d'); sCtx.fillStyle = '#ffffff'; sCtx.fillRect(0, 0, sCanvas.width, sCanvas.height);
+        const copies = parseInt(document.getElementById('ppCopies').value) || 8;
+        const gap = 24;
+        let x = gap, y = gap, drawn = 0;
+        while (drawn < copies && y + ph + gap <= sCanvas.height) {
+          while (drawn < copies && x + pw + gap <= sCanvas.width) {
+            sCtx.drawImage(finalPhotoCanvas, x, y, pw, ph);
+            x += pw + gap; drawn++;
+          }
+          x = gap; y += ph + gap;
+        }
+        const sheetBlob = await toBlob(sCanvas, 'image/jpeg', 0.97);
+        addDownloadCard(out, sheetBlob, `passport_print_sheet_${sheetType}.jpg`, `${drawn} HD Copies on ${sheetType.toUpperCase()} Sheet`);
+      }
+      status.classList.add('hidden');
+    };
+
+    // ================= 3. WATERMARK REMOVER (UPGRADED PDF / DOC CLEANER) =================
+    const wmFile = document.getElementById('wmFile');
+    const wmCanvas = document.getElementById('wmCanvas');
+    const wmCtx = wmCanvas.getContext('2d');
+    let wmPreviewImg = null, wmDrag = false, wmStartX = 0, wmStartY = 0, wmBox = null;
+
+    function setWmDocPreset(val) {
+      document.getElementById('wmMode').value = 'doc_clean';
+      document.getElementById('wmThreshold').value = val;
+    }
+
+    document.getElementById('wmMode').onchange = (e) => {
+      if (e.target.value === 'doc_clean') document.getElementById('wmThreshold').value = 175;
+      else document.getElementById('wmThreshold').value = 45;
+    };
+
+    wmFile.onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      wmBox = null;
+      document.getElementById('wmPreviewWrap').classList.remove('hidden');
+      if (f.type === 'application/pdf') {
+        document.getElementById('wmMode').value = 'doc_clean';
+        document.getElementById('wmThreshold').value = 175;
+        const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+        const page = await pdf.getPage(1);
+        const vp = page.getViewport({ scale: 1.2 });
+        const tmp = document.createElement('canvas'); tmp.width = vp.width; tmp.height = vp.height;
+        await page.render({ canvasContext: tmp.getContext('2d'), viewport: vp }).promise;
+        wmPreviewImg = await loadImg(tmp.toDataURL('image/png'));
+      } else {
+        wmPreviewImg = await loadImg(URL.createObjectURL(f));
+      }
+      const scale = Math.min(1, 560 / wmPreviewImg.width);
+      wmCanvas.width = Math.round(wmPreviewImg.width * scale);
+      wmCanvas.height = Math.round(wmPreviewImg.height * scale);
+      drawWmPreview();
+    };
+
+    function getCanvasMousePos(canvas, evt) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (evt.clientX - rect.left) * (canvas.width / rect.width),
+        y: (evt.clientY - rect.top) * (canvas.height / rect.height)
+      };
+    }
+
+    function drawWmPreview() {
+      if (!wmPreviewImg) return;
+      wmCtx.clearRect(0, 0, wmCanvas.width, wmCanvas.height);
+      wmCtx.drawImage(wmPreviewImg, 0, 0, wmCanvas.width, wmCanvas.height);
+      if (wmBox && wmBox.w > 4 && wmBox.h > 4) {
+        wmCtx.strokeStyle = '#ef4444';
+        wmCtx.lineWidth = 2;
+        wmCtx.strokeRect(wmBox.x, wmBox.y, wmBox.w, wmBox.h);
+        wmCtx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+        wmCtx.fillRect(wmBox.x, wmBox.y, wmBox.w, wmBox.h);
+      }
+    }
+
+    wmCanvas.onmousedown = e => { const pos = getCanvasMousePos(wmCanvas, e); wmStartX = pos.x; wmStartY = pos.y; wmDrag = true; };
+    wmCanvas.onmousemove = e => {
+      if (!wmDrag) return;
+      const pos = getCanvasMousePos(wmCanvas, e);
+      wmBox = { x: Math.min(wmStartX, pos.x), y: Math.min(wmStartY, pos.y), w: Math.abs(pos.x - wmStartX), h: Math.abs(pos.y - wmStartY) };
+      drawWmPreview();
+    };
+    window.addEventListener('mouseup', () => wmDrag = false);
+    document.getElementById('wmClearBoxBtn').onclick = () => { wmBox = null; drawWmPreview(); };
+
+    // Enhanced Document / PDF Watermark & Shadow Cleaner + Dark Text Crispness
     function cleanDocumentCanvas(ctx, w, h, cutoff, sharpenText, region) {
       const imgData = ctx.getImageData(0, 0, w, h);
       const d = imgData.data;
@@ -8,52 +636,401 @@
       const x1 = region ? Math.min(w - 1, region.x + region.w) : w - 1;
       const y1 = region ? Math.min(h - 1, region.y + region.h) : h - 1;
 
-      // Step 1: Build grayscale luminance buffer & integral image for fast local background detection
-      const lumBuf = new Float32Array(w * h);
-      const integral = new Float64Array((w + 1) * (h + 1));
-
-      for (let y = 0; y < h; y++) {
-        let rowSum = 0;
-        for (let x = 0; x < w; x++) {
-          const i = (y * w + x) * 4;
-          const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          lumBuf[y * w + x] = l;
-          rowSum += l;
-          integral[(y + 1) * (w + 1) + (x + 1)] = integral[y * (w + 1) + (x + 1)] + rowSum;
-        }
-      }
-
-      // Radius 14 (~29x29 window): larger than font stroke thickness, smaller than watermark band
-      const r = 14;
-      const contrastDelta = Math.max(12, Math.round((220 - cutoff) * 0.45));
-
       for (let y = y0; y <= y1; y++) {
-        const ya = Math.max(0, y - r);
-        const yb = Math.min(h - 1, y + r);
         for (let x = x0; x <= x1; x++) {
-          const xa = Math.max(0, x - r);
-          const xb = Math.min(w - 1, x + r);
+          const i = (y * w + x) * 4;
+          const r = d[i], g = d[i + 1], b = d[i + 2];
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          const maxDiff = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
 
-          const area = (xb - xa + 1) * (yb - ya + 1);
-          const sum = integral[(yb + 1) * (w + 1) + (xb + 1)]
-                    - integral[ya * (w + 1) + (xb + 1)]
-                    - integral[(yb + 1) * (w + 1) + xa]
-                    + integral[ya * (w + 1) + xa];
-          const localMean = sum / area;
-          const curLum = lumBuf[y * w + x];
-          const idx = (y * w + x) * 4;
-
-          // If pixel is significantly darker than its immediate surroundings, it is real text ink
-          if (curLum < localMean - contrastDelta || curLum < 115) {
-            if (sharpenText) {
-              const ink = Math.max(0, Math.min(255, Math.round((curLum / Math.max(1, localMean)) * 95)));
-              d[idx] = ink; d[idx + 1] = ink; d[idx + 2] = ink;
-            }
-          } else {
-            // Broad watermark band or paper background -> pure white
-            d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255;
+          // Wipe out grey/light watermark & scan background completely to pure white
+          if (lum >= cutoff && maxDiff < 55) {
+            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255;
+          } else if (sharpenText && lum < cutoff) {
+            // Deepen dark ink (Gurmukhi/English text) for high-contrast crisp print
+            const factor = Math.max(0, (lum - 30) / Math.max(1, cutoff - 30));
+            const boosted = Math.round(Math.pow(factor, 1.55) * lum * 0.82);
+            d[i] = boosted; d[i + 1] = boosted; d[i + 2] = boosted;
           }
         }
       }
       ctx.putImageData(imgData, 0, 0);
     }
+
+    function organicPatchErase(ctx, w, h, bx, by, bw, bh) {
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const d = imgData.data;
+      const orig = new Uint8ClampedArray(d);
+      const x0 = Math.max(2, bx), y0 = Math.max(2, by);
+      const x1 = Math.min(w - 3, bx + bw), y1 = Math.min(h - 3, by + bh);
+      const boxW = Math.max(1, x1 - x0), boxH = Math.max(1, y1 - y0);
+      const feather = Math.min(5, Math.floor(Math.min(boxW, boxH) * 0.18));
+      const hash = (a, b) => Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+
+      for (let y = y0; y <= y1; y++) {
+        const ty = (y - y0) / boxH;
+        for (let x = x0; x <= x1; x++) {
+          const jitterX = Math.round((hash(x, y) - Math.floor(hash(x, y)) - 0.5) * 6);
+          const jitterY = Math.round((hash(y, x) - Math.floor(hash(y, x)) - 0.5) * 8);
+          const sampleX = Math.min(w - 1, Math.max(0, x + jitterX));
+          const topY = Math.max(0, Math.min(h - 1, y0 - 3 - Math.abs(jitterY)));
+          const botY = Math.max(0, Math.min(h - 1, y1 + 3 + Math.abs(jitterY)));
+          const topIdx = (topY * w + sampleX) * 4;
+          const botIdx = (botY * w + sampleX) * 4;
+          const dstIdx = (y * w + x) * 4;
+          const distEdge = Math.min(x - x0, x1 - x, y - y0, y1 - y);
+          const alpha = feather > 0 ? Math.min(1, (distEdge + 1) / feather) : 1;
+          for (let ch = 0; ch < 3; ch++) {
+            const vMix = orig[topIdx + ch] * (1 - ty) + orig[botIdx + ch] * ty;
+            d[dstIdx + ch] = Math.round(orig[dstIdx + ch] * (1 - alpha) + vMix * alpha);
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    function deblendPhotoWatermark(ctx, w, h, strength, region) {
+      const radii = [3, 7, 12];
+      const alphaEst = Math.min(0.62, Math.max(0.22, strength / 85));
+      for (const rad of radii) {
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const d = imgData.data;
+        const copy = new Uint8ClampedArray(d);
+        const x0 = region ? Math.max(rad, region.x) : rad;
+        const y0 = region ? Math.max(rad, region.y) : rad;
+        const x1 = region ? Math.min(w - rad - 1, region.x + region.w) : w - rad - 1;
+        const y1 = region ? Math.min(h - rad - 1, region.y + region.h) : h - rad - 1;
+
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            const idx = (y * w + x) * 4;
+            const lum = 0.299 * copy[idx] + 0.587 * copy[idx + 1] + 0.114 * copy[idx + 2];
+            const ringOffsets = [((y - rad) * w + x) * 4, ((y + rad) * w + x) * 4, (y * w + (x - rad)) * 4, (y * w + (x + rad)) * 4];
+            let surR = 0, surG = 0, surB = 0;
+            for (const ro of ringOffsets) { surR += copy[ro]; surG += copy[ro + 1]; surB += copy[ro + 2]; }
+            surR /= 4; surG /= 4; surB /= 4;
+            const surLum = 0.299 * surR + 0.587 * surG + 0.114 * surB;
+            const sat = Math.max(copy[idx], copy[idx + 1], copy[idx + 2]) - Math.min(copy[idx], copy[idx + 1], copy[idx + 2]);
+            if (lum - surLum > 12 && sat < 80) {
+              for (let ch = 0; ch < 3; ch++) {
+                const deblended = (copy[idx + ch] - alphaEst * 255) / (1 - alphaEst);
+                const surCh = ch === 0 ? surR : ch === 1 ? surG : surB;
+                d[idx + ch] = Math.min(255, Math.max(0, Math.round(deblended * 0.55 + surCh * 0.45)));
+              }
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+    }
+
+    function trimWhitePadding(canvas) {
+      const w = canvas.width, h = canvas.height;
+      const ctx = canvas.getContext('2d');
+      const d = ctx.getImageData(0, 0, w, h).data;
+      let minX = w, minY = h, maxX = 0, maxY = 0, found = false;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          if (d[i] < 248 || d[i + 1] < 248 || d[i + 2] < 248) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+            found = true;
+          }
+        }
+      }
+      if (!found || maxX <= minX || maxY <= minY) return canvas;
+      const cw = maxX - minX + 1, ch = maxY - minY + 1;
+      const out = document.createElement('canvas'); out.width = cw; out.height = ch;
+      out.getContext('2d').drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
+      return out;
+    }
+
+    function cleanCanvasWatermark(sourceCanvas, mode, strength, normBox, autoTrim, sharpenText) {
+      const w = sourceCanvas.width, h = sourceCanvas.height;
+      let c = document.createElement('canvas'); c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(sourceCanvas, 0, 0);
+
+      const boxPx = normBox ? {
+        x: Math.round(normBox.x * w), y: Math.round(normBox.y * h),
+        w: Math.round(normBox.w * w), h: Math.round(normBox.h * h)
+      } : null;
+
+      if (mode === 'doc_clean') {
+        cleanDocumentCanvas(ctx, w, h, strength, sharpenText, boxPx);
+      } else if (mode === 'photo_deblend') {
+        deblendPhotoWatermark(ctx, w, h, strength, boxPx);
+      } else if (mode === 'texture_clone') {
+        if (boxPx) organicPatchErase(ctx, w, h, boxPx.x, boxPx.y, boxPx.w, boxPx.h);
+      }
+
+      if (autoTrim) c = trimWhitePadding(c);
+      return c;
+    }
+
+    document.getElementById('wmRunBtn').onclick = async () => {
+      const f = wmFile.files[0];
+      const out = document.getElementById('wmOutput');
+      const status = document.getElementById('wmStatus');
+      out.innerHTML = '';
+      if (!f) return alert('Please select an Image or PDF first.');
+
+      const mode = document.getElementById('wmMode').value;
+      const strength = parseInt(document.getElementById('wmThreshold').value) || 175;
+      const autoTrim = document.getElementById('wmAutoTrim').checked;
+      const sharpenText = document.getElementById('wmDarkText').checked;
+      const normBox = (wmBox && wmBox.w > 4 && wmBox.h > 4)
+        ? { x: wmBox.x / wmCanvas.width, y: wmBox.y / wmCanvas.height, w: wmBox.w / wmCanvas.width, h: wmBox.h / wmCanvas.height }
+        : null;
+
+      if (mode === 'texture_clone' && !normBox) {
+        return alert('Please drag your mouse over the watermark area on the preview image first.');
+      }
+
+      status.textContent = 'Cleaning watermark and sharpening text... please wait.';
+      status.classList.remove('hidden');
+
+      if (f.type === 'application/pdf') {
+        const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+        const outPdf = await PDFLib.PDFDocument.create();
+        for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
+          const page = await pdf.getPage(pNum);
+          const vp = page.getViewport({ scale: 2.1 });
+          const rawC = document.createElement('canvas'); rawC.width = vp.width; rawC.height = vp.height;
+          await page.render({ canvasContext: rawC.getContext('2d'), viewport: vp }).promise;
+          const cleanC = cleanCanvasWatermark(rawC, mode, strength, normBox, false, sharpenText);
+          const jpgBytes = await (await toBlob(cleanC, 'image/jpeg', 0.92)).arrayBuffer();
+          const emb = await outPdf.embedJpg(jpgBytes);
+          const np = outPdf.addPage([emb.width, emb.height]);
+          np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+        }
+        const bytes = await outPdf.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `clean_${f.name}`, `Watermark Cleaned (${(bytes.length / 1024).toFixed(1)} KB)`);
+      } else {
+        const im = await loadImg(URL.createObjectURL(f));
+        const rawC = document.createElement('canvas'); rawC.width = im.width; rawC.height = im.height;
+        rawC.getContext('2d').drawImage(im, 0, 0);
+        const cleanC = cleanCanvasWatermark(rawC, mode, strength, normBox, autoTrim, sharpenText);
+        const b = await toBlob(cleanC, 'image/jpeg', 0.95);
+        addDownloadCard(out, b, `clean_${f.name.replace(/\.[^/.]+$/, '')}.jpg`, `Watermark Cleaned (${cleanC.width}×${cleanC.height}px)`);
+      }
+      status.classList.add('hidden');
+    };
+
+    // ================= 4. PDF RESIZE & TOOLS =================
+    function setPdfTarget(val, unit) {
+      document.getElementById('pdfToolSelect').value = 'resize_pdf_custom';
+      document.getElementById('pdfTargetSize').value = val;
+      document.getElementById('pdfTargetUnit').value = unit;
+      updatePdfControls();
+    }
+    function updatePdfControls() {
+      const tool = document.getElementById('pdfToolSelect').value;
+      document.getElementById('pdfTargetBox').classList.toggle('hidden', tool !== 'resize_pdf_custom');
+      document.getElementById('pdfQuickPresets').classList.toggle('hidden', tool !== 'resize_pdf_custom');
+      document.getElementById('pdfPageSizeBox').classList.toggle('hidden', tool !== 'resize_pdf_page');
+      document.getElementById('pdfRangeLbl').classList.toggle('hidden', tool !== 'split_pdf');
+    }
+    document.getElementById('pdfToolSelect').onchange = updatePdfControls;
+
+    async function buildCompressedPdfFromPages(pdf, scale, quality) {
+      const outPdf = await PDFLib.PDFDocument.create();
+      for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
+        const page = await pdf.getPage(pNum);
+        const vp = page.getViewport({ scale });
+        const c = document.createElement('canvas');
+        c.width = Math.max(50, Math.round(vp.width));
+        c.height = Math.max(50, Math.round(vp.height));
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        const jpgBytes = await (await toBlob(c, 'image/jpeg', quality)).arrayBuffer();
+        const emb = await outPdf.embedJpg(jpgBytes);
+        const np = outPdf.addPage([emb.width, emb.height]);
+        np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+      }
+      return await outPdf.save();
+    }
+
+    document.getElementById('pdfRunBtn').onclick = async () => {
+      const tool = document.getElementById('pdfToolSelect').value;
+      const files = Array.from(document.getElementById('pdfFiles').files);
+      const out = document.getElementById('pdfOutput');
+      const status = document.getElementById('pdfStatus');
+      out.innerHTML = ''; status.classList.add('hidden');
+      if (!files.length) return alert('Please select file(s).');
+
+      if (tool === 'resize_pdf_custom') {
+        status.textContent = 'Resizing PDF to match your target size... please wait.';
+        status.classList.remove('hidden');
+        const targetVal = parseFloat(document.getElementById('pdfTargetSize').value) || 150;
+        const mult = document.getElementById('pdfTargetUnit').value === 'MB' ? 1048576 : 1024;
+        const targetBytes = Math.floor(targetVal * mult * 0.97);
+        const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer() }).promise;
+        let bestBytes = null;
+        for (const sc of [1.4, 1.1, 0.85, 0.65, 0.5]) {
+          let lo = 0.15, hi = 0.92, candidate = null;
+          for (let step = 0; step < 5; step++) {
+            const midQ = (lo + hi) / 2;
+            const bytes = await buildCompressedPdfFromPages(pdf, sc, midQ);
+            if (bytes.length <= targetBytes) { candidate = bytes; lo = midQ; } else { hi = midQ; }
+          }
+          if (candidate) { bestBytes = candidate; break; }
+          bestBytes = await buildCompressedPdfFromPages(pdf, sc, 0.15);
+        }
+        status.classList.add('hidden');
+        const outName = `resized_${targetVal}${document.getElementById('pdfTargetUnit').value.toLowerCase()}_${files[0].name}`;
+        addDownloadCard(out, new Blob([bestBytes], { type: 'application/pdf' }), outName, `Resized PDF: ${(bestBytes.length / 1024).toFixed(1)} KB`);
+        return;
+      }
+
+      if (tool === 'resize_pdf_page') {
+        const paper = document.getElementById('pdfPaperFormat').value;
+        const dims = paper === 'letter' ? [612, 792] : paper === 'legal' ? [612, 1008] : [595.28, 841.89];
+        const srcDoc = await PDFLib.PDFDocument.load(await files[0].arrayBuffer());
+        const newDoc = await PDFLib.PDFDocument.create();
+        const embeddedPages = await newDoc.embedPages(srcDoc.getPages());
+        for (const ep of embeddedPages) {
+          const page = newDoc.addPage(dims);
+          const scale = Math.min(dims[0] / ep.width, dims[1] / ep.height);
+          const w = ep.width * scale, h = ep.height * scale;
+          page.drawPage(ep, { x: (dims[0] - w) / 2, y: (dims[1] - h) / 2, width: w, height: h });
+        }
+        const bytes = await newDoc.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `${paper}_${files[0].name}`, `Resized to ${paper.toUpperCase()} (${(bytes.length / 1024).toFixed(1)} KB)`);
+        return;
+      }
+
+      if (tool === 'img_to_pdf' || tool === 'jpg_to_pdf_100') {
+        const pdfDoc = await PDFLib.PDFDocument.create();
+        const q = tool === 'jpg_to_pdf_100' ? 0.55 : 0.92;
+        for (const f of files) {
+          const im = await loadImg(URL.createObjectURL(f));
+          const c = document.createElement('canvas');
+          const maxDim = tool === 'jpg_to_pdf_100' ? 1100 : 1800;
+          const sc = Math.min(1, maxDim / Math.max(im.width, im.height));
+          c.width = Math.round(im.width * sc); c.height = Math.round(im.height * sc);
+          const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(im, 0, 0, c.width, c.height);
+          const jpgBytes = await (await toBlob(c, 'image/jpeg', q)).arrayBuffer();
+          const emb = await pdfDoc.embedJpg(jpgBytes);
+          const page = pdfDoc.addPage([emb.width, emb.height]);
+          page.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+        }
+        const bytes = await pdfDoc.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'images_to_pdf.pdf', `${(bytes.length / 1024).toFixed(1)} KB`);
+        return;
+      }
+
+      if (tool === 'pdf_to_jpg') {
+        const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer() }).promise;
+        for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
+          const page = await pdf.getPage(pNum);
+          const vp = page.getViewport({ scale: 1.5 });
+          const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+          addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.92), `page_${pNum}.jpg`, `Page ${pNum}`);
+        }
+        return;
+      }
+
+      if (tool === 'merge_pdf') {
+        const merged = await PDFLib.PDFDocument.create();
+        for (const f of files) {
+          const src = await PDFLib.PDFDocument.load(await f.arrayBuffer());
+          const pages = await merged.copyPages(src, src.getPageIndices());
+          pages.forEach(p => merged.addPage(p));
+        }
+        const bytes = await merged.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'merged.pdf', `${(bytes.length / 1024).toFixed(1)} KB`);
+        return;
+      }
+
+      if (tool === 'split_pdf') {
+        const src = await PDFLib.PDFDocument.load(await files[0].arrayBuffer());
+        const range = document.getElementById('pdfRange').value.split('-').map(x => parseInt(x.trim()) - 1);
+        const start = Math.max(0, range[0] || 0);
+        const end = Math.min(src.getPageCount() - 1, range[1] ?? start);
+        const sub = await PDFLib.PDFDocument.create();
+        const indices = []; for (let i = start; i <= end; i++) indices.push(i);
+        const copied = await sub.copyPages(src, indices);
+        copied.forEach(p => sub.addPage(p));
+        const bytes = await sub.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `pages_${start + 1}-${end + 1}.pdf`, `${(bytes.length / 1024).toFixed(1)} KB`);
+      }
+    };
+
+    // ================= 5. JOIN, EDIT & SIGNATURE MAKER =================
+    const sigCanvas = document.getElementById('sigCanvas');
+    const sigCtx = sigCanvas.getContext('2d');
+    let drawingSig = false;
+    sigCanvas.onmousedown = e => { drawingSig = true; sigCtx.beginPath(); sigCtx.moveTo(e.offsetX, e.offsetY); };
+    sigCanvas.onmousemove = e => { if (!drawingSig) return; sigCtx.lineWidth = 2.5; sigCtx.strokeStyle = '#0f172a'; sigCtx.lineTo(e.offsetX, e.offsetY); sigCtx.stroke(); };
+    window.addEventListener('mouseup', () => drawingSig = false);
+    document.getElementById('clearSigBtn').onclick = () => sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+
+    document.getElementById('editToolSelect').onchange = e => {
+      document.getElementById('sigPadWrap').classList.toggle('hidden', e.target.value !== 'sig_maker');
+    };
+
+    document.getElementById('editRunBtn').onclick = async () => {
+      const tool = document.getElementById('editToolSelect').value;
+      const out = document.getElementById('editOutput');
+      out.innerHTML = '';
+      const files = Array.from(document.getElementById('editFiles').files);
+      const t1 = document.getElementById('editText1').value;
+      const t2 = document.getElementById('editText2').value;
+      const n1 = parseFloat(document.getElementById('editNum1').value) || 0;
+      const col = document.getElementById('editColor').value;
+
+      if (tool === 'sig_maker') {
+        addDownloadCard(out, await toBlob(sigCanvas, 'image/png', 1), 'signature.png', 'Signature created');
+        return;
+      }
+      if (!files.length) return alert('Please select image file(s).');
+      const imgs = await Promise.all(files.map(f => loadImg(URL.createObjectURL(f))));
+
+      if (tool === 'join_images' || tool === 'merge_photo_sig') {
+        const c = document.createElement('canvas');
+        if (tool === 'merge_photo_sig') {
+          c.width = Math.max(...imgs.map(i => i.width));
+          c.height = imgs.reduce((acc, i) => acc + i.height, 0);
+        } else {
+          c.width = imgs.reduce((acc, i) => acc + i.width, 0);
+          c.height = Math.max(...imgs.map(i => i.height));
+        }
+        const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        let pos = 0;
+        for (const im of imgs) {
+          if (tool === 'merge_photo_sig') { ctx.drawImage(im, 0, pos); pos += im.height; }
+          else { ctx.drawImage(im, pos, 0); pos += im.width; }
+        }
+        addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.92), `${tool}.jpg`, `${c.width}×${c.height}px`);
+        return;
+      }
+
+      const im = imgs[0];
+      const c = document.createElement('canvas');
+      const ctx = c.getContext('2d');
+      const rad = (n1 * Math.PI) / 180;
+      if (tool === 'rotate') {
+        c.width = Math.abs(im.width * Math.cos(rad)) + Math.abs(im.height * Math.sin(rad));
+        c.height = Math.abs(im.width * Math.sin(rad)) + Math.abs(im.height * Math.cos(rad));
+        ctx.translate(c.width / 2, c.height / 2); ctx.rotate(rad); ctx.drawImage(im, -im.width / 2, -im.height / 2);
+      } else {
+        c.width = im.width; c.height = im.height;
+        if (tool === 'flip') { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
+        ctx.drawImage(im, 0, 0, c.width, c.height);
+        if (tool === 'add_border') { ctx.strokeStyle = col; ctx.lineWidth = Math.max(4, n1 || 12); ctx.strokeRect(0, 0, c.width, c.height); }
+        if (tool === 'name_date') {
+          const bh = Math.max(44, Math.round(c.height * 0.14));
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(0, c.height - bh, c.width, bh);
+          ctx.fillStyle = col; ctx.font = `bold ${Math.round(bh * 0.42)}px Arial`; ctx.textAlign = 'center';
+          ctx.fillText(`${t1 || 'Name'} ${t2 ? '| ' + t2 : ''}`, c.width / 2, c.height - bh * 0.35);
+        }
+      }
+      addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.92), `${tool}_result.jpg`, 'Processed image');
+    };
+  </script>
+</body>
+</html>
