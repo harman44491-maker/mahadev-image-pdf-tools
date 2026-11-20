@@ -40,7 +40,7 @@
     .inputs-row label, .controls-row label { display: flex; align-items: center; gap: 6px; font-size: .86rem; background: #f8fafc; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 5px; }
     input[type="number"], input[type="text"], input[type="password"], select, textarea { padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: .88rem; }
     input[type="number"] { width: 86px; }
-    input[type="range"] { width: 110px; cursor: pointer; }
+    input[type="range"] { width: 115px; cursor: pointer; }
     textarea { width: 100%; max-width: 640px; min-height: 90px; }
 
     .drop-box { border: 2px dashed #94a3b8; border-radius: 8px; padding: 24px 16px; text-align: center; background: #fafbfd; margin-bottom: 14px; cursor: pointer; }
@@ -58,6 +58,7 @@
 
     .canvas-box { text-align: center; margin: 12px 0; overflow-x: auto; }
     canvas.interactive { border: 1px solid #94a3b8; background: #fff; border-radius: 4px; max-width: 100%; cursor: crosshair; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    canvas.live-preview { border: 2px solid #cbd5e1; background: #f8fafc; border-radius: 6px; max-width: 100%; max-height: 360px; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
     .hidden { display: none !important; }
     .status-note { text-align: center; font-size: .9rem; color: #1d4ed8; margin: 10px 0; font-weight: 600; }
 
@@ -409,10 +410,11 @@
           </optgroup>
           <optgroup label="CHANGE PHOTO">
             <option value="name_date" selected>Add Name and Date on Photo (Transparent / Strip)</option>
+            <option value="add_logo_photo">Add Logo on Photo (Transparent / Custom Opacity)</option>
             <option value="photo_frame">Photo Frame &amp; Border (50 Pro Frames + Upload)</option>
             <option value="add_border">Add Simple Solid Border to Photo</option>
             <option value="blur_image">Blur Image</option>
-            <option value="img_contrast">Image Contrast &amp; Brightness (Separate Controls)</option>
+            <option value="img_contrast">Image Contrast &amp; Brightness (Live Preview)</option>
             <option value="rotate">Rotate Image</option>
             <option value="add_text_img">Add Text to Image</option>
             <option value="watermark_img">Watermark Image</option>
@@ -436,7 +438,36 @@
         <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
       </div>
 
-      <!-- SEPARATE CONTRAST & BRIGHTNESS CONTROLS -->
+      <!-- ADD LOGO ON PHOTO (TRANSPARENT) CONTROLS -->
+      <div id="logoOptionsWrap" class="hidden">
+        <div class="inputs-row">
+          <label>Upload Logo Image: <input type="file" id="logoOverlayFile" accept="image/*"></label>
+          <label>Opacity (Transparency %):
+            <input type="range" id="logoOpacityRange" min="10" max="100" value="65">
+            <input type="number" id="logoOpacityNum" min="10" max="100" value="65" style="width:65px;">
+          </label>
+          <label>Logo Size (%):
+            <input type="range" id="logoSizeRange" min="5" max="80" value="25">
+            <input type="number" id="logoSizeNum" min="5" max="80" value="25" style="width:65px;">
+          </label>
+        </div>
+        <div class="inputs-row">
+          <label>Position:
+            <select id="logoPosition">
+              <option value="bottom-right" selected>Bottom Right</option>
+              <option value="bottom-left">Bottom Left</option>
+              <option value="top-right">Top Right</option>
+              <option value="top-left">Top Left</option>
+              <option value="center">Center (Watermark Style)</option>
+              <option value="tiled">Diagonal Repeat (Full Photo)</option>
+            </select>
+          </label>
+          <label>Margin (px): <input type="number" id="logoMargin" value="20" min="0" max="200" style="width:70px;"></label>
+          <label><input type="checkbox" id="logoRemoveWhiteBg"> Auto Remove White BG from Logo</label>
+        </div>
+      </div>
+
+      <!-- SEPARATE CONTRAST & BRIGHTNESS CONTROLS (LIVE PREVIEW) -->
       <div id="cbControlsWrap" class="inputs-row hidden">
         <label>Contrast (%):
           <input type="range" id="cbContrastRange" min="20" max="250" value="110">
@@ -503,8 +534,14 @@
         </div>
       </div>
 
+      <!-- LIVE PREVIEW CANVAS FOR CONTRAST/BRIGHTNESS & LOGO -->
+      <div id="liveEditPreviewWrap" class="canvas-box hidden">
+        <p style="font-size:.84rem;color:#0b7a5c;font-weight:700;margin-bottom:6px;">Live Preview (Changes update automatically as you adjust sliders):</p>
+        <canvas id="liveEditCanvas" class="live-preview"></canvas>
+      </div>
+
       <div class="controls-row">
-        <button type="button" class="btn-blue" id="editRunBtn">Apply Tool</button>
+        <button type="button" class="btn-blue" id="editRunBtn">Apply &amp; Download</button>
       </div>
       <div id="editStatus" class="status-note hidden"></div>
       <div class="output-area" id="editOutput"></div>
@@ -516,7 +553,6 @@
 
     // ================= 100+ ENGLISH, HINDI (DEVANAGARI) & PUNJABI (GURMUKHI) FONTS =================
     const FONTS_100_PLUS = [
-      // Punjabi (Gurmukhi) Fonts
       { label: '[Punjabi] Noto Sans Gurmukhi', css: "'Noto Sans Gurmukhi', sans-serif" },
       { label: '[Punjabi] Baloo Paaji 2', css: "'Baloo Paaji 2', 'Noto Sans Gurmukhi', sans-serif" },
       { label: '[Punjabi] Mukta Mahee', css: "'Mukta Mahee', 'Noto Sans Gurmukhi', sans-serif" },
@@ -527,7 +563,6 @@
       { label: '[Punjabi] GurbaniAkhar Style', css: "'GurbaniAkhar', 'Noto Serif Gurmukhi', serif" },
       { label: '[Punjabi] Saab Gurmukhi', css: "'Saab', 'Noto Sans Gurmukhi', sans-serif" },
       { label: '[Punjabi] Joy Gurmukhi', css: "'Joy', 'Baloo Paaji 2', sans-serif" },
-      // Hindi (Devanagari) Fonts
       { label: '[Hindi] Noto Sans Devanagari', css: "'Noto Sans Devanagari', sans-serif" },
       { label: '[Hindi] Hind', css: "'Hind', 'Noto Sans Devanagari', sans-serif" },
       { label: '[Hindi] Mukta', css: "'Mukta', 'Noto Sans Devanagari', sans-serif" },
@@ -548,7 +583,6 @@
       { label: '[Hindi] Mukta Malayalam', css: "'Mukta Malayalam', sans-serif" },
       { label: '[Hindi] Baloo Da 2', css: "'Baloo Da 2', sans-serif" },
       { label: '[Hindi] Baloo Tamma 2', css: "'Baloo Tamma 2', sans-serif" },
-      // English Fonts (70+)
       { label: '[Eng] Arial', css: "Arial, sans-serif" },
       { label: '[Eng] Roboto', css: "'Roboto', sans-serif" },
       { label: '[Eng] Open Sans', css: "'Open Sans', sans-serif" },
@@ -1863,7 +1897,7 @@
       addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF Form (${(bytes.length / 1024).toFixed(1)} KB)`);
     };
 
-    // ================= 7. JOIN, CHANGE PHOTO, 50 PRO FRAMES & SEPARATE CONTRAST/BRIGHTNESS =================
+    // ================= 7. JOIN, CHANGE PHOTO, 50 PRO FRAMES, LIVE CONTRAST/BRIGHTNESS & TRANSPARENT LOGO =================
     const sigCanvas = document.getElementById('sigCanvas');
     const sigCtx = sigCanvas.getContext('2d');
     let drawingSig = false;
@@ -1872,17 +1906,124 @@
     window.addEventListener('mouseup', () => drawingSig = false);
     document.getElementById('clearSigBtn').onclick = () => sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
 
-    // Sync Contrast & Brightness sliders and numbers
-    function bindRangeAndNum(rangeId, numId) {
-      const r = document.getElementById(rangeId), n = document.getElementById(numId);
-      r.oninput = () => n.value = r.value;
-      n.oninput = () => r.value = n.value;
+    let cachedMainImg = null;
+    let cachedLogoImg = null;
+
+    function prepareLogoSource(logoImg, removeWhiteBg) {
+      const c = document.createElement('canvas');
+      c.width = logoImg.width; c.height = logoImg.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(logoImg, 0, 0);
+      if (removeWhiteBg) {
+        const imgData = ctx.getImageData(0, 0, c.width, c.height);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) {
+            d[i + 3] = 0;
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+      return c;
     }
-    bindRangeAndNum('cbContrastRange', 'cbContrastNum');
-    bindRangeAndNum('cbBrightnessRange', 'cbBrightnessNum');
+
+    function drawLogoOverlayOnCanvas(ctx, cw, ch, logoImg) {
+      if (!logoImg) return;
+      const opacity = (parseFloat(document.getElementById('logoOpacityNum').value) || 65) / 100;
+      const sizePct = (parseFloat(document.getElementById('logoSizeNum').value) || 25) / 100;
+      const posMode = document.getElementById('logoPosition').value;
+      const margin = parseInt(document.getElementById('logoMargin').value) || 20;
+      const removeWhite = document.getElementById('logoRemoveWhiteBg').checked;
+
+      const cleanLogo = prepareLogoSource(logoImg, removeWhite);
+      const lw = Math.max(16, Math.round(cw * sizePct));
+      const lh = Math.max(16, Math.round((cleanLogo.height / cleanLogo.width) * lw));
+
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, Math.max(0.05, opacity));
+
+      if (posMode === 'tiled') {
+        ctx.translate(cw / 2, ch / 2);
+        ctx.rotate(-Math.PI / 6);
+        const stepX = lw + margin * 2.5;
+        const stepY = lh + margin * 2.5;
+        for (let y = -ch; y < ch; y += stepY) {
+          for (let x = -cw; x < cw; x += stepX) {
+            ctx.drawImage(cleanLogo, x, y, lw, lh);
+          }
+        }
+      } else {
+        let lx = cw - lw - margin;
+        let ly = ch - lh - margin;
+        if (posMode === 'bottom-left') { lx = margin; ly = ch - lh - margin; }
+        else if (posMode === 'top-right') { lx = cw - lw - margin; ly = margin; }
+        else if (posMode === 'top-left') { lx = margin; ly = margin; }
+        else if (posMode === 'center') { lx = (cw - lw) / 2; ly = (ch - lh) / 2; }
+        ctx.drawImage(cleanLogo, lx, ly, lw, lh);
+      }
+      ctx.restore();
+    }
+
+    function renderLiveEditPreview() {
+      const tool = document.getElementById('editToolSelect').value;
+      const wrap = document.getElementById('liveEditPreviewWrap');
+      const liveCanvas = document.getElementById('liveEditCanvas');
+      if (!cachedMainImg || !['img_contrast', 'add_logo_photo'].includes(tool)) {
+        wrap.classList.add('hidden');
+        return;
+      }
+      wrap.classList.remove('hidden');
+      const maxDim = 540;
+      const sc = Math.min(1, maxDim / Math.max(cachedMainImg.width, cachedMainImg.height));
+      liveCanvas.width = Math.round(cachedMainImg.width * sc);
+      liveCanvas.height = Math.round(cachedMainImg.height * sc);
+      const lctx = liveCanvas.getContext('2d');
+      lctx.clearRect(0, 0, liveCanvas.width, liveCanvas.height);
+
+      if (tool === 'img_contrast') {
+        const cVal = Math.max(10, parseFloat(document.getElementById('cbContrastNum').value) || 100);
+        const bVal = Math.max(10, parseFloat(document.getElementById('cbBrightnessNum').value) || 100);
+        lctx.filter = `contrast(${cVal}%) brightness(${bVal}%)`;
+        lctx.drawImage(cachedMainImg, 0, 0, liveCanvas.width, liveCanvas.height);
+        lctx.filter = 'none';
+      } else if (tool === 'add_logo_photo') {
+        lctx.drawImage(cachedMainImg, 0, 0, liveCanvas.width, liveCanvas.height);
+        drawLogoOverlayOnCanvas(lctx, liveCanvas.width, liveCanvas.height, cachedLogoImg);
+      }
+    }
+
+    document.getElementById('editFiles').onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) { cachedMainImg = null; renderLiveEditPreview(); return; }
+      cachedMainImg = await loadImg(URL.createObjectURL(f));
+      renderLiveEditPreview();
+    };
+
+    document.getElementById('logoOverlayFile').onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) { cachedLogoImg = null; renderLiveEditPreview(); return; }
+      cachedLogoImg = await loadImg(URL.createObjectURL(f));
+      renderLiveEditPreview();
+    };
+
+    function bindRangeAndNum(rangeId, numId, onChangeCb) {
+      const r = document.getElementById(rangeId), n = document.getElementById(numId);
+      r.oninput = () => { n.value = r.value; if (onChangeCb) onChangeCb(); };
+      n.oninput = () => { r.value = n.value; if (onChangeCb) onChangeCb(); };
+    }
+    bindRangeAndNum('cbContrastRange', 'cbContrastNum', renderLiveEditPreview);
+    bindRangeAndNum('cbBrightnessRange', 'cbBrightnessNum', renderLiveEditPreview);
+    bindRangeAndNum('logoOpacityRange', 'logoOpacityNum', renderLiveEditPreview);
+    bindRangeAndNum('logoSizeRange', 'logoSizeNum', renderLiveEditPreview);
+
+    document.getElementById('logoPosition').onchange = renderLiveEditPreview;
+    document.getElementById('logoMargin').oninput = renderLiveEditPreview;
+    document.getElementById('logoRemoveWhiteBg').onchange = renderLiveEditPreview;
+
     document.getElementById('cbResetBtn').onclick = () => {
       document.getElementById('cbContrastRange').value = 100; document.getElementById('cbContrastNum').value = 100;
       document.getElementById('cbBrightnessRange').value = 100; document.getElementById('cbBrightnessNum').value = 100;
+      renderLiveEditPreview();
     };
 
     // 50 Ready-Made Pro Frames
@@ -1978,6 +2119,7 @@
       document.getElementById('hwTextWrap').classList.toggle('hidden', v !== 'text_handwriting');
       document.getElementById('edImgFileLbl').classList.toggle('hidden', ['sig_maker', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('ndOptionsWrap').classList.toggle('hidden', v !== 'name_date');
+      document.getElementById('logoOptionsWrap').classList.toggle('hidden', v !== 'add_logo_photo');
       document.getElementById('frameOptionsWrap').classList.toggle('hidden', v !== 'photo_frame');
       document.getElementById('cbControlsWrap').classList.toggle('hidden', v !== 'img_contrast');
       document.getElementById('edText1Lbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
@@ -1989,6 +2131,7 @@
       if (v === 'name_date' && document.getElementById('editColor').value === '#1e293b') {
         document.getElementById('editColor').value = '#ffffff';
       }
+      renderLiveEditPreview();
     }
     document.getElementById('editToolSelect').onchange = updateEditToolUI;
     updateEditToolUI();
@@ -2091,6 +2234,13 @@
         }
         ctx.drawImage(im, 0, 0, c.width, c.height);
         ctx.filter = 'none';
+
+        if (tool === 'add_logo_photo') {
+          const logoF = document.getElementById('logoOverlayFile').files[0];
+          if (!logoF && !cachedLogoImg) return alert('Please upload a Logo image first.');
+          const logoImg = cachedLogoImg || await loadImg(URL.createObjectURL(logoF));
+          drawLogoOverlayOnCanvas(ctx, c.width, c.height, logoImg);
+        }
 
         if (tool === 'add_border') {
           ctx.strokeStyle = col;
