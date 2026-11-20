@@ -556,7 +556,7 @@
       status.classList.add('hidden');
     };
 
-    // ================= 3. WATERMARK REMOVER (UPGRADED PDF / DOC CLEANER) =================
+    // ================= 3. WATERMARK REMOVER (ADAPTIVE LOCAL THRESHOLD FOR PDF/DOCS) =================
     const wmFile = document.getElementById('wmFile');
     const wmCanvas = document.getElementById('wmCanvas');
     const wmCtx = wmCanvas.getContext('2d');
@@ -626,7 +626,7 @@
     window.addEventListener('mouseup', () => wmDrag = false);
     document.getElementById('wmClearBoxBtn').onclick = () => { wmBox = null; drawWmPreview(); };
 
-    // Enhanced Document / PDF Watermark & Shadow Cleaner + Dark Text Crispness
+    // Adaptive Local Threshold + Ink Stroke Recovery (Keeps thin Punjabi matras unbroken while wiping watermark)
     function cleanDocumentCanvas(ctx, w, h, cutoff, sharpenText, region) {
       const imgData = ctx.getImageData(0, 0, w, h);
       const d = imgData.data;
@@ -636,21 +636,46 @@
       const x1 = region ? Math.min(w - 1, region.x + region.w) : w - 1;
       const y1 = region ? Math.min(h - 1, region.y + region.h) : h - 1;
 
-      for (let y = y0; y <= y1; y++) {
-        for (let x = x0; x <= x1; x++) {
-          const i = (y * w + x) * 4;
-          const r = d[i], g = d[i + 1], b = d[i + 2];
-          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          const maxDiff = Math.max(Math.abs(r - g), Math.abs(g - b), Math.abs(r - b));
+      const lumBuf = new Float32Array(w * h);
+      const integral = new Float64Array((w + 1) * (h + 1));
 
-          // Wipe out grey/light watermark & scan background completely to pure white
-          if (lum >= cutoff && maxDiff < 55) {
-            d[i] = 255; d[i + 1] = 255; d[i + 2] = 255;
-          } else if (sharpenText && lum < cutoff) {
-            // Deepen dark ink (Gurmukhi/English text) for high-contrast crisp print
-            const factor = Math.max(0, (lum - 30) / Math.max(1, cutoff - 30));
-            const boosted = Math.round(Math.pow(factor, 1.55) * lum * 0.82);
-            d[i] = boosted; d[i + 1] = boosted; d[i + 2] = boosted;
+      for (let y = 0; y < h; y++) {
+        let rowSum = 0;
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          lumBuf[y * w + x] = l;
+          rowSum += l;
+          integral[(y + 1) * (w + 1) + (x + 1)] = integral[y * (w + 1) + (x + 1)] + rowSum;
+        }
+      }
+
+      const r = 14;
+      const contrastDelta = Math.max(12, Math.round((220 - cutoff) * 0.45));
+
+      for (let y = y0; y <= y1; y++) {
+        const ya = Math.max(0, y - r);
+        const yb = Math.min(h - 1, y + r);
+        for (let x = x0; x <= x1; x++) {
+          const xa = Math.max(0, x - r);
+          const xb = Math.min(w - 1, x + r);
+
+          const area = (xb - xa + 1) * (yb - ya + 1);
+          const sum = integral[(yb + 1) * (w + 1) + (xb + 1)]
+                    - integral[ya * (w + 1) + (xb + 1)]
+                    - integral[(yb + 1) * (w + 1) + xa]
+                    + integral[ya * (w + 1) + xa];
+          const localMean = sum / area;
+          const curLum = lumBuf[y * w + x];
+          const idx = (y * w + x) * 4;
+
+          if (curLum < localMean - contrastDelta || curLum < 115) {
+            if (sharpenText) {
+              const ink = Math.max(0, Math.min(255, Math.round((curLum / Math.max(1, localMean)) * 95)));
+              d[idx] = ink; d[idx + 1] = ink; d[idx + 2] = ink;
+            }
+          } else {
+            d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255;
           }
         }
       }
