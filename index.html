@@ -51,8 +51,9 @@
     .status-note { text-align: center; font-size: .9rem; color: #1d4ed8; margin: 10px 0; font-weight: 600; }
 
     .output-area { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-    .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; background: #fff; }
+    .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; background: #fff; overflow: hidden; }
     .card img { max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #e2e8f0; margin-bottom: 8px; }
+    .card-title { padding: 16px 8px; font-weight: bold; word-break: break-word; overflow-wrap: anywhere; font-size: .9rem; }
     .dl-btn { display: inline-block; margin-top: 8px; background: #0b7a5c; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 4px; font-size: .86rem; font-weight: 600; }
     .footer { text-align: center; padding: 18px; color: #64748b; font-size: .85rem; }
   </style>
@@ -322,13 +323,18 @@
     function toBlob(canvas, type, q) {
       return new Promise(r => canvas.toBlob(b => r(b), type, q));
     }
+    function padBlobToExactBytes(blob, exactBytes, mimeType) {
+      if (!blob || blob.size >= exactBytes) return blob;
+      const padding = new Uint8Array(exactBytes - blob.size);
+      return new Blob([blob, padding], { type: mimeType });
+    }
     function addDownloadCard(container, blobOrUrl, filename, labelText) {
       const url = typeof blobOrUrl === 'string' ? blobOrUrl : URL.createObjectURL(blobOrUrl);
       const card = document.createElement('div');
       card.className = 'card';
       const isImg = filename.match(/\.(jpg|jpeg|png|webp)$/i);
       card.innerHTML = `
-        ${isImg ? `<img src="${url}" alt="${filename}">` : `<div style="padding:24px;font-weight:bold;">${filename}</div>`}
+        ${isImg ? `<img src="${url}" alt="${filename}">` : `<div class="card-title">${filename}</div>`}
         <div style="font-size:.85rem;color:#334155;">${labelText}</div>
         <a class="dl-btn" href="${url}" download="${filename}">Download ${filename.split('.').pop().toUpperCase()}</a>
       `;
@@ -385,14 +391,12 @@
       let startW = w;
       let startH = h;
 
-      // Check initial size at max quality
       c.width = startW;
       c.height = startH;
       if (mime === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); }
       ctx.drawImage(img, 0, 0, c.width, c.height);
       const initialBlob = await toBlob(c, mime, 1.0);
 
-      // If image is smaller than target and dimensions are Auto, upscale moderately first for sharper output
       if (!hasCustomDims && initialBlob.size < exactTargetBytes) {
         const upFactor = Math.min(Math.sqrt(exactTargetBytes / Math.max(1, initialBlob.size)), 2.5);
         startW = Math.round(w * upFactor);
@@ -426,13 +430,7 @@
         scale *= 0.78;
       }
 
-      // If file is STILL smaller than exactTargetBytes (e.g., 61 KB image resized to 500 KB), pad to exact target size
-      if (best && best.size < exactTargetBytes) {
-        const padLength = exactTargetBytes - best.size;
-        const padding = new Uint8Array(padLength);
-        best = new Blob([best, padding], { type: mime });
-      }
-
+      best = padBlobToExactBytes(best, exactTargetBytes, mime);
       return { blob: best, w: c.width, h: c.height };
     }
 
@@ -660,7 +658,6 @@
     window.addEventListener('mouseup', () => wmDrag = false);
     document.getElementById('wmClearBoxBtn').onclick = () => { wmBox = null; drawWmPreview(); };
 
-    // Adaptive Local Threshold + Ink Stroke Recovery
     function cleanDocumentCanvas(ctx, w, h, cutoff, sharpenText, region) {
       const imgData = ctx.getImageData(0, 0, w, h);
       const d = imgData.data;
@@ -877,7 +874,7 @@
       status.classList.add('hidden');
     };
 
-    // ================= 4. PDF RESIZE & TOOLS =================
+    // ================= 4. PDF RESIZE & TOOLS (EXACT TARGET KB/MB - UP & DOWN) =================
     function setPdfTarget(val, unit) {
       document.getElementById('pdfToolSelect').value = 'resize_pdf_custom';
       document.getElementById('pdfTargetSize').value = val;
@@ -921,26 +918,33 @@
       if (!files.length) return alert('Please select file(s).');
 
       if (tool === 'resize_pdf_custom') {
-        status.textContent = 'Resizing PDF to match your target size... please wait.';
+        status.textContent = 'Resizing PDF to exact target size... please wait.';
         status.classList.remove('hidden');
         const targetVal = parseFloat(document.getElementById('pdfTargetSize').value) || 150;
-        const mult = document.getElementById('pdfTargetUnit').value === 'MB' ? 1048576 : 1024;
-        const targetBytes = Math.floor(targetVal * mult * 0.97);
+        const unitStr = document.getElementById('pdfTargetUnit').value;
+        const mult = unitStr === 'MB' ? 1048576 : 1024;
+        const exactTargetBytes = Math.round(targetVal * mult);
         const pdf = await pdfjsLib.getDocument({ data: await files[0].arrayBuffer() }).promise;
+
         let bestBytes = null;
-        for (const sc of [1.4, 1.1, 0.85, 0.65, 0.5]) {
-          let lo = 0.15, hi = 0.92, candidate = null;
-          for (let step = 0; step < 5; step++) {
+        // Start with high resolution scale (2.0) first so larger targets use crisp quality before padding
+        for (const sc of [2.0, 1.5, 1.15, 0.85, 0.65, 0.5]) {
+          let lo = 0.15, hi = 0.98, candidate = null;
+          for (let step = 0; step < 6; step++) {
             const midQ = (lo + hi) / 2;
             const bytes = await buildCompressedPdfFromPages(pdf, sc, midQ);
-            if (bytes.length <= targetBytes) { candidate = bytes; lo = midQ; } else { hi = midQ; }
+            if (bytes.length <= exactTargetBytes) { candidate = bytes; lo = midQ; } else { hi = midQ; }
           }
           if (candidate) { bestBytes = candidate; break; }
           bestBytes = await buildCompressedPdfFromPages(pdf, sc, 0.15);
         }
+
+        let finalPdfBlob = new Blob([bestBytes], { type: 'application/pdf' });
+        finalPdfBlob = padBlobToExactBytes(finalPdfBlob, exactTargetBytes, 'application/pdf');
+
         status.classList.add('hidden');
-        const outName = `resized_${targetVal}${document.getElementById('pdfTargetUnit').value.toLowerCase()}_${files[0].name}`;
-        addDownloadCard(out, new Blob([bestBytes], { type: 'application/pdf' }), outName, `Resized PDF: ${(bestBytes.length / 1024).toFixed(1)} KB`);
+        const outName = `resized_${targetVal}${unitStr.toLowerCase()}_${files[0].name}`;
+        addDownloadCard(out, finalPdfBlob, outName, `Resized PDF: ${(finalPdfBlob.size / 1024).toFixed(1)} KB`);
         return;
       }
 
@@ -977,7 +981,11 @@
           page.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
         }
         const bytes = await pdfDoc.save();
-        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'images_to_pdf.pdf', `${(bytes.length / 1024).toFixed(1)} KB`);
+        let pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+        if (tool === 'jpg_to_pdf_100' && pdfBlob.size < 100 * 1024) {
+          pdfBlob = padBlobToExactBytes(pdfBlob, 100 * 1024, 'application/pdf');
+        }
+        addDownloadCard(out, pdfBlob, 'images_to_pdf.pdf', `${(pdfBlob.size / 1024).toFixed(1)} KB`);
         return;
       }
 
