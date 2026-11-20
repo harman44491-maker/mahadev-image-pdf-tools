@@ -43,7 +43,6 @@
           </optgroup>
           <optgroup label="CHANGE PHOTO">
             <option value="ps_auto_retouch" selected>Photoshop Auto Retouch, Hair Set &amp; Digital Studio</option>
-            <option value="zoom_area">Zoom Selected Area (Crop &amp; Magnify)</option>
             <option value="name_date">Add Name and Date on Photo (Transparent / Strip)</option>
             <option value="add_logo_photo">Add Logo on Photo (Transparent / Custom Opacity)</option>
             <option value="photo_frame">Photo Frame &amp; Border (50 Pro Frames + Upload)</option>
@@ -73,17 +72,7 @@
         <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
       </div>
 
-      <!-- ZOOM SELECTED AREA CONTROLS -->
-      <div id="zoomAreaWrap" class="inputs-row hidden">
-        <label>Zoom Scale:
-          <input type="range" id="zoomScaleRange" min="1.5" max="5" step="0.25" value="2.5">
-          <input type="number" id="zoomScaleNum" min="1.5" max="5" step="0.25" value="2.5" style="width:68px;">x
-        </label>
-        <label><input type="checkbox" id="zoomSharpToggle" checked> HD Detail Sharpen</label>
-        <button type="button" class="chip" id="zoomResetBoxBtn">Reset Selection</button>
-      </div>
-
-      <!-- PHOTOSHOP AUTO RETOUCH & DIGITAL STUDIO + HAIR SET TOOL + OPTIONAL BG REMOVER -->
+      <!-- PHOTOSHOP AUTO RETOUCH & DIGITAL STUDIO + ZOOM SELECTED AREA + HAIR SET TOOL + OPTIONAL BG REMOVER -->
       <div id="psRetouchWrap" class="hidden">
         <div class="inputs-row">
           <label>Digital Look Preset:
@@ -117,6 +106,19 @@
           <label>Before / After Split (%):
             <input type="range" id="psSplitRange" min="0" max="100" value="100">
           </label>
+        </div>
+
+        <!-- SELECTED AREA ZOOM & CROP (INSIDE PHOTOSHOP AUTO RETOUCH) -->
+        <div class="inputs-row" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px;">
+          <label style="background:#fff;border-color:#0284c7;font-weight:700;color:#0369a1;">
+            <input type="checkbox" id="psZoomSelectMode"> Zoom Selected Area (Drag Box on Photo)
+          </label>
+          <label style="background:#fff;">Zoom Scale:
+            <input type="range" id="psZoomScaleRange" min="1.2" max="5" step="0.1" value="2" style="width:85px;">
+            <input type="number" id="psZoomScaleNum" min="1.2" max="5" step="0.1" value="2" style="width:62px;">x
+          </label>
+          <label style="background:#fff;"><input type="checkbox" id="psZoomSharpToggle" checked> HD Detail Sharpen</label>
+          <button type="button" class="chip" id="psZoomResetBoxBtn">Reset Zoom Area</button>
         </div>
 
         <!-- HAIR SET & FLYAWAY HAIR RETOUCH BRUSH -->
