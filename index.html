@@ -62,9 +62,16 @@
     .field-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 5px; }
     .field-card label { font-size: .82rem; font-weight: 700; color: #334155; }
 
+    .frame-gallery { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 10px auto 14px; max-width: 780px; }
+    .frame-thumb { width: 84px; padding: 6px; border: 2px solid #cbd5e1; border-radius: 6px; text-align: center; cursor: pointer; background: #fff; transition: 0.15s; }
+    .frame-thumb:hover { border-color: #3f4898; }
+    .frame-thumb.selected { border-color: #0b7a5c; background: #ecfdf5; box-shadow: 0 0 0 2px rgba(11,122,92,0.2); }
+    .frame-thumb canvas { width: 64px; height: 76px; display: block; margin: 0 auto 4px; background: #f8fafc; }
+    .frame-thumb span { display: block; font-size: .72rem; font-weight: 700; color: #334155; }
+
     .output-area { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
     .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; background: #fff; overflow: hidden; }
-    .card img { max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid #e2e8f0; margin-bottom: 8px; }
+    .card img { max-width: 100%; max-height: 220px; object-fit: contain; border: 1px solid #e2e8f0; margin-bottom: 8px; }
     .card-title { padding: 14px 6px; font-weight: bold; word-break: break-word; overflow-wrap: anywhere; font-size: .88rem; }
     .dl-btn { display: inline-block; margin-top: 8px; background: #0b7a5c; color: #fff; text-decoration: none; padding: 7px 12px; border-radius: 4px; font-size: .85rem; font-weight: 600; }
   </style>
@@ -361,7 +368,6 @@
       <div id="ffStatus" class="status-note hidden"></div>
       <div id="ffFieldsContainer" class="form-fields-grid"></div>
 
-      <!-- Visual fallback form filler when PDF has no digital AcroForm fields -->
       <div id="ffVisualWrap" class="hidden">
         <div class="inputs-row">
           <label>Page: <select id="ffPageSelect"></select></label>
@@ -390,8 +396,9 @@
             <option value="join_images">Join Images (Horizontal)</option>
           </optgroup>
           <optgroup label="CHANGE PHOTO">
-            <option value="name_date">Add Name and Date on Photo</option>
-            <option value="add_border">Add Border to Photo</option>
+            <option value="name_date" selected>Add Name and Date on Photo (Transparent / Strip)</option>
+            <option value="photo_frame">Photo Frame &amp; Border (Upload or Select Frame)</option>
+            <option value="add_border">Add Simple Solid Border to Photo</option>
             <option value="blur_image">Blur Image</option>
             <option value="img_contrast">Image Contrast &amp; Brightness</option>
             <option value="rotate">Rotate Image</option>
@@ -409,11 +416,51 @@
       </div>
 
       <div class="inputs-row">
-        <label id="edImgFileLbl">Files: <input type="file" id="editFiles" accept="image/*" multiple></label>
-        <label>Name / Text: <input type="text" id="editText1" placeholder="Enter text / formula"></label>
-        <label>Date / Subtext: <input type="text" id="editText2" placeholder="DD/MM/YYYY"></label>
-        <label>Value (Angle / Blur / Contrast %): <input type="number" id="editNum1" value="10"></label>
-        <label>Color: <input type="color" id="editColor" value="#1e293b"></label>
+        <label id="edImgFileLbl">Photo File(s): <input type="file" id="editFiles" accept="image/*" multiple></label>
+        <label id="edText1Lbl">Name / Text: <input type="text" id="editText1" placeholder="Enter Name / Text"></label>
+        <label id="edText2Lbl">Date / Subtext: <input type="text" id="editText2" placeholder="DD/MM/YYYY"></label>
+        <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
+      </div>
+
+      <!-- NAME & DATE ADVANCED OPTIONS (TRANSPARENT OVERLAY + POSITION + HORIZONTAL/VERTICAL) -->
+      <div id="ndOptionsWrap" class="inputs-row">
+        <label>Style:
+          <select id="ndBgStyle">
+            <option value="transparent_outline" selected>Transparent Over Photo (No Crop / Clean Outline)</option>
+            <option value="transparent_glass">Transparent Frosted Strip Over Photo (No Crop)</option>
+            <option value="white_strip">Solid White Bottom Strip</option>
+          </select>
+        </label>
+        <label>Position:
+          <select id="ndPosition">
+            <option value="bottom" selected>Bottom (Niche)</option>
+            <option value="top">Top (Upar)</option>
+            <option value="center">Center (Beech Me)</option>
+            <option value="left">Left Side</option>
+            <option value="right">Right Side</option>
+          </select>
+        </label>
+        <label>Orientation:
+          <select id="ndOrientation">
+            <option value="horizontal" selected>Horizontal (Seedha)</option>
+            <option value="vertical">Vertical (Khada / 90°)</option>
+          </select>
+        </label>
+        <label>Text Size (%): <input type="number" id="ndFontSizePct" value="5" min="2" max="15"></label>
+      </div>
+
+      <!-- PHOTO FRAME UPLOAD & SELECTABLE READY-MADE FRAMES -->
+      <div id="frameOptionsWrap" class="hidden">
+        <div class="inputs-row">
+          <label>Upload Custom Frame (PNG): <input type="file" id="customFrameFile" accept="image/*"></label>
+          <label>Frame Thickness (%): <input type="number" id="frameThickness" value="6" min="2" max="20"></label>
+        </div>
+        <p style="text-align:center;font-size:.84rem;color:#475569;margin-bottom:6px;">Or select a ready-made frame below:</p>
+        <div class="frame-gallery" id="frameGallery"></div>
+      </div>
+
+      <div id="edNumWrap" class="inputs-row hidden">
+        <label>Value (Angle / Blur / Contrast / Border px): <input type="number" id="editNum1" value="10"></label>
       </div>
 
       <div id="hwTextWrap" class="controls-row hidden">
@@ -1467,7 +1514,7 @@
       status.classList.add('hidden');
     };
 
-    // ================= 6. PDF FORM FILLER (ACROFORM + VISUAL FALLBACK + PASSWORD) =================
+    // ================= 6. PDF FORM FILLER =================
     let ffLoadedDoc = null, ffFieldsList = [], ffIsVisualMode = false;
     let ffVisPdfDoc = null, ffVisPage = 1, ffVisItems = {};
     const ffCanvas = document.getElementById('ffCanvas');
@@ -1488,7 +1535,6 @@
       const buf = await f.arrayBuffer();
       const openPass = document.getElementById('ffOpenPass').value;
 
-      // Try AcroForm detection first (if unencrypted)
       try {
         ffLoadedDoc = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
         const form = ffLoadedDoc.getForm();
@@ -1532,7 +1578,6 @@
         }
       } catch (e) {}
 
-      // Fallback: Open in Visual Form Filler (supports password-protected & flat/scanned PDFs)
       try {
         ffVisPdfDoc = await openPdfWithPasswordSupport(buf, openPass);
         ffIsVisualMode = true;
@@ -1640,7 +1685,7 @@
       addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF Form (${(bytes.length / 1024).toFixed(1)} KB)`);
     };
 
-    // ================= 7. JOIN, CHANGE PHOTO & CREATE =================
+    // ================= 7. JOIN, CHANGE PHOTO, FRAMES & CREATE =================
     const sigCanvas = document.getElementById('sigCanvas');
     const sigCtx = sigCanvas.getContext('2d');
     let drawingSig = false;
@@ -1649,12 +1694,104 @@
     window.addEventListener('mouseup', () => drawingSig = false);
     document.getElementById('clearSigBtn').onclick = () => sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
 
-    document.getElementById('editToolSelect').onchange = e => {
-      const v = e.target.value;
+    // Ready-made procedural decorative frames
+    const BUILTIN_FRAMES = [
+      { id: 'gold_classic', name: 'Classic Gold' },
+      { id: 'royal_double', name: 'Royal Double' },
+      { id: 'polaroid_white', name: 'Polaroid White' },
+      { id: 'modern_black', name: 'Modern Black' },
+      { id: 'corner_ornate', name: 'Ornate Corners' },
+      { id: 'red_cert', name: 'Red & Gold' },
+      { id: 'blue_studio', name: 'Studio Blue' },
+      { id: 'rounded_inner', name: 'Inner Mat' }
+    ];
+    let selectedFrameId = 'gold_classic';
+
+    function drawBuiltinFrameOnCanvas(ctx, w, h, frameId, thickPct) {
+      const t = Math.max(6, Math.round(Math.min(w, h) * (thickPct / 100)));
+      ctx.save();
+      if (frameId === 'gold_classic') {
+        const g = ctx.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, '#b45309'); g.addColorStop(0.5, '#fbbf24'); g.addColorStop(1, '#92400e');
+        ctx.strokeStyle = g; ctx.lineWidth = t * 2;
+        ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = '#fef3c7'; ctx.lineWidth = Math.max(1, t * 0.18);
+        ctx.strokeRect(t * 0.75, t * 0.75, w - t * 1.5, h - t * 1.5);
+      } else if (frameId === 'royal_double') {
+        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = t * 1.8; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = '#d97706'; ctx.lineWidth = Math.max(2, t * 0.35);
+        ctx.strokeRect(t * 1.15, t * 1.15, w - t * 2.3, h - t * 2.3);
+      } else if (frameId === 'polaroid_white') {
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = t * 2.2; ctx.strokeRect(0, 0, w, h);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, h - t * 3.2, w, t * 3.2);
+        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.strokeRect(1, 1, w - 2, h - 2);
+      } else if (frameId === 'modern_black') {
+        ctx.strokeStyle = '#0f172a'; ctx.lineWidth = t * 2; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, t * 0.2);
+        ctx.strokeRect(t, t, w - t * 2, h - t * 2);
+      } else if (frameId === 'corner_ornate') {
+        ctx.strokeStyle = '#78350f'; ctx.lineWidth = t * 1.2; ctx.strokeRect(0, 0, w, h);
+        const cs = t * 2.6;
+        ctx.fillStyle = '#d97706';
+        [[0,0],[w-cs,0],[0,h-cs],[w-cs,h-cs]].forEach(([cx, cy]) => ctx.fillRect(cx, cy, cs, cs));
+        ctx.strokeStyle = '#fef08a'; ctx.lineWidth = 2;
+        [[2,2],[w-cs+2,2],[2,h-cs+2],[w-cs+2,h-cs+2]].forEach(([cx, cy]) => ctx.strokeRect(cx, cy, cs-4, cs-4));
+      } else if (frameId === 'red_cert') {
+        ctx.strokeStyle = '#991b1b'; ctx.lineWidth = t * 1.9; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = Math.max(2, t * 0.3);
+        ctx.strokeRect(t * 0.95, t * 0.95, w - t * 1.9, h - t * 1.9);
+      } else if (frameId === 'blue_studio') {
+        ctx.strokeStyle = '#1d4ed8'; ctx.lineWidth = t * 1.8; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = Math.max(2, t * 0.25);
+        ctx.strokeRect(t * 0.9, t * 0.9, w - t * 1.8, h - t * 1.8);
+      } else if (frameId === 'rounded_inner') {
+        ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = t * 2.2; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+        ctx.strokeRect(t * 1.1, t * 1.1, w - t * 2.2, h - t * 2.2);
+      }
+      ctx.restore();
+    }
+
+    function initFrameGallery() {
+      const gal = document.getElementById('frameGallery');
+      gal.innerHTML = '';
+      BUILTIN_FRAMES.forEach(fr => {
+        const item = document.createElement('div');
+        item.className = 'frame-thumb' + (fr.id === selectedFrameId ? ' selected' : '');
+        const c = document.createElement('canvas'); c.width = 64; c.height = 76;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#e2e8f0'; ctx.fillRect(10, 12, 44, 52);
+        drawBuiltinFrameOnCanvas(ctx, 64, 76, fr.id, 9);
+        const lbl = document.createElement('span'); lbl.textContent = fr.name;
+        item.appendChild(c); item.appendChild(lbl);
+        item.onclick = () => {
+          selectedFrameId = fr.id;
+          document.getElementById('customFrameFile').value = '';
+          document.querySelectorAll('.frame-thumb').forEach(el => el.classList.remove('selected'));
+          item.classList.add('selected');
+        };
+        gal.appendChild(item);
+      });
+    }
+    initFrameGallery();
+
+    function updateEditToolUI() {
+      const v = document.getElementById('editToolSelect').value;
       document.getElementById('sigPadWrap').classList.toggle('hidden', v !== 'sig_maker');
       document.getElementById('hwTextWrap').classList.toggle('hidden', v !== 'text_handwriting');
       document.getElementById('edImgFileLbl').classList.toggle('hidden', ['sig_maker', 'text_handwriting', 'latex_img'].includes(v));
-    };
+      document.getElementById('ndOptionsWrap').classList.toggle('hidden', v !== 'name_date');
+      document.getElementById('frameOptionsWrap').classList.toggle('hidden', v !== 'photo_frame');
+      document.getElementById('edText1Lbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('edText2Lbl').classList.toggle('hidden', v !== 'name_date');
+      document.getElementById('edColorLbl').classList.toggle('hidden', !['name_date', 'add_border', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('edNumWrap').classList.toggle('hidden', !['add_border', 'blur_image', 'img_contrast', 'rotate', 'blur_bg'].includes(v));
+      if (v === 'name_date' && document.getElementById('editColor').value === '#1e293b') {
+        document.getElementById('editColor').value = '#ffffff';
+      }
+    }
+    document.getElementById('editToolSelect').onchange = updateEditToolUI;
+    updateEditToolUI();
 
     document.getElementById('editRunBtn').onclick = async () => {
       const tool = document.getElementById('editToolSelect').value;
@@ -1749,13 +1886,74 @@
         ctx.drawImage(im, 0, 0, c.width, c.height);
         ctx.filter = 'none';
 
-        if (tool === 'add_border') { ctx.strokeStyle = col; ctx.lineWidth = Math.max(4, n1 || 12); ctx.strokeRect(0, 0, c.width, c.height); }
-        if (tool === 'name_date') {
-          const bh = Math.max(44, Math.round(c.height * 0.14));
-          ctx.fillStyle = '#ffffff'; ctx.fillRect(0, c.height - bh, c.width, bh);
-          ctx.fillStyle = col; ctx.font = `bold ${Math.round(bh * 0.42)}px Arial`; ctx.textAlign = 'center';
-          ctx.fillText(`${t1 || 'Name'} ${t2 ? '| ' + t2 : ''}`, c.width / 2, c.height - bh * 0.35);
+        if (tool === 'add_border') {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = Math.max(4, n1 || 12);
+          ctx.strokeRect(0, 0, c.width, c.height);
         }
+
+        if (tool === 'photo_frame') {
+          const customF = document.getElementById('customFrameFile').files[0];
+          const thickPct = parseFloat(document.getElementById('frameThickness').value) || 6;
+          if (customF) {
+            const frameImg = await loadImg(URL.createObjectURL(customF));
+            ctx.drawImage(frameImg, 0, 0, c.width, c.height);
+          } else {
+            drawBuiltinFrameOnCanvas(ctx, c.width, c.height, selectedFrameId, thickPct);
+          }
+        }
+
+        if (tool === 'name_date') {
+          const styleMode = document.getElementById('ndBgStyle').value;
+          const posMode = document.getElementById('ndPosition').value;
+          const orient = document.getElementById('ndOrientation').value;
+          const sizePct = parseFloat(document.getElementById('ndFontSizePct').value) || 5;
+          const labelStr = `${t1 || 'Name'}${t2 ? '  |  ' + t2 : ''}`;
+          const fs = Math.max(16, Math.round(Math.min(c.width, c.height) * (sizePct / 100)));
+
+          ctx.save();
+          ctx.font = `bold ${fs}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          const pad = Math.round(fs * 0.75);
+          let cx = c.width / 2, cy = c.height - pad * 1.4;
+          if (posMode === 'top') { cx = c.width / 2; cy = pad * 1.4; }
+          else if (posMode === 'center') { cx = c.width / 2; cy = c.height / 2; }
+          else if (posMode === 'left') { cx = pad * 1.4; cy = c.height / 2; }
+          else if (posMode === 'right') { cx = c.width - pad * 1.4; cy = c.height / 2; }
+
+          if (styleMode === 'white_strip') {
+            const bh = Math.round(fs * 2.1);
+            ctx.fillStyle = '#ffffff';
+            if (posMode === 'top') ctx.fillRect(0, 0, c.width, bh);
+            else if (posMode === 'left') ctx.fillRect(0, 0, bh, c.height);
+            else if (posMode === 'right') ctx.fillRect(c.width - bh, 0, bh, c.height);
+            else ctx.fillRect(0, c.height - bh, c.width, bh);
+          } else if (styleMode === 'transparent_glass') {
+            const bh = Math.round(fs * 2.0);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
+            if (posMode === 'top') ctx.fillRect(0, 0, c.width, bh);
+            else if (posMode === 'center') ctx.fillRect(0, c.height / 2 - bh / 2, c.width, bh);
+            else if (posMode === 'left') ctx.fillRect(0, 0, bh, c.height);
+            else if (posMode === 'right') ctx.fillRect(c.width - bh, 0, bh, c.height);
+            else ctx.fillRect(0, c.height - bh, c.width, bh);
+          }
+
+          ctx.translate(cx, cy);
+          if (orient === 'vertical') ctx.rotate(-Math.PI / 2);
+
+          if (styleMode === 'transparent_outline') {
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = Math.max(3, Math.round(fs * 0.16));
+            ctx.strokeStyle = (col.toLowerCase() === '#000000') ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.85)';
+            ctx.strokeText(labelStr, 0, 0);
+          }
+          ctx.fillStyle = col;
+          ctx.fillText(labelStr, 0, 0);
+          ctx.restore();
+        }
+
         if (tool === 'add_text_img') {
           const fs = Math.max(24, Math.round(c.width * 0.05));
           ctx.fillStyle = col; ctx.font = `bold ${fs}px Arial`; ctx.textAlign = 'center';
