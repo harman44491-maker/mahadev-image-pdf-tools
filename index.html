@@ -27,12 +27,71 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', 'Noto Sans Gurmukhi', 'Noto Sans Devanagari', Arial, sans-serif; }
     body { background: var(--surface-bg); color: #1e293b; }
 
-    .navbar { background: var(--nav-bg); color: #fff; position: sticky; top: 0; z-index: 50; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.22); border-bottom: 1px solid rgba(255,255,255,0.12); }
-    .nav-inner { max-width: 1280px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.06rem; letter-spacing: 0.3px; }
-    .brand-badge { background: linear-gradient(135deg, #10b981, #059669); color: #fff; padding: 4px 9px; border-radius: 6px; font-weight: 800; font-size: 0.85rem; box-shadow: 0 2px 6px rgba(16,185,129,0.4); }
-    .brand-sub { font-size: 0.72rem; font-weight: 500; color: #99f6e4; display: block; line-height: 1.1; }
-    .menu { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .navbar {
+      width: 100%;
+      background: var(--nav-bg);
+      color: #fff;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.22);
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      text-align: center;
+    }
+    .nav-inner {
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 10px;
+    }
+    .brand {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      margin: 0 auto;
+      gap: 4px;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: 0.6px;
+    }
+    .brand-top {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      margin: 0 auto;
+      gap: 8px;
+    }
+    .brand-badge {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-weight: 800;
+      font-size: 0.84rem;
+      box-shadow: 0 2px 6px rgba(16,185,129,0.4);
+    }
+    .brand-sub {
+      width: 100%;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: #99f6e4;
+      display: block;
+      line-height: 1.25;
+      text-align: center;
+      margin: 0 auto;
+    }
+    .menu { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: center; }
     .menu-btn { background: rgba(255,255,255,0.08); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.18); padding: 6px 11px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .81rem; transition: 0.18s; }
     .menu-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
     .menu-btn.active { background: #10b981; color: #062825; border-color: #10b981; font-weight: 700; box-shadow: 0 2px 8px rgba(16,185,129,0.35); }
@@ -114,11 +173,11 @@
   <header class="navbar">
     <div class="nav-inner">
       <div class="brand">
-        <span class="brand-badge">PRO</span>
-        <div>
+        <div class="brand-top">
+          <span class="brand-badge">PRO</span>
           <span>DOCX STUDIO</span>
-          <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
         </div>
+        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
       </div>
       <nav class="menu">
         <button class="menu-btn active" data-tab="resizer">Image Resizer</button>
@@ -128,6 +187,7 @@
         <button class="menu-btn" data-tab="pdf-editor">PDF Editor (Text/Img)</button>
         <button class="menu-btn" data-tab="pdf-form">PDF Form Filler</button>
         <button class="menu-btn" data-tab="edit-join">Join, Edit &amp; Create</button>
+        <button class="menu-btn" data-tab="edit-join" onclick="setTimeout(()=>{document.getElementById('editToolSelect').value='zoom_area';updateEditToolUI();},10)">Select Area to Zoom</button>
       </nav>
     </div>
   </header>
@@ -442,6 +502,7 @@
           </optgroup>
           <optgroup label="CHANGE PHOTO">
             <option value="ps_auto_retouch" selected>Photoshop Auto Retouch, Hair Set &amp; Digital Studio</option>
+            <option value="zoom_area">Zoom Selected Area (Crop &amp; Magnify)</option>
             <option value="name_date">Add Name and Date on Photo (Transparent / Strip)</option>
             <option value="add_logo_photo">Add Logo on Photo (Transparent / Custom Opacity)</option>
             <option value="photo_frame">Photo Frame &amp; Border (50 Pro Frames + Upload)</option>
@@ -469,6 +530,16 @@
         <label id="edFontLbl">Font (100 Eng/Hin/Punjabi): <select class="font-selector-100" id="editFontFamily" style="max-width:210px;"></select></label>
         <label id="edBoldLbl"><input type="checkbox" id="editBoldToggle" checked> <strong>Bold</strong></label>
         <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
+      </div>
+
+      <!-- ZOOM SELECTED AREA CONTROLS -->
+      <div id="zoomAreaWrap" class="inputs-row hidden">
+        <label>Zoom Scale:
+          <input type="range" id="zoomScaleRange" min="1.5" max="5" step="0.25" value="2.5">
+          <input type="number" id="zoomScaleNum" min="1.5" max="5" step="0.25" value="2.5" style="width:68px;">x
+        </label>
+        <label><input type="checkbox" id="zoomSharpToggle" checked> HD Detail Sharpen</label>
+        <button type="button" class="chip" id="zoomResetBoxBtn">Reset Selection</button>
       </div>
 
       <!-- PHOTOSHOP AUTO RETOUCH & DIGITAL STUDIO + HAIR SET TOOL + OPTIONAL BG REMOVER -->
@@ -654,7 +725,7 @@
         </div>
       </div>
 
-      <!-- LIVE PREVIEW CANVAS FOR PS RETOUCH, HAIR SET, CONTRAST/BRIGHTNESS & LOGO -->
+      <!-- LIVE PREVIEW CANVAS FOR PS RETOUCH, HAIR SET, ZOOM AREA, CONTRAST/BRIGHTNESS & LOGO -->
       <div id="liveEditPreviewWrap" class="canvas-box hidden">
         <p id="livePreviewCaption" style="font-size:.84rem;color:#0f766e;font-weight:700;margin-bottom:6px;">Live Digital Studio Preview (Left: Digital Retouched • Right: Original):</p>
         <canvas id="liveEditCanvas" class="live-preview"></canvas>
@@ -2033,7 +2104,7 @@
       addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF Form (${(bytes.length / 1024).toFixed(1)} KB)`);
     };
 
-    // ================= 7. JOIN, CHANGE PHOTO, DIGITAL STUDIO + HAIR SET BRUSH + BG REMOVER + 50 FRAMES =================
+    // ================= 7. JOIN, CHANGE PHOTO, DIGITAL STUDIO + HAIR SET + ZOOM AREA + BG REMOVER + 50 FRAMES =================
     const sigCanvas = document.getElementById('sigCanvas');
     const sigCtx = sigCanvas.getContext('2d');
     let drawingSig = false;
@@ -2046,7 +2117,12 @@
     let cachedLogoImg = null;
     let cachedTransparentCutout = null;
 
-    // Hair Set Brush Strokes (stored normalized 0..1 so they apply cleanly to both Live Preview & Full HD Output)
+    // Selected Area Zoom state (normalized 0..1)
+    let zoomSelectionNorm = null;
+    let isSelectingZoom = false;
+    let zoomDragStart = null;
+
+    // Hair Set Brush Strokes (stored normalized 0..1)
     let hairStrokes = [];
     let isBrushingHair = false;
     let currentHairStroke = null;
@@ -2086,12 +2162,10 @@
               const idx = (py * bw + px) * 4;
 
               if (stroke.mode === 'erase_stray') {
-                // Clean stray outer hairs on alpha or light background
                 if (copy[idx + 3] > 0) {
                   d[idx + 3] = Math.max(0, Math.round(copy[idx + 3] * (1 - falloff * 0.92)));
                 }
               } else if (stroke.mode === 'darken_shine') {
-                // Natural dark & neat gloss on hair strands
                 const lum = 0.299 * copy[idx] + 0.587 * copy[idx + 1] + 0.114 * copy[idx + 2];
                 if (lum < 165) {
                   const factor = 1 - falloff * 0.34;
@@ -2100,14 +2174,12 @@
                   d[idx + 2] = Math.max(10, Math.round(copy[idx + 2] * factor));
                 }
               } else {
-                // 'tuck_smooth': Gently push & smooth flyaway hairs in drag direction
                 const shiftX = Math.round(dx * 0.38 * falloff);
                 const shiftY = Math.round(dy * 0.38 * falloff);
                 const sx = Math.min(bw - 1, Math.max(0, px - shiftX));
                 const sy = Math.min(bh - 1, Math.max(0, py - shiftY));
                 const sIdx = (sy * bw + sx) * 4;
 
-                // Neighbor smoothing along hair flow
                 const nx = Math.min(bw - 1, Math.max(0, sx + (dx >= 0 ? -1 : 1)));
                 const ny = Math.min(bh - 1, Math.max(0, sy + (dy >= 0 ? -1 : 1)));
                 const nIdx = (ny * bw + nx) * 4;
@@ -2126,38 +2198,114 @@
       return targetCanvas;
     }
 
+    function buildZoomedSelectionCanvas(srcImg, selNorm, zoomFactor, sharpen) {
+      const box = selNorm || { x: 0.25, y: 0.20, w: 0.50, h: 0.50 };
+      const sx = Math.max(0, Math.min(srcImg.width - 1, Math.round(box.x * srcImg.width)));
+      const sy = Math.max(0, Math.min(srcImg.height - 1, Math.round(box.y * srcImg.height)));
+      const sw = Math.max(10, Math.min(srcImg.width - sx, Math.round(box.w * srcImg.width)));
+      const sh = Math.max(10, Math.min(srcImg.height - sy, Math.round(box.h * srcImg.height)));
+
+      const outW = Math.min(3600, Math.max(120, Math.round(sw * zoomFactor)));
+      const outH = Math.min(3600, Math.max(120, Math.round(sh * zoomFactor)));
+
+      const c = document.createElement('canvas');
+      c.width = outW;
+      c.height = outH;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(srcImg, sx, sy, sw, sh, 0, 0, outW, outH);
+
+      if (sharpen && outW * outH < 2500000) {
+        const imgData = ctx.getImageData(0, 0, outW, outH);
+        const d = imgData.data;
+        const copy = new Uint8ClampedArray(d);
+        const amt = 0.35;
+        for (let y = 1; y < outH - 1; y++) {
+          for (let x = 1; x < outW - 1; x++) {
+            const idx = (y * outW + x) * 4;
+            for (let ch = 0; ch < 3; ch++) {
+              const center = copy[idx + ch] * 5;
+              const neighbors = copy[((y - 1) * outW + x) * 4 + ch]
+                              + copy[((y + 1) * outW + x) * 4 + ch]
+                              + copy[(y * outW + (x - 1)) * 4 + ch]
+                              + copy[(y * outW + (x + 1)) * 4 + ch];
+              d[idx + ch] = Math.min(255, Math.max(0, Math.round(copy[idx + ch] * (1 - amt) + (center - neighbors) * amt)));
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+      return c;
+    }
+
     const liveEditCanvas = document.getElementById('liveEditCanvas');
     liveEditCanvas.onmousedown = (e) => {
       const tool = document.getElementById('editToolSelect').value;
-      if (tool !== 'ps_auto_retouch' || !document.getElementById('hairBrushToggle').checked || !cachedMainImg) return;
-      isBrushingHair = true;
-      const pos = getCanvasMousePos(liveEditCanvas, e);
-      const normPt = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
-      const brushPx = parseFloat(document.getElementById('hairBrushSize').value) || 24;
-      currentHairStroke = {
-        mode: document.getElementById('hairBrushMode').value,
-        radiusNorm: brushPx / Math.min(liveEditCanvas.width, liveEditCanvas.height),
-        points: [normPt]
-      };
-      hairStrokes.push(currentHairStroke);
-      lastHairPos = pos;
-      renderLiveEditPreview();
+      if (!cachedMainImg) return;
+
+      if (tool === 'zoom_area') {
+        const pos = getCanvasMousePos(liveEditCanvas, e);
+        zoomDragStart = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
+        isSelectingZoom = true;
+        zoomSelectionNorm = { x: zoomDragStart.x, y: zoomDragStart.y, w: 0.01, h: 0.01 };
+        renderLiveEditPreview();
+        return;
+      }
+
+      if (tool === 'ps_auto_retouch' && document.getElementById('hairBrushToggle').checked) {
+        isBrushingHair = true;
+        const pos = getCanvasMousePos(liveEditCanvas, e);
+        const normPt = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
+        const brushPx = parseFloat(document.getElementById('hairBrushSize').value) || 24;
+        currentHairStroke = {
+          mode: document.getElementById('hairBrushMode').value,
+          radiusNorm: brushPx / Math.min(liveEditCanvas.width, liveEditCanvas.height),
+          points: [normPt]
+        };
+        hairStrokes.push(currentHairStroke);
+        lastHairPos = pos;
+        renderLiveEditPreview();
+      }
     };
 
     liveEditCanvas.onmousemove = (e) => {
-      if (!isBrushingHair || !currentHairStroke) return;
-      const pos = getCanvasMousePos(liveEditCanvas, e);
-      if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 3) return;
-      currentHairStroke.points.push({ x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height });
-      lastHairPos = pos;
-      renderLiveEditPreview();
+      const tool = document.getElementById('editToolSelect').value;
+      if (tool === 'zoom_area' && isSelectingZoom && zoomDragStart) {
+        const pos = getCanvasMousePos(liveEditCanvas, e);
+        const curX = Math.max(0, Math.min(1, pos.x / liveEditCanvas.width));
+        const curY = Math.max(0, Math.min(1, pos.y / liveEditCanvas.height));
+        zoomSelectionNorm = {
+          x: Math.min(zoomDragStart.x, curX),
+          y: Math.min(zoomDragStart.y, curY),
+          w: Math.max(0.02, Math.abs(curX - zoomDragStart.x)),
+          h: Math.max(0.02, Math.abs(curY - zoomDragStart.y))
+        };
+        renderLiveEditPreview();
+        return;
+      }
+
+      if (isBrushingHair && currentHairStroke) {
+        const pos = getCanvasMousePos(liveEditCanvas, e);
+        if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 3) return;
+        currentHairStroke.points.push({ x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height });
+        lastHairPos = pos;
+        renderLiveEditPreview();
+      }
     };
 
     window.addEventListener('mouseup', () => {
       isBrushingHair = false;
       currentHairStroke = null;
       lastHairPos = null;
+      isSelectingZoom = false;
+      zoomDragStart = null;
     });
+
+    document.getElementById('zoomResetBoxBtn').onclick = () => {
+      zoomSelectionNorm = { x: 0.25, y: 0.20, w: 0.50, h: 0.50 };
+      renderLiveEditPreview();
+    };
 
     document.getElementById('hairUndoBtn').onclick = () => {
       if (hairStrokes.length) {
@@ -2209,7 +2357,6 @@
     };
     document.getElementById('psBgCustomColor').oninput = renderLiveEditPreview;
 
-    // Digital DSLR Studio Retouch Engine (Rich Contrast, Micro-Clarity, Balanced Tone)
     function applyPhotoshopDigitalRetouch(sourceDrawable, targetW, targetH) {
       const depthPct = (parseFloat(document.getElementById('psDepthNum').value) || 0) / 100;
       const tonePct = (parseFloat(document.getElementById('psToneNum').value) || 0) / 100;
@@ -2437,7 +2584,7 @@
     async function renderLiveEditPreview() {
       const tool = document.getElementById('editToolSelect').value;
       const wrap = document.getElementById('liveEditPreviewWrap');
-      if (!cachedMainImg || !['ps_auto_retouch', 'img_contrast', 'add_logo_photo'].includes(tool)) {
+      if (!cachedMainImg || !['ps_auto_retouch', 'zoom_area', 'img_contrast', 'add_logo_photo'].includes(tool)) {
         wrap.classList.add('hidden');
         return;
       }
@@ -2451,7 +2598,51 @@
       const lctx = liveEditCanvas.getContext('2d');
       lctx.clearRect(0, 0, pw, ph);
 
-      if (tool === 'ps_auto_retouch') {
+      if (tool === 'zoom_area') {
+        liveEditCanvas.style.cursor = 'crosshair';
+        const zScale = parseFloat(document.getElementById('zoomScaleNum').value) || 2.5;
+        document.getElementById('livePreviewCaption').textContent = `Photo par mouse drag karke area select karein (Live ${zScale}x Zoom Preview + Apply & Download):`;
+        lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
+        if (zoomSelectionNorm) {
+          const rx = zoomSelectionNorm.x * pw;
+          const ry = zoomSelectionNorm.y * ph;
+          const rw = zoomSelectionNorm.w * pw;
+          const rh = zoomSelectionNorm.h * ph;
+          lctx.fillStyle = 'rgba(15, 23, 42, 0.38)';
+          lctx.fillRect(0, 0, pw, ry);
+          lctx.fillRect(0, ry + rh, pw, ph - (ry + rh));
+          lctx.fillRect(0, ry, rx, rh);
+          lctx.fillRect(rx + rw, ry, pw - (rx + rw), rh);
+          lctx.strokeStyle = '#10b981';
+          lctx.lineWidth = 2.5;
+          lctx.strokeRect(rx, ry, rw, rh);
+
+          const sx = Math.max(0, Math.round(zoomSelectionNorm.x * cachedMainImg.width));
+          const sy = Math.max(0, Math.round(zoomSelectionNorm.y * cachedMainImg.height));
+          const sw = Math.max(8, Math.round(zoomSelectionNorm.w * cachedMainImg.width));
+          const sh = Math.max(8, Math.round(zoomSelectionNorm.h * cachedMainImg.height));
+          const boxMax = Math.round(Math.min(pw, ph) * 0.42);
+          const ratio = sw / sh;
+          const mw = ratio >= 1 ? boxMax : Math.max(60, Math.round(boxMax * ratio));
+          const mh = ratio >= 1 ? Math.max(60, Math.round(boxMax / ratio)) : boxMax;
+          const mx = (zoomSelectionNorm.x > 0.5) ? 10 : (pw - mw - 10);
+          const my = 10;
+          lctx.save();
+          lctx.fillStyle = '#ffffff';
+          lctx.fillRect(mx - 3, my - 3, mw + 6, mh + 6);
+          lctx.drawImage(cachedMainImg, sx, sy, sw, sh, mx, my, mw, mh);
+          lctx.strokeStyle = '#0f766e';
+          lctx.lineWidth = 2;
+          lctx.strokeRect(mx - 2, my - 2, mw + 4, mh + 4);
+          lctx.fillStyle = 'rgba(15, 118, 110, 0.9)';
+          lctx.fillRect(mx, my + mh - 18, mw, 18);
+          lctx.fillStyle = '#ffffff';
+          lctx.font = 'bold 11px sans-serif';
+          lctx.fillText(`Zoom ${zScale}x Preview`, mx + 6, my + mh - 5);
+          lctx.restore();
+        }
+      } else if (tool === 'ps_auto_retouch') {
+        liveEditCanvas.style.cursor = document.getElementById('hairBrushToggle').checked ? 'cell' : 'default';
         const removeBg = document.getElementById('psRemoveBgToggle').checked;
         if (removeBg) {
           if (!cachedTransparentCutout) {
@@ -2479,12 +2670,14 @@
           }
         }
       } else if (tool === 'img_contrast') {
+        liveEditCanvas.style.cursor = 'default';
         const cVal = Math.max(10, parseFloat(document.getElementById('cbContrastNum').value) || 100);
         const bVal = Math.max(10, parseFloat(document.getElementById('cbBrightnessNum').value) || 100);
         lctx.filter = `contrast(${cVal}%) brightness(${bVal}%)`;
         lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
         lctx.filter = 'none';
       } else if (tool === 'add_logo_photo') {
+        liveEditCanvas.style.cursor = 'default';
         lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
         drawLogoOverlayOnCanvas(lctx, pw, ph, cachedLogoImg);
       }
@@ -2494,6 +2687,7 @@
       const f = e.target.files[0];
       cachedTransparentCutout = null;
       hairStrokes = [];
+      zoomSelectionNorm = { x: 0.25, y: 0.20, w: 0.50, h: 0.50 };
       if (!f) { cachedMainImg = null; renderLiveEditPreview(); return; }
       cachedMainImg = await loadImg(URL.createObjectURL(f));
       renderLiveEditPreview();
@@ -2519,6 +2713,8 @@
     bindRangeAndNum('cbBrightnessRange', 'cbBrightnessNum', renderLiveEditPreview);
     bindRangeAndNum('logoOpacityRange', 'logoOpacityNum', renderLiveEditPreview);
     bindRangeAndNum('logoSizeRange', 'logoSizeNum', renderLiveEditPreview);
+    bindRangeAndNum('zoomScaleRange', 'zoomScaleNum', renderLiveEditPreview);
+    document.getElementById('zoomSharpToggle').onchange = renderLiveEditPreview;
 
     document.getElementById('psAutoWb').onchange = renderLiveEditPreview;
     document.getElementById('psSplitRange').oninput = renderLiveEditPreview;
@@ -2621,10 +2817,14 @@
 
     function updateEditToolUI() {
       const v = document.getElementById('editToolSelect').value;
+      if (v === 'zoom_area' && !zoomSelectionNorm) {
+        zoomSelectionNorm = { x: 0.25, y: 0.20, w: 0.50, h: 0.50 };
+      }
       document.getElementById('sigPadWrap').classList.toggle('hidden', v !== 'sig_maker');
       document.getElementById('hwTextWrap').classList.toggle('hidden', v !== 'text_handwriting');
       document.getElementById('edImgFileLbl').classList.toggle('hidden', ['sig_maker', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('psRetouchWrap').classList.toggle('hidden', v !== 'ps_auto_retouch');
+      document.getElementById('zoomAreaWrap').classList.toggle('hidden', v !== 'zoom_area');
       document.getElementById('ndOptionsWrap').classList.toggle('hidden', v !== 'name_date');
       document.getElementById('logoOptionsWrap').classList.toggle('hidden', v !== 'add_logo_photo');
       document.getElementById('frameOptionsWrap').classList.toggle('hidden', v !== 'photo_frame');
@@ -2716,6 +2916,14 @@
       }
 
       const im = imgs[0];
+
+      if (tool === 'zoom_area') {
+        const zoomFactor = parseFloat(document.getElementById('zoomScaleNum').value) || 2.5;
+        const sharpen = document.getElementById('zoomSharpToggle').checked;
+        const zoomedC = buildZoomedSelectionCanvas(im, zoomSelectionNorm, zoomFactor, sharpen);
+        addDownloadCard(out, await toBlob(zoomedC, 'image/jpeg', 0.97), `zoomed_${zoomFactor}x_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `Zoomed ${zoomFactor}x (${zoomedC.width}×${zoomedC.height}px)`);
+        return;
+      }
 
       if (tool === 'ps_auto_retouch') {
         const removeBg = document.getElementById('psRemoveBgToggle').checked;
