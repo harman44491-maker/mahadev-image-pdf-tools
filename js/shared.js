@@ -1,3 +1,12 @@
+function loadImg(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Could not load the selected photo.'));
+    img.src = src;
+  });
+}
+
 // ================= CLEAN CUTOUT + SMOOTH HAIR GOLAI + HD STUDIO LIGHTING =================
 function erodeAlphaMask(alphaCanvas, erodePx = 2) {
   const w = alphaCanvas.width;
@@ -41,6 +50,10 @@ function erodeAlphaMask(alphaCanvas, erodePx = 2) {
 
   ctx.putImageData(imgData, 0, 0);
   return alphaCanvas;
+}
+
+function cleanCutoutAndWhiteBg(cutoutCanvas) {
+  return stripCurtainFringeFromCutout(cutoutCanvas);
 }
 
 function stripCurtainFringeFromCutout(cutoutCanvas) {
@@ -451,7 +464,7 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
     return { width: baseW * mult, height: baseH * mult };
   }
 
-  async function buildReferenceStudioOutput(file, frameText, qualityText, useWhiteBg, enhanceLightSharp) {
+  async function buildReferenceStudioOutput(file, frameText, qualityText, useWhiteBg, enhanceLightSharp, tidyHair = true) {
     const img = await loadImg(URL.createObjectURL(file));
     let subjectCanvas;
 
@@ -466,7 +479,7 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
     }
 
     const dims = getStudioTargetDimensions(img, frameText, qualityText);
-    return applyReferenceStudioGrade(subjectCanvas, dims.width, dims.height, enhanceLightSharp);
+    return applyReferenceStudioGrade(subjectCanvas, dims.width, dims.height, enhanceLightSharp, tidyHair);
   }
 
   function bindAutoStudioPage() {
@@ -530,3 +543,6 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
     bindAutoStudioPage();
   }
 })();
+
+// Public entry point for Auto Studio Photo page.
+window.buildReferenceStudioOutput = buildReferenceStudioOutput;
