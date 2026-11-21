@@ -474,8 +474,8 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
     return c;
   }
 
-  function applyReferenceStudioGrade(srcCanvas, outW, outH, enhanceLightSharp = true) {
-    const shapedSubject = shapeHairGolaiAndLowerStrands(srcCanvas);
+  function applyReferenceStudioGrade(srcCanvas, outW, outH, enhanceLightSharp = true, tidyHair = true) {
+    const shapedSubject = tidyHair ? shapeHairGolaiAndLowerStrands(srcCanvas) : srcCanvas;
 
     const c = document.createElement('canvas');
     c.width = outW;
@@ -575,7 +575,7 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
     return { width: baseW * mult, height: baseH * mult };
   }
 
-  async function buildReferenceStudioOutput(file, frameText, qualityText, useWhiteBg, enhanceLightSharp) {
+  async function buildReferenceStudioOutput(file, frameText, qualityText, useWhiteBg, enhanceLightSharp, tidyHair = true) {
     const img = await loadImg(URL.createObjectURL(file));
     let subjectCanvas;
 
@@ -591,8 +591,11 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
     }
 
     const dims = getStudioTargetDimensions(img, frameText, qualityText);
-    return applyReferenceStudioGrade(subjectCanvas, dims.width, dims.height, enhanceLightSharp);
+    return applyReferenceStudioGrade(subjectCanvas, dims.width, dims.height, enhanceLightSharp, tidyHair);
   }
+
+  // Expose the reference studio pipeline for the dedicated studio-photo page.
+  window.buildReferenceStudioOutput = buildReferenceStudioOutput;
 
   function bindAutoStudioPage() {
     // The dedicated studio-photo.js page owns its own preview and download flow.
