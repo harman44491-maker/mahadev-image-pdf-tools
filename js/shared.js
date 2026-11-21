@@ -1,5 +1,9 @@
 // ================= SHARED TOOLKIT HELPERS =================
 // Common helpers used by Image Resizer, Passport, PDF, Watermark and Editor pages.
+if (typeof pdfjsLib !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
 function toBlob(canvas, mime = 'image/jpeg', quality = 0.92) {
   return new Promise((resolve, reject) => {
     if (!canvas || typeof canvas.toBlob !== 'function') {
@@ -63,7 +67,12 @@ function addDownloadCard(container, blob, filename, detail = '') {
 function buildCanvasFontStr(bold, size, font) {
   const px = Math.max(1, Number(size) || 16);
   const family = String(font || 'Arial').replace(/[;{}]/g, '').trim() || 'Arial';
-  return (bold ? '700 ' : '400 ') + px + 'px "' + family.replace(/"/g, '') + '"';
+  // Font selectors may supply either a simple family name or a complete CSS
+  // stack (including quoted names and fallback families).
+  const fontStack = family.includes(',') || /^['"]/.test(family)
+    ? family
+    : `"${family.replace(/["']/g, '')}"`;
+  return `${bold ? '700' : '400'} ${px}px ${fontStack}`;
 }
 
 function getCanvasMousePos(canvas, event) {
@@ -74,48 +83,33 @@ function getCanvasMousePos(canvas, event) {
 }
 
 async function openPdfWithPasswordSupport(inputBytes, password = '') {
-  if (typeof PDFLib === 'undefined' || !PDFLib.PDFDocument) {
-    throw new Error('PDF library did not load. Refresh the page and try again.');
+  if (typeof pdfjsLib === 'undefined' || !pdfjsLib.getDocument) {
+    throw new Error('PDF reader library did not load. Refresh the page and try again.');
   }
+
   const bytes = inputBytes instanceof Uint8Array
     ? new Uint8Array(inputBytes)
     : new Uint8Array(inputBytes instanceof ArrayBuffer ? inputBytes : await inputBytes.arrayBuffer());
+  let currentPassword = password || '';
 
-  try {
-    return await PDFLib.PDFDocument.load(bytes);
-  } catch (originalError) {
-    if (!password) {
-      throw new Error('This PDF may be password-protected or damaged. Enter its opening password and try again.');
-    }
-    if (typeof pdfjsLib === 'undefined' || !pdfjsLib.getDocument) {
-      throw new Error('Password-protected PDF support is unavailable because the PDF reader library did not load.');
-    }
+  while (true) {
     try {
-      const task = pdfjsLib.getDocument({ data: bytes, password });
-      const source = await task.promise;
-      const rebuilt = await PDFLib.PDFDocument.create();
-      for (let pageNo = 1; pageNo <= source.numPages; pageNo++) {
-        const page = await source.getPage(pageNo);
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        const ctx = canvas.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        const jpg = await toBlob(canvas, 'image/jpeg', 0.94);
-        const embedded = await rebuilt.embedJpg(await jpg.arrayBuffer());
-        const outPage = rebuilt.addPage([viewport.width, viewport.height]);
-        outPage.drawImage(embedded, { x: 0, y: 0, width: viewport.width, height: viewport.height });
-        canvas.width = 1;
-        canvas.height = 1;
-      }
-      return rebuilt;
-    } catch (passwordError) {
-      throw new Error('Could not open this PDF. Check the password or try a different PDF file.');
+      return await pdfjsLib.getDocument({
+        data: new Uint8Array(bytes),
+        password: currentPassword || undefined
+      }).promise;
+    } catch (error) {
+      const needsPassword = error && (error.name === 'PasswordException' || /password/i.test(String(error)));
+      if (!needsPassword) throw error;
+
+      const entered = window.prompt(
+        currentPassword ? 'Incorrect password. Enter PDF password:' : 'This PDF is password protected. Enter its password:'
+      );
+      if (entered === null) throw new Error('Password entry cancelled.');
+      currentPassword = entered;
     }
   }
 }
-
 function loadImg(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();

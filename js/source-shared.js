@@ -129,6 +129,15 @@ if (typeof pdfjsLib !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
       return `${isBold ? '700' : '400'} ${sizePx}px ${fontCss}`;
     }
 
+    // Map responsive canvas coordinates back to the PDF page's pixel space.
+    function getCanvasMousePos(canvas, event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * canvas.width / Math.max(1, rect.width),
+        y: (event.clientY - rect.top) * canvas.height / Math.max(1, rect.height)
+      };
+    }
+
     function loadImg(src) {
       return new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = src; });
     }

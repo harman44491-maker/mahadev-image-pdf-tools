@@ -21,6 +21,12 @@
     .menu-btn.active { background: #10b981; color: #062825; border-color: #10b981; font-weight: 700; box-shadow: 0 2px 8px rgba(16,185,129,0.35); }
 
     .container { max-width: 1280px; margin: 20px auto; padding: 0 14px; }
+    .pdf-editor-launch { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 14px; padding: 15px 18px; border: 1px solid #99f6e4; border-radius: 10px; background: linear-gradient(110deg, #f0fdfa, #fff); color: #134e4a; text-decoration: none; box-shadow: 0 3px 10px rgba(15, 118, 110, .08); }
+    .pdf-editor-launch-copy { display: flex; flex-direction: column; gap: 4px; }
+    .pdf-editor-launch-copy strong { font-size: .98rem; }
+    .pdf-editor-launch-copy span { color: #475569; font-size: .84rem; }
+    .pdf-editor-launch-action { flex: 0 0 auto; padding: 8px 12px; border-radius: 7px; background: #059669; color: #fff; font-size: .84rem; font-weight: 700; }
+    .pdf-editor-launch:hover { border-color: #0f766e; box-shadow: 0 5px 14px rgba(15, 118, 110, .15); }
     .panel { display: none; background: #fff; border: 1px solid var(--card-border); border-radius: 12px; padding: 22px; box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05); }
     .panel.active { display: block; }
     h1 { text-align: center; font-size: 1.38rem; margin-bottom: 16px; color: #0f172a; font-weight: 800; }
@@ -91,3 +97,15 @@
     }
     .card-title { padding: 14px 6px; font-weight: bold; word-break: break-word; overflow-wrap: anywhere; font-size: .88rem; }
     .dl-btn { display: inline-block; margin-top: 8px; background: #059669; color: #fff; text-decoration: none; padding: 7px 14px; border-radius: 5px; font-size: .85rem; font-weight: 700; }
+
+    .ed-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; margin: 14px 0; }
+    .ed-pane { min-width: 0; border: 1px solid #dbe3ef; border-radius: 10px; padding: 12px; background: #f8fafc; }
+    .ed-pane h3 { text-align: center; font-size: 1rem; margin: 2px 0 5px; color: #0f766e; }
+    .ed-hint { text-align: center; color: #64748b; font-size: .8rem; margin-bottom: 8px; }
+    #edCanvas, #edPreviewCanvas { max-width: 100%; height: auto; background: #fff; border: 1px solid #94a3b8; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+    #edPreviewCanvas { cursor: default; }
+
+    @media (max-width: 850px) {
+      .ed-workspace { grid-template-columns: 1fr; }
+      .pdf-editor-launch { align-items: flex-start; flex-direction: column; }
+    }
