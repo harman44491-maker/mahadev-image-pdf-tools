@@ -1,4 +1,11 @@
 // ================= 4. ALL PDF TOOLS & SECURITY =================
+    let pdfCropPreviewDoc = null;
+    let pdfCropPreviewFile = null;
+    let pdfCropPreviewTask = 0;
+    let pdfCropRenderTask = null;
+    let pdfCropSelection = { x: 0.05, y: 0.05, w: 0.9, h: 0.9 };
+    let pdfCropDrag = null;
+    let syncingPdfCropMargins = false;
     function setPdfTarget(val, unit) {
       document.getElementById('pdfToolSelect').value = 'resize_pdf_custom';
       document.getElementById('pdfTargetSize').value = val;
@@ -16,9 +23,188 @@
       document.getElementById('pdfWmStyleBox').classList.toggle('hidden', tool !== 'watermark_pdf');
       document.getElementById('pdfContrastLbl').classList.toggle('hidden', tool !== 'contrast_pdf');
       document.getElementById('pdfPassLbl').classList.toggle('hidden', !['protect_pdf', 'unlock_pdf'].includes(tool));
-      document.getElementById('pdfCropLbl').classList.toggle('hidden', !['crop_pdf', 'redact_pdf'].includes(tool));
+      const cropTool = ['crop_pdf', 'crop_pdf_select'].includes(tool);
+      document.getElementById('pdfCropLbl').classList.toggle('hidden', !['crop_pdf', 'crop_pdf_select', 'redact_pdf'].includes(tool));
+      document.getElementById('pdfCropPreviewWrap').classList.toggle('hidden', !cropTool);
+      document.getElementById('pdfCropSelectionHint').textContent = tool === 'crop_pdf_select'
+        ? 'Drag to draw the crop box. Move it or use the corner handles; the same proportions apply to every page.'
+        : 'Preview the crop before processing. Drag the box or its corners; the same margins apply to every page.';
+      if (cropTool) loadPdfCropPreview();
     }
     document.getElementById('pdfToolSelect').onchange = updatePdfControls;
+
+    function clampCropPart(value) { return Math.max(0, Math.min(0.99, Number(value) || 0)); }
+    function getPdfCropMargins() {
+      const raw = (document.getElementById('pdfCropMargins').value || '5,5,5,5').split(',').map(v => clampCropPart(parseFloat(v) / 100));
+      const margins = [raw[0] || 0, raw[1] || 0, raw[2] || 0, raw[3] || 0];
+      if (margins[1] + margins[3] > 0.99) {
+        const scale = 0.99 / (margins[1] + margins[3]); margins[1] *= scale; margins[3] *= scale;
+      }
+      if (margins[0] + margins[2] > 0.99) {
+        const scale = 0.99 / (margins[0] + margins[2]); margins[0] *= scale; margins[2] *= scale;
+      }
+      return margins;
+    }
+    function updatePdfCropSelectionFromMargins() {
+      const [top, right, bottom, left] = getPdfCropMargins();
+      pdfCropSelection = { x: left, y: top, w: Math.max(0.01, 1 - left - right), h: Math.max(0.01, 1 - top - bottom) };
+      renderPdfCropSelection();
+    }
+    function updatePdfCropMarginsFromSelection() {
+      const top = pdfCropSelection.y * 100;
+      const right = (1 - pdfCropSelection.x - pdfCropSelection.w) * 100;
+      const bottom = (1 - pdfCropSelection.y - pdfCropSelection.h) * 100;
+      const left = pdfCropSelection.x * 100;
+      syncingPdfCropMargins = true;
+      document.getElementById('pdfCropMargins').value = [top, right, bottom, left].map(v => Math.max(0, v).toFixed(1)).join(',');
+      syncingPdfCropMargins = false;
+    }
+    function renderPdfCropSelection() {
+      const box = document.getElementById('pdfCropSelectionBox');
+      if (!box) return;
+      box.style.left = `${pdfCropSelection.x * 100}%`;
+      box.style.top = `${pdfCropSelection.y * 100}%`;
+      box.style.width = `${pdfCropSelection.w * 100}%`;
+      box.style.height = `${pdfCropSelection.h * 100}%`;
+    }
+    function setPdfCropStatus(message, isError = false) {
+      const el = document.getElementById('pdfCropPreviewStatus');
+      el.textContent = message;
+      el.style.color = isError ? '#b91c1c' : '#0f766e';
+    }
+    async function loadPdfCropPreview() {
+      const file = document.getElementById('pdfFiles').files[0];
+      const canvas = document.getElementById('pdfCropCanvas');
+      const isActive = ['crop_pdf', 'crop_pdf_select'].includes(document.getElementById('pdfToolSelect').value);
+      if (!isActive) return;
+      if (!file) { setPdfCropStatus('Choose a PDF file to see the crop preview.'); return; }
+      if (pdfCropPreviewFile !== file) {
+        if (pdfCropRenderTask) { pdfCropRenderTask.cancel(); pdfCropRenderTask = null; }
+        if (pdfCropPreviewDoc) pdfCropPreviewDoc.destroy();
+        pdfCropPreviewFile = file;
+        pdfCropPreviewDoc = null;
+        pdfCropPreviewTask++;
+        document.getElementById('pdfCropPage').innerHTML = '';
+        canvas.width = 0; canvas.height = 0;
+        const [top, right, bottom, left] = getPdfCropMargins();
+        pdfCropSelection = { x: left, y: top, w: Math.max(0.01, 1 - left - right), h: Math.max(0.01, 1 - top - bottom) };
+      }
+      if (pdfCropPreviewDoc) { await renderPdfCropPage(); return; }
+      const task = ++pdfCropPreviewTask;
+      setPdfCropStatus('Loading PDF preview…');
+      try {
+        const doc = await openPdfWithPasswordSupport(await file.arrayBuffer());
+        if (task !== pdfCropPreviewTask || file !== document.getElementById('pdfFiles').files[0]) return;
+        pdfCropPreviewDoc = doc;
+        const pageSelect = document.getElementById('pdfCropPage');
+        pageSelect.innerHTML = Array.from({ length: doc.numPages }, (_, i) => `<option value="${i + 1}">Page ${i + 1} of ${doc.numPages}</option>`).join('');
+        pageSelect.value = '1';
+        await renderPdfCropPage();
+      } catch (err) {
+        if (task === pdfCropPreviewTask) setPdfCropStatus(`Could not preview this PDF: ${err.message}`, true);
+      }
+    }
+    async function renderPdfCropPage() {
+      if (!pdfCropPreviewDoc) return;
+      const task = ++pdfCropPreviewTask;
+      const pageNumber = Math.max(1, Number(document.getElementById('pdfCropPage').value) || 1);
+      setPdfCropStatus(`Rendering page ${pageNumber} of ${pdfCropPreviewDoc.numPages}…`);
+      try {
+        const page = await pdfCropPreviewDoc.getPage(pageNumber);
+        if (task !== pdfCropPreviewTask) return;
+        const baseViewport = page.getViewport({ scale: 1 });
+        const scale = Math.min(1.25, 900 / baseViewport.width, 760 / baseViewport.height);
+        const viewport = page.getViewport({ scale: Math.max(0.2, scale) });
+        const canvas = document.getElementById('pdfCropCanvas');
+        canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+        const ctx = canvas.getContext('2d');
+        if (pdfCropRenderTask) pdfCropRenderTask.cancel();
+        const renderTask = page.render({ canvasContext: ctx, viewport });
+        pdfCropRenderTask = renderTask;
+        await renderTask.promise;
+        if (pdfCropRenderTask === renderTask) pdfCropRenderTask = null;
+        if (task !== pdfCropPreviewTask) return;
+        renderPdfCropSelection();
+        setPdfCropStatus(`Page ${pageNumber} of ${pdfCropPreviewDoc.numPages}. The crop selection is applied proportionally to all pages.`);
+      } catch (err) {
+        if (err && err.name === 'RenderingCancelledException') return;
+        if (task === pdfCropPreviewTask) setPdfCropStatus(`Could not render this page: ${err.message}`, true);
+      }
+    }
+    function cropPointerPoint(event) {
+      const rect = document.getElementById('pdfCropOverlay').getBoundingClientRect();
+      return { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) };
+    }
+    function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+    function onPdfCropPointerDown(event) {
+      if (!pdfCropPreviewDoc) return;
+      event.preventDefault();
+      const point = cropPointerPoint(event);
+      const target = event.target.closest('.pdf-crop-handle');
+      const inside = point.x >= pdfCropSelection.x && point.x <= pdfCropSelection.x + pdfCropSelection.w && point.y >= pdfCropSelection.y && point.y <= pdfCropSelection.y + pdfCropSelection.h;
+      pdfCropDrag = {
+        mode: target ? 'resize' : inside ? 'move' : 'draw',
+        handle: target?.dataset.handle || '', point,
+        original: { ...pdfCropSelection }
+      };
+      document.getElementById('pdfCropOverlay').setPointerCapture(event.pointerId);
+      if (pdfCropDrag.mode === 'draw') {
+        pdfCropSelection = { x: point.x, y: point.y, w: 0.01, h: 0.01 };
+        renderPdfCropSelection();
+      }
+    }
+    function onPdfCropPointerMove(event) {
+      if (!pdfCropDrag) return;
+      const point = cropPointerPoint(event), drag = pdfCropDrag;
+      const minSize = 0.01;
+      if (drag.mode === 'draw') {
+        const x = Math.min(drag.point.x, point.x), y = Math.min(drag.point.y, point.y);
+        pdfCropSelection = { x, y, w: Math.max(minSize, Math.abs(point.x - drag.point.x)), h: Math.max(minSize, Math.abs(point.y - drag.point.y)) };
+        pdfCropSelection.w = Math.min(pdfCropSelection.w, 1 - pdfCropSelection.x);
+        pdfCropSelection.h = Math.min(pdfCropSelection.h, 1 - pdfCropSelection.y);
+      } else if (drag.mode === 'move') {
+        pdfCropSelection.x = clamp(drag.original.x + point.x - drag.point.x, 0, 1 - drag.original.w);
+        pdfCropSelection.y = clamp(drag.original.y + point.y - drag.point.y, 0, 1 - drag.original.h);
+      } else {
+        let left = drag.original.x, top = drag.original.y;
+        let right = left + drag.original.w, bottom = top + drag.original.h;
+        if (drag.handle.includes('w')) left = clamp(drag.original.x + point.x - drag.point.x, 0, right - minSize);
+        if (drag.handle.includes('e')) right = clamp(drag.original.x + drag.original.w + point.x - drag.point.x, left + minSize, 1);
+        if (drag.handle.includes('n')) top = clamp(drag.original.y + point.y - drag.point.y, 0, bottom - minSize);
+        if (drag.handle.includes('s')) bottom = clamp(drag.original.y + drag.original.h + point.y - drag.point.y, top + minSize, 1);
+        pdfCropSelection = { x: left, y: top, w: right - left, h: bottom - top };
+      }
+      renderPdfCropSelection();
+      updatePdfCropMarginsFromSelection();
+    }
+    function onPdfCropPointerUp(event) {
+      if (!pdfCropDrag) return;
+      pdfCropDrag = null;
+      updatePdfCropMarginsFromSelection();
+      const overlay = document.getElementById('pdfCropOverlay');
+      if (overlay.hasPointerCapture(event.pointerId)) overlay.releasePointerCapture(event.pointerId);
+    }
+    const cropOverlay = document.getElementById('pdfCropOverlay');
+    cropOverlay.addEventListener('pointerdown', onPdfCropPointerDown);
+    cropOverlay.addEventListener('pointermove', onPdfCropPointerMove);
+    cropOverlay.addEventListener('pointerup', onPdfCropPointerUp);
+    cropOverlay.addEventListener('pointercancel', onPdfCropPointerUp);
+    document.getElementById('pdfCropPage').addEventListener('change', renderPdfCropPage);
+    document.getElementById('pdfFiles').addEventListener('change', () => {
+      if (pdfCropRenderTask) { pdfCropRenderTask.cancel(); pdfCropRenderTask = null; }
+      if (pdfCropPreviewDoc) pdfCropPreviewDoc.destroy();
+      pdfCropPreviewFile = null; pdfCropPreviewDoc = null; pdfCropPreviewTask++;
+      if (['crop_pdf', 'crop_pdf_select'].includes(document.getElementById('pdfToolSelect').value)) loadPdfCropPreview();
+    });
+    document.getElementById('pdfCropMargins').addEventListener('input', () => {
+      if (!syncingPdfCropMargins) updatePdfCropSelectionFromMargins();
+    });
+    document.getElementById('pdfCropResetBtn').addEventListener('click', () => {
+      document.getElementById('pdfCropMargins').value = '5,5,5,5';
+      updatePdfCropSelectionFromMargins();
+    });
+    updatePdfCropSelectionFromMargins();
+
 
     function updatePdfWatermarkOptions() {
       const customPosition = document.getElementById('pdfWmPosition').value === 'custom';
@@ -298,22 +484,30 @@
           addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `${tool}_${files[0].name}`, 'PDF Processed');
         }
 
-        else if (tool === 'crop_pdf' || tool === 'flipkart_crop' || tool === 'redact_pdf') {
+        else if (tool === 'crop_pdf' || tool === 'crop_pdf_select' || tool === 'flipkart_crop' || tool === 'redact_pdf') {
           const pdfDoc = await PDFLib.PDFDocument.load(await files[0].arrayBuffer());
           const pages = pdfDoc.getPages();
-          const m = (document.getElementById('pdfCropMargins').value || '5,5,5,5').split(',').map(x => parseFloat(x.trim()) || 0);
-          pages.forEach(p => {
+          const m = getPdfCropMargins().map(v => v * 100);
+          const cropPreviewDoc = (tool === 'crop_pdf' || tool === 'crop_pdf_select')
+            ? (pdfCropPreviewDoc || await openPdfWithPasswordSupport(await files[0].arrayBuffer()))
+            : null;
+          for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+            const p = pages[pageIndex];
             const w = p.getWidth(), h = p.getHeight();
             if (tool === 'flipkart_crop') {
               p.setCropBox(w * 0.26, h * 0.50, w * 0.48, h * 0.46);
-            } else if (tool === 'crop_pdf') {
-              const top = (m[0] / 100) * h, right = (m[1] / 100) * w, bot = (m[2] / 100) * h, left = (m[3] / 100) * w;
-              p.setCropBox(left, bot, Math.max(50, w - left - right), Math.max(50, h - top - bot));
+            } else if (tool === 'crop_pdf' || tool === 'crop_pdf_select') {
+              const previewPage = await cropPreviewDoc.getPage(pageIndex + 1);
+              const viewport = previewPage.getViewport({ scale: 1 });
+              const [x1, y1] = viewport.convertToPdfPoint(pdfCropSelection.x * viewport.width, pdfCropSelection.y * viewport.height);
+              const [x2, y2] = viewport.convertToPdfPoint((pdfCropSelection.x + pdfCropSelection.w) * viewport.width, (pdfCropSelection.y + pdfCropSelection.h) * viewport.height);
+              const left = Math.min(x1, x2), bottom = Math.min(y1, y2);
+              p.setCropBox(left, bottom, Math.max(50, Math.abs(x2 - x1)), Math.max(50, Math.abs(y2 - y1)));
             } else if (tool === 'redact_pdf') {
               const top = (m[0] / 100) * h, right = (m[1] / 100) * w, bot = (m[2] / 100) * h, left = (m[3] / 100) * w;
               p.drawRectangle({ x: left, y: bot, width: Math.max(20, w - left - right), height: Math.max(20, h - top - bot), color: PDFLib.rgb(0, 0, 0) });
             }
-          });
+          }
           addDownloadCard(out, new Blob([await pdfDoc.save()], { type: 'application/pdf' }), `${tool}_${files[0].name}`, 'PDF Updated');
         }
 
