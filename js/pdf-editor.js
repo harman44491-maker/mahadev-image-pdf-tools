@@ -170,6 +170,23 @@
       }
 
       if (edMode === 'add_text') {
+        // In Add Text mode, clicking an existing added text selects/moves it.
+        // A click on blank page space remains the action that creates new text.
+        for (let i = items.length - 1; i >= 0; i--) {
+          const existing = items[i];
+          if (existing.type !== 'text' || pos.x < existing.x || pos.x > existing.x + existing.w || pos.y < existing.y || pos.y > existing.y + existing.h) continue;
+          edSelectedIdx = i;
+          edDragging = true;
+          edDragOffset = { x: pos.x - existing.x, y: pos.y - existing.y };
+          document.getElementById('edTextInput').value = existing.text;
+          if (existing.font) document.getElementById('edFontFamily').value = existing.font;
+          if (typeof existing.bold === 'boolean') document.getElementById('edBoldToggle').checked = existing.bold;
+          document.getElementById('edFontSize').value = existing.size || 16;
+          document.getElementById('edColor').value = existing.color || '#111827';
+          redrawEditorCanvas();
+          return;
+        }
+
         const txt = document.getElementById('edTextInput').value || 'New Edited Text';
         const size = parseInt(document.getElementById('edFontSize').value) || 16;
         items.push({ type: 'text', x: pos.x, y: pos.y - size, w: 100, h: size + 6, text: txt, size, font: curFont, bold: curBold, color: curColor });
