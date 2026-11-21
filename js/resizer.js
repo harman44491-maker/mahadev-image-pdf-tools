@@ -33,20 +33,26 @@
   }
 
   function addDownloadCard(container, blob, filename, detail) {
+    if (!container || !(blob instanceof Blob)) throw new Error('Image output could not be created.');
     const card = document.createElement('div');
-    card.className = 'output-card';
-    card.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px;margin:10px 0;border:1px solid #dbe3ef;border-radius:10px;background:#fff;';
-    const info = document.createElement('span');
-    info.textContent = filename + ' — ' + detail;
-    const link = document.createElement('a');
+    card.className = 'output-card output-card-with-preview';
+    card.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:12px;margin:10px 0;border:1px solid #dbe3ef;border-radius:10px;background:#fff;max-width:100%;box-sizing:border-box;';
+    const info = document.createElement('div');
+    info.textContent = [filename, detail].filter(Boolean).join(' — ');
+    info.style.cssText = 'font-size:14px;color:#334155;overflow-wrap:anywhere;width:100%;';
     const url = URL.createObjectURL(blob);
+    const preview = document.createElement('img');
+    preview.src = url;
+    preview.alt = filename || 'Resized image preview';
+    preview.loading = 'lazy';
+    preview.style.cssText = 'display:block;max-width:min(100%,360px);max-height:460px;width:auto;height:auto;object-fit:contain;margin:0 auto;border:1px solid #e2e8f0;border-radius:6px;background:#fff;';
+    const link = document.createElement('a');
     link.href = url;
-    link.download = filename;
+    link.download = filename || 'resized-image';
     link.textContent = 'Download';
     link.className = 'btn-green';
     link.style.cssText = 'display:inline-block;text-decoration:none;padding:9px 16px;border-radius:7px;color:#fff;background:#059669;font-weight:700;';
-    link.addEventListener('click', () => setTimeout(() => URL.revokeObjectURL(url), 30000), { once: true });
-    card.append(info, link);
+    card.append(info, preview, link);
     container.appendChild(card);
   }
 
