@@ -55,7 +55,7 @@
         const link = document.createElement('link');
         link.id = id;
         link.rel = 'stylesheet';
-        link.href = 'https://fonts.googleapis.com/css2?family=' + encoded + ':wght@400;700&display=swap';
+        link.href = 'https://fonts.googleapis.com/css2?family=' + encoded + '&display=swap';
         document.head.appendChild(link);
       }
       return document.fonts.load(weight + ' 72px "' + family + '"', text || 'Watermark ਪੰਜਾਬੀ हिन्दी');
