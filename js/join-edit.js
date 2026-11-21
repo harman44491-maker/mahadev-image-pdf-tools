@@ -1256,3 +1256,259 @@ if (joinEditToolSelect) {
   joinEditToolSelect.addEventListener('change', updateJoinEditToolPanel);
   updateJoinEditToolPanel();
 }
+
+
+// ================= JOIN_EDIT_FULL_TOOL_DISPATCH_V1 =================
+// Complete client-side processing for the non-Photoshop options.
+let joinEditSelectedFrame = 0;
+let joinEditCustomFrame = null;
+
+function joinEditCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w));
+  c.height = Math.max(1, Math.round(h));
+  return c;
+}
+function joinEditDownload(canvas, filename = 'mahadev-edited-image.png', type = 'image/png') {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (!blob) return reject(new Error('Could not export the edited image.'));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1800);
+      resolve();
+    }, type);
+  });
+}
+function joinEditFont() {
+  const selected = document.getElementById('editFontFamily')?.value;
+  return selected || 'Noto Sans, Arial, sans-serif';
+}
+function joinEditDrawText(ctx, text, x, y, maxWidth, size, align = 'center') {
+  if (!text) return;
+  const bold = document.getElementById('editBoldToggle')?.checked;
+  ctx.save();
+  ctx.font = (bold ? '700 ' : '400 ') + size + 'px "' + joinEditFont().replace(/["']/g, '') + '", sans-serif';
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(2, size * 0.12);
+  ctx.strokeStyle = 'rgba(0,0,0,.58)';
+  ctx.fillStyle = document.getElementById('editColor')?.value || '#ffffff';
+  ctx.strokeText(text, x, y, maxWidth);
+  ctx.fillText(text, x, y, maxWidth);
+  ctx.restore();
+}
+async function joinEditLoadSelectedImages() {
+  const files = Array.from(document.getElementById('editFiles')?.files || []);
+  if (!files.length) throw new Error('Please select the required photo file(s) first.');
+  const images = [];
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    const url = URL.createObjectURL(file);
+    try { images.push(await loadImg(url)); }
+    finally { URL.revokeObjectURL(url); }
+  }
+  if (!images.length) throw new Error('No valid image file was selected.');
+  return images;
+}
+function joinEditCanvasFromImage(img) {
+  const c = joinEditCanvas(img.naturalWidth || img.width, img.naturalHeight || img.height);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+function joinEditFrameCanvas(source, frameIndex, customFrame) {
+  const c = joinEditCanvas(source.width, source.height), ctx = c.getContext('2d');
+  ctx.drawImage(source, 0, 0);
+  if (customFrame) {
+    ctx.drawImage(customFrame, 0, 0, c.width, c.height);
+    return c;
+  }
+  const palettes = [
+    ['#d4af37','#fff1a8'],['#111827','#94a3b8'],['#7f1d1d','#fca5a5'],['#1e3a8a','#93c5fd'],
+    ['#14532d','#86efac'],['#581c87','#d8b4fe'],['#9a3412','#fdba74'],['#0f766e','#99f6e4'],
+    ['#be185d','#fbcfe8'],['#374151','#e5e7eb']
+  ];
+  const pair = palettes[frameIndex % palettes.length];
+  const thickness = Math.max(2, Math.min(20, Number(document.getElementById('frameThickness')?.value) || 6)) / 100 * Math.min(c.width,c.height);
+  const style = Math.floor(frameIndex / 10);
+  ctx.save();
+  ctx.strokeStyle = pair[0]; ctx.lineWidth = thickness;
+  ctx.strokeRect(thickness/2, thickness/2, c.width-thickness, c.height-thickness);
+  ctx.strokeStyle = pair[1]; ctx.lineWidth = Math.max(1, thickness * .22);
+  const inset = thickness * (1.25 + (style % 3) * .35);
+  ctx.strokeRect(inset, inset, c.width-2*inset, c.height-2*inset);
+  if (style % 2 === 0) {
+    const corner = Math.max(8, thickness * 1.2);
+    for (const [x,y,sx,sy] of [[inset,inset,1,1],[c.width-inset,inset,-1,1],[inset,c.height-inset,1,-1],[c.width-inset,c.height-inset,-1,-1]]) {
+      ctx.beginPath(); ctx.moveTo(x,y+sy*corner); ctx.lineTo(x,y); ctx.lineTo(x+sx*corner,y); ctx.stroke();
+    }
+  }
+  ctx.restore();
+  return c;
+}
+function joinEditInitFrameGallery() {
+  const gallery = document.getElementById('frameGallery');
+  if (!gallery || gallery.dataset.ready === '1') return;
+  gallery.dataset.ready = '1';
+  const names = ['Royal Gold','Classic Black','Ruby Red','Royal Blue','Emerald','Violet','Copper','Teal','Rose','Silver'];
+  for (let i=0;i<50;i++) {
+    const b=document.createElement('button');
+    b.type='button'; b.className='chip'; b.style.cssText='min-width:100px;min-height:58px;margin:4px;border:4px solid '+[['#d4af37','#fff1a8'],['#111827','#94a3b8'],['#7f1d1d','#fca5a5'],['#1e3a8a','#93c5fd'],['#14532d','#86efac'],['#581c87','#d8b4fe'],['#9a3412','#fdba74'],['#0f766e','#99f6e4'],['#be185d','#fbcfe8'],['#374151','#e5e7eb']][i%10][0]+';background:#fff;font-size:12px;';
+    b.textContent=String(i+1).padStart(2,'0')+'. '+names[i%10]+' '+(Math.floor(i/10)+1);
+    b.addEventListener('click',()=>{
+      joinEditSelectedFrame=i;
+      gallery.querySelectorAll('button').forEach((x,n)=>{x.style.outline=n===i?'3px solid #0d9488':'none';});
+      const badge=document.getElementById('selectedFrameBadge');
+      if(badge) badge.textContent='Selected: '+String(i+1).padStart(2,'0')+'. '+names[i%10];
+    });
+    gallery.appendChild(b);
+  }
+  gallery.querySelector('button')?.click();
+}
+document.getElementById('customFrameFile')?.addEventListener('change', async e=>{
+  const file=e.target.files?.[0]; if(!file){joinEditCustomFrame=null;return;}
+  try { const url=URL.createObjectURL(file); joinEditCustomFrame=await loadImg(url); URL.revokeObjectURL(url); }
+  catch(err){ joinEditCustomFrame=null; const s=document.getElementById('editStatus'); if(s){s.textContent=err.message;s.classList.remove('hidden');} }
+});
+joinEditInitFrameGallery();
+
+async function joinEditBlurBackground(img) {
+  if (typeof SelfieSegmentation === 'undefined') throw new Error('Portrait segmentation model is not loaded. Refresh the page with internet access and retry.');
+  return new Promise((resolve,reject)=>{
+    let model,done=false;
+    const finish=(err,val)=>{if(done)return;done=true;clearTimeout(timer);try{model?.close();}catch(_){};err?reject(err):resolve(val);};
+    const timer=setTimeout(()=>finish(new Error('Background blur timed out. Try a smaller photo.')),30000);
+    try {
+      model=new SelfieSegmentation({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`});
+      model.setOptions({modelSelection:1});
+      model.onResults(results=>{
+        try {
+          if(!results?.segmentationMask) throw new Error('Could not detect the person in this photo.');
+          const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+          const base=joinEditCanvas(w,h),ctx=base.getContext('2d');
+          ctx.filter='blur(12px)';ctx.drawImage(img,0,0,w,h);ctx.filter='none';
+          const fg=joinEditCanvas(w,h),fctx=fg.getContext('2d');
+          fctx.drawImage(img,0,0,w,h);fctx.globalCompositeOperation='destination-in';
+          fctx.drawImage(results.segmentationMask,0,0,w,h);fctx.globalCompositeOperation='source-over';
+          ctx.drawImage(fg,0,0);
+          finish(null,base);
+        } catch(err){finish(err);}
+      });
+      model.send({image:img}).catch(err=>finish(err));
+    } catch(err){finish(err);}
+  });
+}
+async function joinEditProcessTool(tool) {
+  const files=Array.from(document.getElementById('editFiles')?.files||[]);
+  const text1=document.getElementById('editText1')?.value?.trim()||'';
+  const text2=document.getElementById('editText2')?.value?.trim()||'';
+  const num=Math.max(0,Number(document.getElementById('editNum1')?.value)||10);
+  if (tool==='sig_maker') {
+    const c=joinEditCanvasFromImage(sigCanvas);
+    await joinEditDownload(c,'mahadev-digital-signature.png'); return 'Signature downloaded as PNG.';
+  }
+  if (tool==='text_handwriting') {
+    const value=document.getElementById('hwLongText')?.value?.trim()||text1;
+    if(!value) throw new Error('Please enter the text for the handwriting page.');
+    const c=joinEditCanvas(1240,1754),ctx=c.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+    ctx.strokeStyle='#dbeafe';ctx.lineWidth=2;
+    for(let y=130;y<c.height-70;y+=54){ctx.beginPath();ctx.moveTo(75,y);ctx.lineTo(c.width-70,y);ctx.stroke();}
+    ctx.fillStyle='#1e3a8a';ctx.font='30px '+joinEditFont();
+    const words=value.split(/\s+/);let line='',y=120;
+    for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>c.width-170&&line){ctx.fillText(line,85,y);line=word;y+=54;}else line=test;}
+    if(line)ctx.fillText(line,85,y);
+    await joinEditDownload(c,'mahadev-handwriting-page.png');return 'Handwriting-style page created. You can print this A4 image.';
+  }
+  if (tool==='latex_img') {
+    if(!text1) throw new Error('Enter a formula or expression first.');
+    const c=joinEditCanvas(1600,600),ctx=c.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillStyle='#111827';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font='48px Georgia, serif';ctx.fillText(text1,800,300,1450);
+    await joinEditDownload(c,'mahadev-formula.png');return 'Formula text exported as an image (plain text rendering; LaTeX commands are not typeset).';
+  }
+
+  const imgs=await joinEditLoadSelectedImages();
+  if(tool==='join_images'||tool==='merge_photo_sig'){
+    if(imgs.length<2) throw new Error('Please select at least two image files.');
+    const vertical=tool==='merge_photo_sig';
+    const targetW=vertical?Math.max(...imgs.map(i=>i.naturalWidth||i.width)):imgs.reduce((n,i)=>n+(i.naturalWidth||i.width),0);
+    const targetH=vertical?imgs.reduce((n,i)=>n+(i.naturalHeight||i.height),0):Math.max(...imgs.map(i=>i.naturalHeight||i.height));
+    const c=joinEditCanvas(targetW,targetH),ctx=c.getContext('2d');let offset=0;
+    imgs.forEach(img=>{const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;if(vertical){const dw=targetW,dh=ih*targetW/iw;ctx.drawImage(img,0,offset,dw,dh);offset+=dh;}else{const dh=targetH,dw=iw*targetH/ih;ctx.drawImage(img,offset,0,dw,dh);offset+=dw;}});
+    await joinEditDownload(c,vertical?'mahadev-photo-signature-merge.png':'mahadev-joined-images.png');
+    return vertical?'Photo and signature images merged vertically.':'Images joined horizontally.';
+  }
+
+  if(tool==='blur_bg'){
+    const c=await joinEditBlurBackground(imgs[0]);await joinEditDownload(c,'mahadev-background-blur.png');return 'Portrait background blur applied.';
+  }
+  const source=joinEditCanvasFromImage(imgs[0]);
+  let c=joinEditCanvas(source.width,source.height),ctx=c.getContext('2d');
+  ctx.drawImage(source,0,0);
+  if(tool==='add_logo_photo'){
+    const logoFile=document.getElementById('logoOverlayFile')?.files?.[0];
+    if(!logoFile) throw new Error('Please upload a logo image.');
+    const url=URL.createObjectURL(logoFile);const logo=await loadImg(url);URL.revokeObjectURL(url);
+    drawLogoOverlayOnCanvas(ctx,c.width,c.height,logo);
+  } else if(tool==='name_date'){
+    const size=Math.max(16,c.width*(Number(document.getElementById('ndFontSizePct')?.value)||5)/100);
+    const pos=document.getElementById('ndPosition')?.value||'bottom';
+    const vertical=document.getElementById('ndOrientation')?.value==='vertical';
+    const strip=document.getElementById('ndBgStyle')?.value||'transparent_outline';
+    ctx.save();
+    if(strip==='white_strip'){ctx.fillStyle='#fff';ctx.fillRect(0,c.height-size*2.5,c.width,size*2.5);}
+    else if(strip==='transparent_glass'){ctx.fillStyle='rgba(255,255,255,.48)';ctx.fillRect(0,c.height-size*2.5,c.width,size*2.5);}
+    const x=pos==='left'?size:c.width/2,y=pos==='top'?size*1.5:pos==='center'?c.height/2:c.height-size*1.5;
+    if(vertical){ctx.translate(pos==='right'?c.width-size:c.width/2,y);ctx.rotate(-Math.PI/2);joinEditDrawText(ctx,text1+'  '+text2,0,0,c.height-size*2,size,'center');}
+    else joinEditDrawText(ctx,[text1,text2].filter(Boolean).join('  '),pos==='left'?size:c.width/2,y,c.width-size*2,size,pos==='left'?'left':'center');
+    ctx.restore();
+  } else if(tool==='add_text_img'||tool==='watermark_img'){
+    if(!text1) throw new Error('Please enter the text first.');
+    const size=Math.max(18,c.width*(tool==='watermark_img'?.055:.06));
+    if(tool==='watermark_img'){
+      ctx.save();ctx.globalAlpha=.28;ctx.translate(c.width/2,c.height/2);ctx.rotate(-Math.PI/6);
+      joinEditDrawText(ctx,text1,0,0,c.width*.9,size,'center');ctx.restore();
+    } else joinEditDrawText(ctx,text1,c.width/2,c.height/2,c.width*.9,size,'center');
+  } else if(tool==='photo_frame'){
+    c=joinEditFrameCanvas(source,joinEditSelectedFrame,joinEditCustomFrame);
+  } else if(tool==='add_border'){
+    const border=Math.max(1,Math.min(200,num));ctx.strokeStyle=document.getElementById('editColor')?.value||'#fff';ctx.lineWidth=border;ctx.strokeRect(border/2,border/2,c.width-border,c.height-border);
+  } else if(tool==='blur_image'){
+    const blur=Math.max(0,Math.min(30,num));ctx.filter='blur('+blur+'px)';ctx.drawImage(source,0,0);ctx.filter='none';
+  } else if(tool==='img_contrast'){
+    const contrast=Math.max(20,Math.min(250,Number(document.getElementById('cbContrastNum')?.value)||110));
+    const bright=Math.max(20,Math.min(250,Number(document.getElementById('cbBrightnessNum')?.value)||105));
+    ctx.filter='contrast('+contrast+'%) brightness('+bright+'%)';ctx.drawImage(source,0,0);ctx.filter='none';
+  } else if(tool==='rotate'){
+    const angle=(num||90)*Math.PI/180,sw=source.width,sh=source.height;
+    const swap=Math.abs(Math.round(num/90))%2===1;
+    c=joinEditCanvas(swap?sh:sw,swap?sw:sh);ctx=c.getContext('2d');ctx.translate(c.width/2,c.height/2);ctx.rotate(angle);ctx.drawImage(source,-sw/2,-sh/2);
+  } else if(tool==='flip'){
+    ctx.translate(c.width,0);ctx.scale(-1,1);ctx.drawImage(source,0,0);
+  } else {
+    throw new Error('This tool is not yet supported: '+tool);
+  }
+  await joinEditDownload(c,'mahadev-'+tool.replace(/[^a-z0-9]+/gi,'-')+'.png');
+  return 'Done! Your edited image has been downloaded.';
+}
+
+document.getElementById('editRunBtn')?.addEventListener('click', async()=>{
+  const tool=document.getElementById('editToolSelect')?.value;
+  if(!tool||tool==='ps_auto_retouch') return; // Photoshop has its own full-resolution handler above.
+  const btn=document.getElementById('editRunBtn'),status=document.getElementById('editStatus');
+  if(btn){btn.disabled=true;btn.textContent='Processing...';}
+  if(status){status.textContent='Processing '+tool.replace(/_/g,' ')+'...';status.classList.remove('hidden');}
+  try {
+    const message=await joinEditProcessTool(tool);
+    if(status)status.textContent=message;
+  } catch(error) {
+    if(status){status.textContent=error?.message||'Processing failed. Please check the selected files and try again.';status.classList.remove('hidden');}
+  } finally {
+    if(btn){btn.disabled=false;const label=document.getElementById('editToolSelect')?.selectedOptions?.[0]?.textContent||'Apply & Download';btn.textContent=label.length>26?'Apply & Download':label;}
+  }
+});
