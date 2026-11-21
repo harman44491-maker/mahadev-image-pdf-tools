@@ -162,6 +162,17 @@
 
     }
 
+    function findEditorTextAtPoint(x, y) {
+      const padding = 10;
+      const matches = edExtractedTextBoxes.map(tb => {
+        const dx = x < tb.x ? tb.x - x : x > tb.x + tb.w ? x - (tb.x + tb.w) : 0;
+        const dy = y < tb.y ? tb.y - y : y > tb.y + tb.h ? y - (tb.y + tb.h) : 0;
+        return { tb, distance: Math.hypot(dx, dy), area: tb.w * tb.h };
+      }).filter(hit => hit.distance <= padding);
+      matches.sort((a, b) => a.distance - b.distance || a.area - b.area);
+      return matches.length ? matches[0].tb : null;
+    }
+
     function syncSelectedEditorTextStyle() {
       const items = edPageItems[edCurrentPage] || [];
       if (edSelectedIdx >= 0 && items[edSelectedIdx]?.type === 'text') {
@@ -212,14 +223,19 @@
       const curColor = document.getElementById('edColor').value;
 
       if (edMode === 'edit_existing') {
-        const hit = edExtractedTextBoxes.find(tb => pos.x >= tb.x && pos.x <= tb.x + tb.w && pos.y >= tb.y && pos.y <= tb.y + tb.h);
+        const hit = findEditorTextAtPoint(pos.x, pos.y);
         if (hit) {
+          document.getElementById('edStatus').classList.add('hidden');
           items.push({ type: 'whiteout', x: hit.x - 2, y: hit.y - 2, w: hit.w + 6, h: hit.h + 4 });
           items.push({ type: 'text', x: hit.x, y: hit.y, w: hit.w, h: hit.h, text: hit.text, size: hit.fontSize, font: curFont, bold: curBold, color: curColor });
           edSelectedIdx = items.length - 1;
           document.getElementById('edTextInput').value = hit.text;
           document.getElementById('edTextInput').focus();
           redrawEditorCanvas();
+        } else {
+          const status = document.getElementById('edStatus');
+          status.textContent = 'No selectable text found at that spot. Use Add New Text for scanned or image-only pages.';
+          status.classList.remove('hidden');
         }
         return;
       }

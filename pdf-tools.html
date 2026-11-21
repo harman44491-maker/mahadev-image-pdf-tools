@@ -120,7 +120,26 @@
           <label>Color: <input type="color" id="pdfWmColor" value="#777777"></label>
           <label>Size (pt): <input type="number" id="pdfWmSize" min="8" max="120" value="36" style="width:76px"></label>
           <label>Opacity (%): <input type="number" id="pdfWmOpacity" min="5" max="100" value="45" style="width:70px"></label>
-          <label>Rotation: <input type="number" id="pdfWmRotation" min="-180" max="180" value="35" style="width:70px">°</label>
+          <label>Position:
+            <select id="pdfWmPosition">
+              <option value="center" selected>Center</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label>Direction:
+            <select id="pdfWmDirection">
+              <option value="horizontal" selected>Horizontal</option>
+              <option value="vertical">Vertical</option>
+              <option value="custom">Custom angle</option>
+            </select>
+          </label>
+          <label id="pdfWmRotationBox" class="hidden">Angle: <input type="number" id="pdfWmRotation" min="-180" max="180" value="35" style="width:70px">°</label>
+          <label id="pdfWmXBox" class="hidden">X position (%): <input type="number" id="pdfWmX" min="0" max="100" value="50" style="width:70px"></label>
+          <label id="pdfWmYBox" class="hidden">Y position (%): <input type="number" id="pdfWmY" min="0" max="100" value="50" style="width:70px"></label>
         </div>
         <label id="pdfContrastLbl" class="hidden">Contrast (%): <input type="number" id="pdfContrastVal" value="140" min="50" max="250"></label>
         <label id="pdfPassLbl" class="hidden">PDF Password: <input type="password" id="pdfPasswordInput" placeholder="Enter password"></label>
@@ -149,6 +168,6 @@
   </main>
 
   <script src="js/shared.js?v=6"></script>
-  <script src="js/pdf-tools.js?v=2"></script>
+  <script src="js/pdf-tools.js?v=3"></script>
 </body>
 </html>

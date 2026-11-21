@@ -14,11 +14,23 @@
       document.getElementById('pdfSecondFileBox').classList.toggle('hidden', !['sign_pdf', 'add_img_pdf'].includes(tool));
       document.getElementById('pdfTextLbl').classList.toggle('hidden', tool !== 'watermark_pdf');
       document.getElementById('pdfWatermarkStyleBox').classList.toggle('hidden', tool !== 'watermark_pdf');
+      updatePdfWatermarkPositionControls();
       document.getElementById('pdfContrastLbl').classList.toggle('hidden', tool !== 'contrast_pdf');
       document.getElementById('pdfPassLbl').classList.toggle('hidden', !['protect_pdf', 'unlock_pdf'].includes(tool));
       document.getElementById('pdfCropLbl').classList.toggle('hidden', !['crop_pdf', 'redact_pdf'].includes(tool));
     }
     document.getElementById('pdfToolSelect').onchange = updatePdfControls;
+
+    function updatePdfWatermarkPositionControls() {
+      const customPosition = document.getElementById('pdfWmPosition').value === 'custom';
+      const customAngle = document.getElementById('pdfWmDirection').value === 'custom';
+      document.getElementById('pdfWmXBox').classList.toggle('hidden', !customPosition);
+      document.getElementById('pdfWmYBox').classList.toggle('hidden', !customPosition);
+      document.getElementById('pdfWmRotationBox').classList.toggle('hidden', !customAngle);
+    }
+    document.getElementById('pdfWmPosition').addEventListener('change', updatePdfWatermarkPositionControls);
+    document.getElementById('pdfWmDirection').addEventListener('change', updatePdfWatermarkPositionControls);
+    updatePdfWatermarkPositionControls();
 
     const pdfWmFontFamilies = [
       'Roboto','Open Sans','Lato','Montserrat','Poppins','Oswald','Raleway','Nunito','Nunito Sans','Ubuntu',
@@ -67,20 +79,27 @@
       const fallback = language === 'pa' ? 'Noto Sans Gurmukhi' : language === 'hi' ? 'Noto Sans Devanagari' : 'sans-serif';
       const fontSize = Math.max(8, Math.min(120, Number(sizePt) || 36)) * 2;
       const canvas = document.createElement('canvas');
-      canvas.width = 2400;
-      canvas.height = 520;
+      const angle = Math.max(-180, Math.min(180, Number(rotation) || 0));
       const ctx = canvas.getContext('2d');
       await loadPdfWatermarkFont(family, bold ? '700' : '400', text);
+      ctx.font = (bold ? '700 ' : '400 ') + fontSize + 'px "' + family + '", "' + fallback + '", sans-serif';
+      const textWidth = Math.max(1, ctx.measureText(text).width);
+      const radians = angle * Math.PI / 180;
+      const rotatedWidth = Math.abs(Math.cos(radians)) * textWidth + Math.abs(Math.sin(radians)) * fontSize;
+      const rotatedHeight = Math.abs(Math.sin(radians)) * textWidth + Math.abs(Math.cos(radians)) * fontSize;
+      const padding = Math.ceil(fontSize * 0.35 + 4);
+      canvas.width = Math.ceil(rotatedWidth + padding * 2);
+      canvas.height = Math.ceil(rotatedHeight + padding * 2);
+      ctx.font = (bold ? '700 ' : '400 ') + fontSize + 'px "' + family + '", "' + fallback + '", sans-serif';
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
       ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate((Math.max(-180, Math.min(180, Number(rotation) || 0)) * Math.PI) / 180);
+      ctx.rotate(radians);
       ctx.globalAlpha = Math.max(0.05, Math.min(1, (Number(opacity) || 45) / 100));
       ctx.fillStyle = color || '#777777';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = (bold ? '700 ' : '400 ') + fontSize + 'px "' + family + '", "' + fallback + '", sans-serif';
-      ctx.fillText(text, 0, 0, canvas.width * 0.88);
+      ctx.fillText(text, 0, 0);
       ctx.restore();
       return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not render watermark text.')), 'image/png'));
     }
@@ -294,24 +313,39 @@
           if (tool === 'watermark_pdf') {
             const wmLang = document.getElementById('pdfWmLanguage').value;
             const wmFont = pdfWmFontSelect.value || (wmLang === 'pa' ? 'Noto Sans Gurmukhi' : wmLang === 'hi' ? 'Noto Sans Devanagari' : 'Roboto');
+            const wmDirection = document.getElementById('pdfWmDirection').value;
+            const wmRotation = wmDirection === 'vertical' ? 90 : wmDirection === 'custom' ? document.getElementById('pdfWmRotation').value : 0;
             const wmPng = await createPdfWatermarkImage(
               wmTxt, wmFont,
               document.getElementById('pdfWmBold').checked,
               document.getElementById('pdfWmColor').value,
               document.getElementById('pdfWmOpacity').value,
               document.getElementById('pdfWmSize').value,
-              document.getElementById('pdfWmRotation').value,
+              wmRotation,
               wmLang
             );
             const wmBytes = await wmPng.arrayBuffer();
             const embeddedWm = await pdfDoc.embedPng(wmBytes);
+            const wmPosition = document.getElementById('pdfWmPosition').value;
             pages.forEach(p => {
               const maxW = p.getWidth() * 0.9;
               const maxH = p.getHeight() * 0.9;
-              const scale = Math.min(maxW / embeddedWm.width, maxH / embeddedWm.height);
+              const scale = Math.min(0.5, maxW / embeddedWm.width, maxH / embeddedWm.height);
               const w = embeddedWm.width * scale;
               const h = embeddedWm.height * scale;
-              p.drawImage(embeddedWm, { x: (p.getWidth() - w) / 2, y: (p.getHeight() - h) / 2, width: w, height: h });
+              let centerX = p.getWidth() / 2, centerY = p.getHeight() / 2;
+              const margin = Math.min(24, Math.min(p.getWidth(), p.getHeight()) * 0.04);
+              if (wmPosition === 'top') centerY = p.getHeight() - h / 2 - margin;
+              else if (wmPosition === 'bottom') centerY = h / 2 + margin;
+              else if (wmPosition === 'left') centerX = w / 2 + margin;
+              else if (wmPosition === 'right') centerX = p.getWidth() - w / 2 - margin;
+              else if (wmPosition === 'custom') {
+                const xPct = Math.max(0, Math.min(100, Number(document.getElementById('pdfWmX').value) || 50));
+                const yPct = Math.max(0, Math.min(100, Number(document.getElementById('pdfWmY').value) || 50));
+                centerX = Math.max(w / 2, Math.min(p.getWidth() - w / 2, p.getWidth() * xPct / 100));
+                centerY = Math.max(h / 2, Math.min(p.getHeight() - h / 2, p.getHeight() * yPct / 100));
+              }
+              p.drawImage(embeddedWm, { x: centerX - w / 2, y: centerY - h / 2, width: w, height: h });
             });
           }
           addDownloadCard(out, new Blob([await pdfDoc.save()], { type: 'application/pdf' }), `updated_${files[0].name}`, 'Updated PDF ready');
