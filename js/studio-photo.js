@@ -1,14 +1,11 @@
 (() => {
-  const API_BASE = 'https://mahadev-studio-ai.onrender.com';
   const fileInput = document.getElementById('studioFile');
   const preview = document.getElementById('studioPreview');
   const status = document.getElementById('studioStatus');
   const createBtn = document.getElementById('studioCreate');
-  const modeSelect = document.getElementById('studioAiModeSelect');
   let sourceImage = null;
   let sourceUrl = null;
   let outputUrl = null;
-  let aiAvailable = false;
 
   function setStatus(message, isError = false) {
     status.textContent = message;
@@ -69,35 +66,6 @@
     preview.appendChild(figure);
     return figure;
   }
-  async function checkAiStatus() {
-    try {
-      const response = await fetch(API_BASE + '/api/studio-photo/status', { cache: 'no-store' });
-      if (!response.ok) throw new Error('AI backend status unavailable');
-      const data = await response.json();
-      aiAvailable = Boolean(data.available);
-      if (aiAvailable) {
-        setStatus('AI Studio Pro is ready. Your photo will be sent securely to the editing backend only when you click Create.');
-      } else {
-        setStatus('AI Studio Pro backend is online, but its server API key has not been configured yet. Browser Fast is available now.');
-      }
-    } catch (error) {
-      aiAvailable = false;
-      setStatus('AI Studio Pro backend is not reachable yet. Choose Browser Fast or try again later.', true);
-    }
-  }
-  async function runGenerativeEdit(file, frameText, qualityText, enhance) {
-    const form = new FormData();
-    form.append('image', file, file.name || 'portrait.jpg');
-    form.append('frame', frameText);
-    form.append('quality', qualityText);
-    form.append('enhance', String(enhance));
-    const response = await fetch(API_BASE + '/api/studio-photo', { method: 'POST', body: form });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || 'AI Studio Pro request failed.');
-    }
-    return response.blob();
-  }
   function tidyHairEdges(subjectCanvas) {
     // Gently suppress faint detached segmentation wisps while retaining
     // the stronger hair silhouette. This is local edge cleanup, not AI hair restyling.
@@ -124,7 +92,7 @@
       if (typeof SelfieSegmentation === 'undefined' || typeof runSelfieSegmentation !== 'function') {
         throw new Error('Browser segmentation library did not load. Refresh and try again.');
       }
-      setStatus('Browser Fast: separating the person from the background...');
+      setStatus('Separating the person from the background locally...');
       subjectCanvas = await runSelfieSegmentation(sourceImage, 'transparent');
       if (document.getElementById('studioHairTidy')?.checked) subjectCanvas = tidyHairEdges(subjectCanvas);
     } else {
@@ -162,7 +130,7 @@
       preview.replaceChildren();
       if (outputUrl) { URL.revokeObjectURL(outputUrl); outputUrl = null; }
       addPreview('Original Photo', sourceUrl, sourceImage.width + ' × ' + sourceImage.height + ' px');
-      setStatus('Photo loaded. Select the engine and click Create HD Studio Photo.');
+      setStatus('Photo loaded. Click Create HD Studio Photo to process it locally.');
     } catch (error) {
       sourceImage = null;
       setStatus(error.message || 'Could not open this image.', true);
@@ -180,23 +148,7 @@
     try {
       const frameSelect = document.getElementById('studioFrame');
       const qualitySelect = document.getElementById('studioScale');
-      const frameText = frameSelect.options[frameSelect.selectedIndex].text;
-      const qualityText = qualitySelect.options[qualitySelect.selectedIndex].text;
-      const enhance = document.getElementById('studioEnhance').checked;
-      const selectedMode = modeSelect.value;
-      let result;
-
-      if (selectedMode === 'ai_studio_pro') {
-        if (!aiAvailable) {
-          await checkAiStatus();
-          if (!aiAvailable) throw new Error('AI Studio Pro is not configured yet. Please use Browser Fast for now.');
-        }
-        setStatus('AI Studio Pro is editing the portrait on the secure server. This may take a minute or two...');
-        const blob = await runGenerativeEdit(fileInput.files[0], frameText, qualityText, enhance);
-        result = { blob, width: 0, height: 0, engine: 'AI Studio Pro' };
-      } else {
-        result = await runBrowserFast();
-      }
+      const result = await runBrowserFast();
 
       if (outputUrl) URL.revokeObjectURL(outputUrl);
       outputUrl = URL.createObjectURL(result.blob);
@@ -210,7 +162,7 @@
       download.download = 'studio_photo_' + result.engine.toLowerCase().replace(/[^a-z0-9]+/g, '_') + (result.width ? '_' + result.width + 'x' + result.height : '') + '.png';
       download.textContent = 'Download Studio Photo';
       figure.appendChild(download);
-      setStatus('Done. Review the edited image carefully; generative editing may make small changes to fine details.');
+      setStatus('Done. Review the edited image carefully, especially the hair edges and background.');
     } catch (error) {
       console.error(error);
       setStatus(error.message || 'Photo processing failed. Please try again.', true);
@@ -232,6 +184,4 @@
       fileInput.dispatchEvent(new Event('change'));
     }
   }));
-
-  checkAiStatus();
 })();
