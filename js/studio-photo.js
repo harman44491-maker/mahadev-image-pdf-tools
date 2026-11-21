@@ -98,6 +98,26 @@
     }
     return response.blob();
   }
+  function tidyHairEdges(subjectCanvas) {
+    // Gently suppress faint detached segmentation wisps while retaining
+    // the stronger hair silhouette. This is local edge cleanup, not AI hair restyling.
+    const canvas = document.createElement('canvas');
+    canvas.width = subjectCanvas.width;
+    canvas.height = subjectCanvas.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(subjectCanvas, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const alpha = pixels[i + 3];
+      if (alpha < 55) pixels[i + 3] = 0;
+      else if (alpha < 190) pixels[i + 3] = Math.round(((alpha - 55) / 135) * 255);
+      else pixels[i + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return canvas;
+  }
+
   async function runBrowserFast() {
     let subjectCanvas;
     if (document.getElementById('studioWhiteBg').checked) {
@@ -106,6 +126,7 @@
       }
       setStatus('Browser Fast: separating the person from the background...');
       subjectCanvas = await runSelfieSegmentation(sourceImage, 'transparent');
+      if (document.getElementById('studioHairTidy')?.checked) subjectCanvas = tidyHairEdges(subjectCanvas);
     } else {
       subjectCanvas = document.createElement('canvas');
       subjectCanvas.width = sourceImage.naturalWidth || sourceImage.width;
