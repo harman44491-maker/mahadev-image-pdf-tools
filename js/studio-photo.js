@@ -1,0 +1,24 @@
+(() => {
+const fileInput=document.getElementById('studioFile'),preview=document.getElementById('studioPreview'),status=document.getElementById('studioStatus'),createBtn=document.getElementById('studioCreate');
+let sourceImage=null,sourceUrl=null;
+function setStatus(message,show=true){status.textContent=message;status.classList.toggle('hidden',!show);}
+function loadImage(file){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),image=new Image();image.onload=()=>resolve({image,url});image.onerror=reject;image.src=url;});}
+function frameSize(frame,image,scale){if(frame==='square')return[1200*scale,1200*scale];if(frame==='portrait')return[1050*scale,1350*scale];if(frame==='original'){const h=1277*scale;return[Math.round(h*image.width/image.height),h];}return[1232*scale,1277*scale];}
+function composeStudioPhoto(subjectCanvas,width,height,enhance){
+const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+const fit=Math.min(width/subjectCanvas.width,height/subjectCanvas.height),drawW=subjectCanvas.width*fit,drawH=subjectCanvas.height*fit,dx=(width-drawW)/2,dy=(height-drawH)/2;
+ctx.save();if(enhance)ctx.filter='brightness(1.025) contrast(1.045) saturate(1.035)';ctx.drawImage(subjectCanvas,dx,dy,drawW,drawH);ctx.restore();return canvas;
+}
+function addPreview(title,src,details){const figure=document.createElement('figure'),caption=document.createElement('figcaption'),image=document.createElement('img');caption.innerHTML='<strong>'+title+'</strong><div style="font-size:.8rem;color:#64748b;margin-top:4px">'+details+'</div>';image.src=src;image.alt=title;figure.append(image,caption);preview.appendChild(figure);}
+fileInput.addEventListener('change',async()=>{const file=fileInput.files&&fileInput.files[0];if(!file)return;if(sourceUrl)URL.revokeObjectURL(sourceUrl);try{const loaded=await loadImage(file);sourceImage=loaded.image;sourceUrl=loaded.url;preview.innerHTML='';addPreview('Original Photo',sourceUrl,sourceImage.width+' × '+sourceImage.height+' px');setStatus('Photo loaded. Click Create HD Studio Photo.');}catch(e){sourceImage=null;setStatus('Could not open this image. Please try a JPG, PNG or WEBP photo.');}});
+createBtn.addEventListener('click',async()=>{if(!sourceImage){alert('Please upload a photo first.');return;}createBtn.disabled=true;preview.innerHTML='';if(sourceUrl)addPreview('Original Photo',sourceUrl,sourceImage.width+' × '+sourceImage.height+' px');
+try{let subjectCanvas;if(document.getElementById('studioWhiteBg').checked){if(typeof SelfieSegmentation==='undefined')throw new Error('AI background library did not load. Refresh the page and try again.');setStatus('AI is separating the person from the background. Please wait...');subjectCanvas=await runSelfieSegmentation(sourceImage,'transparent');}else{subjectCanvas=document.createElement('canvas');subjectCanvas.width=sourceImage.width;subjectCanvas.height=sourceImage.height;subjectCanvas.getContext('2d').drawImage(sourceImage,0,0);}
+const scale=Number(document.getElementById('studioScale').value)||2,[width,height]=frameSize(document.getElementById('studioFrame').value,sourceImage,scale);setStatus('Preparing high-resolution studio image...');
+const finalCanvas=composeStudioPhoto(subjectCanvas,width,height,document.getElementById('studioEnhance').checked),blob=await toBlob(finalCanvas,'image/jpeg',.97);if(!blob)throw new Error('The browser could not export this image. Try a smaller output size.');
+const outputUrl=URL.createObjectURL(blob);addPreview('HD Studio Photo',outputUrl,width+' × '+height+' px • White background');const download=document.createElement('a');download.className='dl-btn';download.href=outputUrl;download.download='auto_studio_photo_'+width+'x'+height+'.jpg';download.textContent='Download HD Photo';preview.lastElementChild.appendChild(download);setStatus('Done. Review the result before using it for official documents.');
+}catch(error){console.error(error);setStatus(error.message||'Photo processing failed. Please try another image.');}finally{createBtn.disabled=false;}});
+const dropZone=document.querySelector('.studio-upload');
+['dragenter','dragover'].forEach(type=>dropZone.addEventListener(type,event=>{event.preventDefault();dropZone.style.borderColor='#0f766e';}));
+['dragleave','drop'].forEach(type=>dropZone.addEventListener(type,event=>{event.preventDefault();dropZone.style.borderColor='#94a3b8';if(type==='drop'&&event.dataTransfer.files.length){fileInput.files=event.dataTransfer.files;fileInput.dispatchEvent(new Event('change'));}}));
+})();
