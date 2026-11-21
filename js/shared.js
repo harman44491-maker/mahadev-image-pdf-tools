@@ -446,6 +446,12 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
   }
 
   function bindAutoStudioPage() {
+    // The dedicated studio-photo.js page owns its own preview and download flow.
+    // Do not attach the legacy shared handler here; it races with the dedicated engine.
+    if (/studio-photo/i.test(window.location.pathname || '') || /auto studio photo/i.test(document.title || '')) {
+      return;
+    }
+
     if (!/studio-photo/i.test(window.location.pathname || '') && !/auto studio photo/i.test(document.title || '')) {
       return;
     }
