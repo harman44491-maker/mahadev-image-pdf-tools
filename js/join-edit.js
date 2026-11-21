@@ -1180,3 +1180,79 @@ document.getElementById('editRunBtn')?.addEventListener('click', async () => {
   }
 });
 
+
+
+// ================= JOIN / EDIT / CREATE TOOL PANEL RESTORE =================
+function updateJoinEditToolPanel() {
+  const tool = document.getElementById('editToolSelect')?.value || 'ps_auto_retouch';
+  const show = (id, visible) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', !visible);
+  };
+  const setLabel = (id, visible) => show(id, visible);
+  const isPs = tool === 'ps_auto_retouch';
+  const isLogo = tool === 'add_logo_photo';
+  const isContrast = tool === 'img_contrast';
+  const isNameDate = tool === 'name_date';
+  const isFrame = tool === 'photo_frame';
+  const isHandwriting = tool === 'text_handwriting';
+  const isSignature = tool === 'sig_maker';
+  const isImageTool = !isHandwriting && !isSignature && tool !== 'latex_img';
+
+  // Main photo / text controls.
+  setLabel('edImgFileLbl', isImageTool);
+  setLabel('edText1Lbl', ['name_date','add_text_img','watermark_img','text_handwriting','latex_img'].includes(tool));
+  setLabel('edText2Lbl', isNameDate);
+  setLabel('edFontLbl', ['name_date','add_text_img','watermark_img','text_handwriting'].includes(tool));
+  setLabel('edBoldLbl', ['name_date','add_text_img','watermark_img','text_handwriting'].includes(tool));
+  setLabel('edColorLbl', ['name_date','add_text_img','watermark_img','text_handwriting'].includes(tool));
+
+  // Restore each tool's dedicated controls.
+  show('psRetouchWrap', isPs);
+  show('logoOptionsWrap', isLogo);
+  show('cbControlsWrap', isContrast);
+  show('ndOptionsWrap', isNameDate);
+  show('frameOptionsWrap', isFrame);
+  show('edNumWrap', ['rotate','blur_image','add_border'].includes(tool));
+  show('hwTextWrap', isHandwriting);
+  show('sigPadWrap', isSignature);
+  show('liveEditPreviewWrap', false);
+
+  const runBtn = document.getElementById('editRunBtn');
+  if (runBtn) {
+    const labels = {
+      ps_auto_retouch: 'Apply & Download',
+      merge_photo_sig: 'Merge Photo & Signature',
+      join_images: 'Join Images & Download',
+      name_date: 'Add Name / Date & Download',
+      add_logo_photo: 'Add Logo & Download',
+      photo_frame: 'Apply Photo Frame',
+      add_border: 'Add Border & Download',
+      blur_image: 'Apply Blur & Download',
+      img_contrast: 'Apply Contrast / Brightness',
+      rotate: 'Rotate & Download',
+      add_text_img: 'Add Text & Download',
+      watermark_img: 'Add Watermark & Download',
+      flip: 'Flip & Download',
+      blur_bg: 'Blur Background',
+      sig_maker: 'Download Signature',
+      text_handwriting: 'Create Handwriting Page',
+      latex_img: 'Create Formula Image'
+    };
+    runBtn.textContent = labels[tool] || 'Apply & Download';
+  }
+  const status = document.getElementById('editStatus');
+  if (status) {
+    status.textContent = '';
+    status.classList.add('hidden');
+  }
+  if (cachedMainImg && ['ps_auto_retouch','img_contrast','add_logo_photo'].includes(tool)) {
+    renderLiveEditPreview();
+  }
+}
+
+const joinEditToolSelect = document.getElementById('editToolSelect');
+if (joinEditToolSelect) {
+  joinEditToolSelect.addEventListener('change', updateJoinEditToolPanel);
+  updateJoinEditToolPanel();
+}
