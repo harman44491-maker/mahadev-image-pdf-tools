@@ -240,12 +240,57 @@ function tightenMaskCanvas(maskSource, w, h) {
   return erodeAlphaMask(alphaCanvas, erodeRadius);
 }
 
+
+function buildAlphaMaskFromSegmentation(maskSource, w, h) {
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(maskSource, 0, 0, w, h);
+  return tightenMaskCanvas(canvas, w, h);
+}
+
+// Safe local fallback: flood-fill only border-connected pixels close to the
+// sampled background colour, preserving the central subject.
+function fallbackRemoveBackgroundByBorderColor(img, w, h) {
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, w, h);
+  const frame = ctx.getImageData(0, 0, w, h);
+  const d = frame.data, total = w * h;
+  const seen = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  const samples = [0, Math.min(w - 1, w - 1), (h - 1) * w, h * w - 1];
+  let br = 0, bg = 0, bb = 0;
+  for (const p of samples) { const i=p*4; br+=d[i]; bg+=d[i+1]; bb+=d[i+2]; }
+  br/=samples.length; bg/=samples.length; bb/=samples.length;
+  const threshold = 48;
+  let head=0, tail=0;
+  const add=(p)=>{ if(p<0||p>=total||seen[p]) return; const i=p*4;
+    const dr=d[i]-br,dg=d[i+1]-bg,db=d[i+2]-bb;
+    if(Math.sqrt(dr*dr+dg*dg+db*db)>threshold) return;
+    seen[p]=1; queue[tail++]=p;
+  };
+  for(let x=0;x<w;x++){add(x);add((h-1)*w+x);}
+  for(let y=0;y<h;y++){add(y*w);add(y*w+w-1);}
+  while(head<tail){const p=queue[head++],x=p%w;
+    if(x>0)add(p-1);if(x<w-1)add(p+1);if(p>=w)add(p-w);if(p<total-w)add(p+w);
+  }
+  for(let p=0;p<total;p++){if(seen[p]){const i=p*4;d[i]=255;d[i+1]=255;d[i+2]=255;d[i+3]=0;}}
+  ctx.putImageData(frame,0,0);
+  return canvas;
+}
+
+// The studio grade already applies brightness, contrast and sharpening.
+// Keep this hook defined for compatibility with the older pipeline.
+function applyFaceChamakAndGlow(ctx, w, h) { return; }
+
 // Shared AI Background Segmentation
 async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, customColor = '#2563eb') {
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
 
-  return new Promise(async (resolve) => {
+  return new Promise(async (resolve, reject) => {
     let done = false;
     const finishWithCanvas = (cutoutCanvas) => {
       if (done) return;
@@ -284,8 +329,9 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
     };
 
     const timer = setTimeout(() => {
-      finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h));
-    }, 6000);
+      try { finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h)); }
+      catch (error) { if (!done) { done = true; reject(error); } }
+    }, 20000);
 
     try {
       if (typeof SelfieSegmentation === 'undefined') {
