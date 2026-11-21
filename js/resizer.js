@@ -1,107 +1,237 @@
-// ================= 1. IMAGE RESIZER =================
-    let resUnit = 'px', resFiles = [];
-    document.querySelectorAll('#dimUnitGroup .seg').forEach(b => {
-      b.addEventListener('click', () => {
-        document.querySelectorAll('#dimUnitGroup .seg').forEach(x => x.classList.remove('active'));
-        b.classList.add('active');
-        resUnit = b.dataset.unit;
-        document.querySelectorAll('.u-lbl').forEach(s => s.textContent = resUnit);
-      });
+// ================= IMAGE RESIZER — RESTORED & SELF-CONTAINED =================
+(() => {
+  'use strict';
+
+  let resUnit = 'px';
+  let resFiles = [];
+
+  const $ = id => document.getElementById(id);
+  const setStatus = (message, isError = false) => {
+    const out = $('resOutput');
+    if (!out) return;
+    const p = document.createElement('p');
+    p.className = isError ? 'status error' : 'status';
+    p.textContent = message;
+    out.appendChild(p);
+  };
+
+  function canvasToBlob(canvas, mime, quality) {
+    return new Promise((resolve, reject) => {
+      try {
+        canvas.toBlob(blob => {
+          if (blob) resolve(blob);
+          else reject(new Error('Image encoding failed. Try another format or smaller dimensions.'));
+        }, mime, quality);
+      } catch (err) { reject(err); }
     });
+  }
 
-    const resDrop = document.getElementById('resDrop');
-    const resFile = document.getElementById('resFile');
-    document.getElementById('resSelectBtn').onclick = e => { e.stopPropagation(); resFile.click(); };
-    resDrop.onclick = () => resFile.click();
-    resDrop.ondragover = e => { e.preventDefault(); resDrop.classList.add('drag'); };
-    resDrop.ondragleave = () => resDrop.classList.remove('drag');
-    resDrop.ondrop = e => { e.preventDefault(); resDrop.classList.remove('drag'); setResFiles(e.dataTransfer.files); };
-    resFile.onchange = e => setResFiles(e.target.files);
+  function padBlobToExactBytes(blob, targetBytes) {
+    if (!blob || blob.size > targetBytes) return blob;
+    if (blob.size === targetBytes) return blob;
+    return new Blob([blob, new Uint8Array(targetBytes - blob.size)], { type: blob.type });
+  }
 
-    function setResFiles(list) {
-      resFiles = Array.from(list).filter(f => f.type.startsWith('image/'));
-      document.getElementById('resFileInfo').textContent = resFiles.length ? resFiles.map(f => f.name).join(', ') : 'No files selected';
-    }
-    function setResPreset(size, sUnit, dUnit, w, h) {
-      document.getElementById('resTargetSize').value = size;
-      document.getElementById('resSizeUnit').value = sUnit;
-      resUnit = dUnit;
-      document.querySelectorAll('#dimUnitGroup .seg').forEach(b => b.classList.toggle('active', b.dataset.unit === dUnit));
-      document.querySelectorAll('.u-lbl').forEach(s => s.textContent = dUnit);
-      document.getElementById('resW').value = w;
-      document.getElementById('resH').value = h;
-    }
-    function toPx(val, unit, dpi) {
-      if (!val || val <= 0) return null;
-      if (unit === 'px') return Math.round(val);
-      if (unit === 'cm') return Math.round((val / 2.54) * dpi);
-      if (unit === 'mm') return Math.round((val / 25.4) * dpi);
-      return Math.round(val);
-    }
+  function addDownloadCard(container, blob, filename, detail) {
+    const card = document.createElement('div');
+    card.className = 'output-card';
+    card.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px;margin:10px 0;border:1px solid #dbe3ef;border-radius:10px;background:#fff;';
+    const info = document.createElement('span');
+    info.textContent = filename + ' — ' + detail;
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = filename;
+    link.textContent = 'Download';
+    link.className = 'btn-green';
+    link.style.cssText = 'display:inline-block;text-decoration:none;padding:9px 16px;border-radius:7px;color:#fff;background:#059669;font-weight:700;';
+    link.addEventListener('click', () => setTimeout(() => URL.revokeObjectURL(url), 30000), { once: true });
+    card.append(info, link);
+    container.appendChild(card);
+  }
 
-    async function compressToBytes(img, w, h, exactTargetBytes, mime, hasCustomDims) {
-      const c = document.createElement('canvas');
-      const ctx = c.getContext('2d');
-      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-      let startW = w, startH = h;
-      c.width = startW; c.height = startH;
-      if (mime === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); }
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      const initialBlob = await toBlob(c, mime, 1.0);
+  document.querySelectorAll('#dimUnitGroup .seg').forEach(button => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('#dimUnitGroup .seg').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      resUnit = button.dataset.unit || 'px';
+      document.querySelectorAll('.u-lbl').forEach(label => label.textContent = resUnit);
+    });
+  });
 
-      if (!hasCustomDims && initialBlob.size < exactTargetBytes) {
-        const upFactor = Math.min(Math.sqrt(exactTargetBytes / Math.max(1, initialBlob.size)), 2.5);
-        startW = Math.round(w * upFactor); startH = Math.round(h * upFactor);
+  const resDrop = $('resDrop');
+  const resFile = $('resFile');
+  $('resSelectBtn').onclick = event => { event.stopPropagation(); resFile.click(); };
+  resDrop.onclick = event => { if (event.target === resDrop || event.target.tagName === 'P') resFile.click(); };
+  resDrop.ondragover = event => { event.preventDefault(); resDrop.classList.add('drag'); };
+  resDrop.ondragleave = () => resDrop.classList.remove('drag');
+  resDrop.ondrop = event => {
+    event.preventDefault();
+    resDrop.classList.remove('drag');
+    setResFiles(event.dataTransfer.files);
+  };
+  resFile.onchange = event => setResFiles(event.target.files);
+
+  function setResFiles(list) {
+    resFiles = Array.from(list || []).filter(file => /^image\/(jpeg|png|webp)$/i.test(file.type));
+    $('resFileInfo').textContent = resFiles.length ? resFiles.map(file => file.name).join(', ') : 'No supported images selected';
+    $('resOutput').innerHTML = '';
+  }
+
+  window.setResPreset = function(size, sizeUnit, dimensionUnit, width, height) {
+    $('resTargetSize').value = size;
+    $('resSizeUnit').value = sizeUnit;
+    resUnit = dimensionUnit;
+    document.querySelectorAll('#dimUnitGroup .seg').forEach(button => button.classList.toggle('active', button.dataset.unit === dimensionUnit));
+    document.querySelectorAll('.u-lbl').forEach(label => label.textContent = dimensionUnit);
+    $('resW').value = width;
+    $('resH').value = height;
+  };
+
+  function toPx(value, unit, dpi) {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    if (unit === 'cm') return Math.round(value / 2.54 * dpi);
+    if (unit === 'mm') return Math.round(value / 25.4 * dpi);
+    return Math.round(value);
+  }
+
+  async function compressToBytes(img, width, height, targetBytes, mime) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Your browser could not create an image canvas.');
+
+    let bestBlob = null;
+    let bestWidth = width;
+    let bestHeight = height;
+    let scale = 1;
+
+    for (let attempt = 0; attempt < 14; attempt++) {
+      const w = Math.max(1, Math.round(width * scale));
+      const h = Math.max(1, Math.round(height * scale));
+      if (w > 12000 || h > 12000 || w * h > 40000000) {
+        scale *= 0.8;
+        continue;
       }
 
-      let scale = 1, best = null;
-      for (let s = 0; s < 7; s++) {
-        c.width = Math.max(10, Math.round(startW * scale));
-        c.height = Math.max(10, Math.round(startH * scale));
-        if (mime === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); }
-        ctx.drawImage(img, 0, 0, c.width, c.height);
-        if (mime === 'image/png') {
-          const b = await toBlob(c, 'image/png', 1);
-          best = b;
-          if (b.size <= exactTargetBytes) break;
-        } else {
-          let lo = 0.05, hi = 1.0, ok = null;
-          for (let i = 0; i < 10; i++) {
-            const mid = (lo + hi) / 2;
-            const b = await toBlob(c, mime, mid);
-            if (b.size <= exactTargetBytes) { ok = b; lo = mid; } else { hi = mid; }
-          }
-          if (ok) { best = ok; break; }
-          best = await toBlob(c, mime, 0.05);
+      canvas.width = w;
+      canvas.height = h;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      if (mime === 'image/jpeg') {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
+      }
+      ctx.drawImage(img, 0, 0, w, h);
+
+      if (mime === 'image/png') {
+        const blob = await canvasToBlob(canvas, mime);
+        if (!bestBlob || blob.size < bestBlob.size) {
+          bestBlob = blob; bestWidth = w; bestHeight = h;
         }
-        scale *= 0.78;
+        if (blob.size <= targetBytes) {
+          return { blob: padBlobToExactBytes(blob, targetBytes), w, h, padded: true };
+        }
+      } else {
+        let low = 0.04, high = 0.96, under = null;
+        for (let q = 0; q < 12; q++) {
+          const quality = (low + high) / 2;
+          const blob = await canvasToBlob(canvas, mime, quality);
+          if (!bestBlob || (blob.size < bestBlob.size && blob.size > targetBytes)) {
+            bestBlob = blob; bestWidth = w; bestHeight = h;
+          }
+          if (blob.size <= targetBytes) {
+            under = blob;
+            low = quality;
+          } else {
+            high = quality;
+          }
+        }
+        if (under) return { blob: padBlobToExactBytes(under, targetBytes), w, h, padded: true };
+        const lowestQuality = await canvasToBlob(canvas, mime, 0.04);
+        if (!bestBlob || lowestQuality.size < bestBlob.size) {
+          bestBlob = lowestQuality; bestWidth = w; bestHeight = h;
+        }
       }
-      best = padBlobToExactBytes(best, exactTargetBytes, mime);
-      return { blob: best, w: c.width, h: c.height };
+      scale *= 0.82;
     }
 
-    document.getElementById('resRunBtn').onclick = async () => {
-      const out = document.getElementById('resOutput'); out.innerHTML = '';
-      if (!resFiles.length) return alert('Please select images first.');
-      const sizeVal = parseFloat(document.getElementById('resTargetSize').value) || 20;
-      const unitStr = document.getElementById('resSizeUnit').value;
-      const exactTargetBytes = Math.round(sizeVal * (unitStr === 'MB' ? 1048576 : 1024));
-      const dpi = parseInt(document.getElementById('resDpi').value) || 300;
-      const reqW = toPx(parseFloat(document.getElementById('resW').value), resUnit, dpi);
-      const reqH = toPx(parseFloat(document.getElementById('resH').value), resUnit, dpi);
-      const lock = document.getElementById('resLock').checked;
-      const mime = document.getElementById('resFormat').value;
-      const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
-      const hasCustomDims = Boolean(reqW || reqH);
+    if (!bestBlob) throw new Error('Could not process this image.');
+    if (bestBlob.size > targetBytes) {
+      throw new Error('This target size is too small for the selected dimensions. Reduce width/height or increase target KB.');
+    }
+    return { blob: padBlobToExactBytes(bestBlob, targetBytes), w: bestWidth, h: bestHeight, padded: true };
+  }
 
-      for (const f of resFiles) {
-        const img = await loadImg(URL.createObjectURL(f));
-        let fw = img.width, fh = img.height;
-        if (reqW && reqH) { fw = reqW; fh = reqH; }
-        else if (reqW) { fw = reqW; fh = lock ? Math.round((img.height / img.width) * reqW) : img.height; }
-        else if (reqH) { fh = reqH; fw = lock ? Math.round((img.width / img.height) * reqH) : img.width; }
-        const r = await compressToBytes(img, fw, fh, exactTargetBytes, mime, hasCustomDims);
-        const name = `${f.name.replace(/\.[^/.]+$/, '')}_${sizeVal}${unitStr.toLowerCase()}.${ext}`;
-        addDownloadCard(out, r.blob, name, `${(r.blob.size / 1024).toFixed(1)} KB (${r.w}×${r.h}px)`);
+  $('resRunBtn').onclick = async () => {
+    const output = $('resOutput');
+    output.innerHTML = '';
+    if (!resFiles.length) {
+      setStatus('Please select at least one JPG, PNG or WEBP image.', true);
+      return;
+    }
+
+    const sizeValue = Number($('resTargetSize').value);
+    if (!Number.isFinite(sizeValue) || sizeValue <= 0) {
+      setStatus('Enter a valid target size greater than zero.', true);
+      return;
+    }
+    const unit = $('resSizeUnit').value;
+    const targetBytes = Math.round(sizeValue * (unit === 'MB' ? 1048576 : 1024));
+    const dpi = Math.min(600, Math.max(72, Number($('resDpi').value) || 300));
+    const requestedW = toPx(Number($('resW').value), resUnit, dpi);
+    const requestedH = toPx(Number($('resH').value), resUnit, dpi);
+    const lock = $('resLock').checked;
+    const mime = $('resFormat').value;
+    const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+    const runButton = $('resRunBtn');
+
+    runButton.disabled = true;
+    const oldText = runButton.textContent;
+    runButton.textContent = 'Processing…';
+
+    try {
+      for (const file of resFiles) {
+        let objectUrl;
+        try {
+          objectUrl = URL.createObjectURL(file);
+          const img = await new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error('Could not open ' + file.name));
+            image.src = objectUrl;
+          });
+
+          let width = img.naturalWidth;
+          let height = img.naturalHeight;
+          if (requestedW && requestedH) {
+            width = requestedW; height = requestedH;
+          } else if (requestedW) {
+            width = requestedW;
+            if (lock) height = Math.round(img.naturalHeight / img.naturalWidth * width);
+          } else if (requestedH) {
+            height = requestedH;
+            if (lock) width = Math.round(img.naturalWidth / img.naturalHeight * height);
+          }
+
+          if (width < 1 || height < 1 || width > 12000 || height > 12000) {
+            throw new Error('Invalid dimensions for ' + file.name + '. Maximum dimension is 12000 px.');
+          }
+
+          const result = await compressToBytes(img, width, height, targetBytes, mime);
+          const base = file.name.replace(/\.[^/.]+$/, '');
+          const filename = base + '_' + sizeValue + unit.toLowerCase() + '.' + ext;
+          addDownloadCard(output, result.blob, filename,
+            (result.blob.size / 1024).toFixed(1) + ' KB · ' + result.w + ' × ' + result.h + ' px');
+        } finally {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+        }
       }
-    };
+      setStatus('Done. Download each resized image below. Target size: ' + sizeValue + ' ' + unit + '.');
+    } catch (error) {
+      setStatus(error && error.message ? error.message : 'Image resize failed. Please try again.', true);
+    } finally {
+      runButton.disabled = false;
+      runButton.textContent = oldText;
+    }
+  };
+})();
