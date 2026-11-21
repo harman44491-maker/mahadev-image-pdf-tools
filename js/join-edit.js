@@ -332,7 +332,7 @@ liveEditCanvas.addEventListener('pointerdown', (e) => {
   }
 });
 
-liveEditCanvas.addEventListener('pointermove', (e) => {
+window.addEventListener('pointermove', (e) => {
   const pos = getSafeCanvasPos(liveEditCanvas, e);
   const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
   const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
@@ -713,8 +713,9 @@ async function renderLiveEditPreview() {
   const sc = Math.min(1, maxDim / Math.max(cachedMainImg.width, cachedMainImg.height));
   const pw = Math.round(cachedMainImg.width * sc);
   const ph = Math.round(cachedMainImg.height * sc);
-  liveEditCanvas.width = pw;
-  liveEditCanvas.height = ph;
+  // Keep the canvas bitmap intact during a brush drag; resetting it can interrupt pointer tracking.
+  if (liveEditCanvas.width !== pw) liveEditCanvas.width = pw;
+  if (liveEditCanvas.height !== ph) liveEditCanvas.height = ph;
   const lctx = liveEditCanvas.getContext('2d');
   lctx.clearRect(0, 0, pw, ph);
 
