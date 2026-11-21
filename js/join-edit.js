@@ -11,7 +11,7 @@ let cachedMainImg = null;
 let cachedLogoImg = null;
 let cachedTransparentCutout = null;
 
-// Selected Area Zoom state (normalized 0..1) - Works inside ps_auto_retouch for Hair Brush
+// Selected Area Zoom state (normalized 0..1)
 let zoomSelectionNorm = null;
 let isSelectingZoom = false;
 let zoomDragStart = null;
@@ -23,28 +23,20 @@ let currentHairStroke = null;
 let lastHairPos = null;
 
 function getSafeCanvasPos(canvas, e) {
-  if (typeof getCanvasMousePos === 'function') {
-    const p = getCanvasMousePos(canvas, e);
-    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) return p;
-  }
   const rect = canvas.getBoundingClientRect();
   const clientX = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
   const scaleX = canvas.width / Math.max(1, rect.width);
   const scaleY = canvas.height / Math.max(1, rect.height);
   return {
-    x: (clientX - rect.left) * scaleX,
-    y: (clientY - rect.top) * scaleY
+    x: Math.max(0, Math.min(canvas.width, (clientX - rect.left) * scaleX)),
+    y: Math.max(0, Math.min(canvas.height, (clientY - rect.top) * scaleY))
   };
 }
 
 function getSelectedBrushShape() {
   const shapeEl = document.getElementById('hairBrushShape');
-  const modeVal = document.getElementById('hairBrushMode')?.value || 'tuck_smooth';
-  if (shapeEl && shapeEl.value) return shapeEl.value;
-  if (modeVal.startsWith('circle')) return 'circle';
-  if (modeVal.startsWith('rect')) return 'rect';
-  return 'freehand';
+  return (shapeEl && shapeEl.value) ? shapeEl.value : 'freehand';
 }
 
 function getSelectedBrushEffect() {
@@ -54,21 +46,25 @@ function getSelectedBrushEffect() {
   return 'tuck';
 }
 
+// ONLY zoom when "Zoom Photo for Hair Brush" checkbox is explicitly checked
 function getEffectiveZoomRect() {
   const zoomEnabled = Boolean(document.getElementById('psZoomSelectMode')?.checked);
-  const zoomScale = Math.max(1, Math.min(5, parseFloat(document.getElementById('psZoomScaleNum')?.value) || 2));
+  if (!zoomEnabled) {
+    return null;
+  }
 
+  const zoomScale = Math.max(1, Math.min(5, parseFloat(document.getElementById('psZoomScaleNum')?.value) || 2));
   if (zoomSelectionNorm && zoomSelectionNorm.w >= 0.02 && zoomSelectionNorm.h >= 0.02) {
     return zoomSelectionNorm;
   }
-  if (!zoomEnabled || zoomScale <= 1.05) {
+  if (zoomScale <= 1.02) {
     return null;
   }
 
   const vw = Math.min(1, 1 / zoomScale);
   const vh = Math.min(1, 1 / zoomScale);
-  const cx = zoomSelectionNorm ? (zoomSelectionNorm.x + zoomSelectionNorm.w / 2) : 0.5;
-  const cy = zoomSelectionNorm ? (zoomSelectionNorm.y + zoomSelectionNorm.h / 2) : 0.35;
+  const cx = 0.5;
+  const cy = 0.28;
 
   const x = Math.max(0, Math.min(1 - vw, cx - vw / 2));
   const y = Math.max(0, Math.min(1 - vh, cy - vh / 2));
@@ -124,9 +120,25 @@ function getActiveWorkingSource(baseSource) {
   return cropC;
 }
 
+function getBgFillStyle(ctx, w, h) {
+  const bgStyle = document.getElementById('psBgStyleSelect')?.value || 'transparent';
+  if (bgStyle === 'transparent') return null;
+  if (bgStyle === 'studio_gradient') {
+    const g = ctx.createRadialGradient(w / 2, h * 0.4, w * 0.05, w / 2, h / 2, Math.max(w, h) * 0.8);
+    g.addColorStop(0, '#475569');
+    g.addColorStop(1, '#0f172a');
+    return g;
+  }
+  if (bgStyle === 'passport_blue') return '#3b82f6';
+  if (bgStyle === 'studio_slate') return '#334155';
+  if (bgStyle === 'pure_white') return '#ffffff';
+  return document.getElementById('psBgCustomColor')?.value || '#2563eb';
+}
+
 function applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, testHitFn) {
   const imgData = ctx.createImageData(bw, bh);
   const d = imgData.data;
+  const hasBg = Boolean(document.getElementById('psRemoveBgToggle')?.checked && document.getElementById('psBgStyleSelect')?.value !== 'transparent');
 
   for (let py = 0; py < bh; py++) {
     for (let px = 0; px < bw; px++) {
@@ -150,33 +162,41 @@ function applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, testHitFn)
       const baseIdx = (gy * w + gx) * 4;
 
       if (effect === 'trim') {
-        if (copy[baseIdx + 3] > 0) {
+        if (hasBg) {
+          // Smoothly blend stray outer pixels toward surrounding/background tone so trimming is always visible
+          const blend = Math.min(1, strength * 0.92);
+          d[idx] = Math.round(copy[baseIdx] * (1 - blend) + 38 * blend);
+          d[idx + 1] = Math.round(copy[baseIdx + 1] * (1 - blend) + 52 * blend);
+          d[idx + 2] = Math.round(copy[baseIdx + 2] * (1 - blend) + 74 * blend);
+          d[idx + 3] = Math.max(0, Math.round(copy[baseIdx + 3] * (1 - strength * 0.85)));
+        } else if (copy[baseIdx + 3] > 0) {
           d[idx + 3] = Math.max(0, Math.round(copy[baseIdx + 3] * (1 - strength * 0.95)));
         }
       } else if (effect === 'darken') {
         const lum = 0.299 * copy[baseIdx] + 0.587 * copy[baseIdx + 1] + 0.114 * copy[baseIdx + 2];
-        if (lum < 210) {
-          const factor = 1 - strength * 0.45;
-          d[idx] = Math.max(8, Math.round(copy[baseIdx] * factor));
-          d[idx + 1] = Math.max(8, Math.round(copy[baseIdx + 1] * factor));
-          d[idx + 2] = Math.max(8, Math.round(copy[baseIdx + 2] * factor));
+        if (lum < 235) {
+          const factor = 1 - strength * 0.52;
+          d[idx] = Math.max(6, Math.round(copy[baseIdx] * factor));
+          d[idx + 1] = Math.max(6, Math.round(copy[baseIdx + 1] * factor));
+          d[idx + 2] = Math.max(6, Math.round(copy[baseIdx + 2] * factor));
         }
       } else {
-        const lx = Math.max(0, gx - 1);
-        const rx = Math.min(w - 1, gx + 1);
-        const ty = Math.max(0, gy - 1);
-        const by = Math.min(h - 1, gy + 1);
-        const sy = Math.min(h - 1, gy + Math.max(1, Math.round(strength * 2)));
+        // Tuck & smooth flyaway strands strongly
+        const lx = Math.max(0, gx - 2);
+        const rx = Math.min(w - 1, gx + 2);
+        const ty = Math.max(0, gy - 2);
+        const by = Math.min(h - 1, gy + 2);
+        const sy = Math.min(h - 1, gy + Math.max(2, Math.round(strength * 3)));
 
-        const blend = strength * 0.82;
-        for (let ch = 0; ch < 4; ch++) {
+        const blend = Math.min(1, strength * 0.92);
+        for (let ch = 0; ch < 3; ch++) {
           const avg = (
             copy[(ty * w + gx) * 4 + ch] +
             copy[(by * w + gx) * 4 + ch] +
             copy[(gy * w + lx) * 4 + ch] +
             copy[(gy * w + rx) * 4 + ch] +
-            copy[(sy * w + gx) * 4 + ch] * 2
-          ) / 6;
+            copy[(sy * w + gx) * 4 + ch] * 3
+          ) / 7;
           d[idx + ch] = Math.round(copy[baseIdx + ch] * (1 - blend) + avg * blend);
         }
       }
@@ -197,7 +217,7 @@ function applyHairSetBrushStrokes(targetCanvas) {
     if (!stroke.points || !stroke.points.length) continue;
     const shape = stroke.shape || 'freehand';
     const effect = stroke.effect || 'tuck';
-    const rad = Math.max(8, Math.round(stroke.radiusNorm * Math.min(w, h)));
+    const rad = Math.max(12, Math.round(stroke.radiusNorm * Math.min(w, h)));
 
     if (shape === 'circle') {
       const p0 = stroke.points[0];
@@ -213,7 +233,7 @@ function applyHairSetBrushStrokes(targetCanvas) {
       if (bw > 2 && bh > 2) {
         applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, (gx, gy) => {
           const dist = Math.hypot(gx - cx, gy - cy);
-          return dist <= dragRad ? Math.pow(1 - dist / dragRad, 1.2) : 0;
+          return dist <= dragRad ? Math.max(0.25, Math.pow(1 - dist / (dragRad * 1.05), 0.9)) : 0;
         });
       }
     } else if (shape === 'rect') {
@@ -229,7 +249,7 @@ function applyHairSetBrushStrokes(targetCanvas) {
       const bw = Math.min(w - x0, Math.max(rad, Math.ceil(rx1 - rx0)));
       const bh = Math.min(h - y0, Math.max(rad, Math.ceil(ry1 - ry0)));
       if (bw > 2 && bh > 2) {
-        applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, () => 0.92);
+        applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, () => 0.95);
       }
     } else {
       const densePoints = [stroke.points[0]];
@@ -237,7 +257,7 @@ function applyHairSetBrushStrokes(targetCanvas) {
         const a = stroke.points[i - 1];
         const b = stroke.points[i];
         const distPx = Math.hypot((b.x - a.x) * w, (b.y - a.y) * h);
-        const steps = Math.max(1, Math.ceil(distPx / Math.max(3, rad * 0.35)));
+        const steps = Math.max(1, Math.ceil(distPx / Math.max(3, rad * 0.3)));
         for (let s = 1; s <= steps; s++) {
           const t = s / steps;
           densePoints.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
@@ -254,7 +274,7 @@ function applyHairSetBrushStrokes(targetCanvas) {
         if (bw > 2 && bh > 2) {
           applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, (gx, gy) => {
             const dist = Math.hypot(gx - cx, gy - cy);
-            return dist <= rad ? Math.pow(1 - dist / rad, 1.3) : 0;
+            return dist <= rad ? Math.max(0.25, Math.pow(1 - dist / (rad * 1.05), 0.9)) : 0;
           });
         }
       }
@@ -280,19 +300,21 @@ liveEditCanvas.onmousedown = (e) => {
     return;
   }
 
-  if (document.getElementById('hairBrushToggle')?.checked) {
-    isBrushingHair = true;
-    const brushPx = parseFloat(document.getElementById('hairBrushSize')?.value) || 24;
-    currentHairStroke = {
-      shape: getSelectedBrushShape(),
-      effect: getSelectedBrushEffect(),
-      radiusNorm: brushPx / Math.max(1, Math.min(liveEditCanvas.width, liveEditCanvas.height)),
-      points: [{ x: nx, y: ny }]
-    };
-    hairStrokes.push(currentHairStroke);
-    lastHairPos = pos;
-    renderLiveEditPreview();
+  // Always allow hair retouch when dragging on the hair canvas inside ps_auto_retouch
+  if (document.getElementById('hairBrushToggle')) {
+    document.getElementById('hairBrushToggle').checked = true;
   }
+  isBrushingHair = true;
+  const brushPx = parseFloat(document.getElementById('hairBrushSize')?.value) || 24;
+  currentHairStroke = {
+    shape: getSelectedBrushShape(),
+    effect: getSelectedBrushEffect(),
+    radiusNorm: brushPx / Math.max(1, Math.min(liveEditCanvas.width, liveEditCanvas.height)),
+    points: [{ x: nx, y: ny }]
+  };
+  hairStrokes.push(currentHairStroke);
+  lastHairPos = pos;
+  renderLiveEditPreview();
 };
 
 liveEditCanvas.onmousemove = (e) => {
@@ -334,7 +356,9 @@ document.querySelectorAll('.quick-bg-btn').forEach(btn => {
 });
 
 document.getElementById('psZoomSelectMode').onchange = () => {
-  if (document.getElementById('psZoomSelectMode').checked && document.getElementById('hairBrushToggle')) {
+  if (!document.getElementById('psZoomSelectMode').checked) {
+    zoomSelectionNorm = null;
+  } else if (document.getElementById('hairBrushToggle')) {
     document.getElementById('hairBrushToggle').checked = true;
   }
   updatePsBgControls();
@@ -343,8 +367,10 @@ document.getElementById('psZoomSelectMode').onchange = () => {
 
 document.getElementById('psZoomResetBoxBtn').onclick = () => {
   zoomSelectionNorm = null;
+  if (document.getElementById('psZoomSelectMode')) document.getElementById('psZoomSelectMode').checked = false;
   if (document.getElementById('psZoomScaleRange')) document.getElementById('psZoomScaleRange').value = 1;
   if (document.getElementById('psZoomScaleNum')) document.getElementById('psZoomScaleNum').value = 1;
+  updatePsBgControls();
   renderLiveEditPreview();
 };
 
@@ -419,7 +445,7 @@ function updatePsBgControls() {
     if (hintEl) hintEl.textContent = 'Hair Set Brush Active: Drag over top/side hairs to smooth, darken or trim stray strands.';
     document.getElementById('livePreviewCaption').textContent = 'Live Digital Studio Preview: Hair Brush & Digital Studio Retouch';
   } else {
-    if (hintEl) hintEl.textContent = 'Tip: Enable "Hair Set & Stray Hair Brush" or "Zoom Photo for Hair Brush" above to edit hair.';
+    if (hintEl) hintEl.textContent = 'Tip: Drag over hair to retouch or enable "Zoom Photo for Hair Brush" to zoom in.';
     document.getElementById('livePreviewCaption').textContent = enabled
       ? 'Live Digital Studio Preview (AI Background Removed)'
       : 'Live Digital Studio Preview (Left: Digital Retouched • Right: Original)';
@@ -567,21 +593,7 @@ function compositeBackgroundBehindSubject(subjectCanvas) {
   outC.width = subjectCanvas.width;
   outC.height = subjectCanvas.height;
   const ctx = outC.getContext('2d');
-
-  if (bgStyle === 'studio_gradient') {
-    const g = ctx.createRadialGradient(outC.width / 2, outC.height * 0.4, outC.width * 0.05, outC.width / 2, outC.height / 2, Math.max(outC.width, outC.height) * 0.8);
-    g.addColorStop(0, '#475569');
-    g.addColorStop(1, '#0f172a');
-    ctx.fillStyle = g;
-  } else if (bgStyle === 'passport_blue') {
-    ctx.fillStyle = '#3b82f6';
-  } else if (bgStyle === 'studio_slate') {
-    ctx.fillStyle = '#334155';
-  } else if (bgStyle === 'pure_white') {
-    ctx.fillStyle = '#ffffff';
-  } else {
-    ctx.fillStyle = document.getElementById('psBgCustomColor').value || '#2563eb';
-  }
+  ctx.fillStyle = getBgFillStyle(ctx, outC.width, outC.height);
   ctx.fillRect(0, 0, outC.width, outC.height);
   ctx.drawImage(subjectCanvas, 0, 0);
   return outC;
@@ -701,7 +713,7 @@ async function renderLiveEditPreview() {
     const enhanced = applyPhotoshopDigitalRetouch(workingSrc, pw, ph);
     const finalEnhanced = removeBg ? compositeBackgroundBehindSubject(enhanced) : enhanced;
 
-    if (removeBg || zoomModeChecked) {
+    if (removeBg || zoomModeChecked || hairStrokes.length > 0) {
       lctx.drawImage(finalEnhanced, 0, 0, pw, ph);
     } else {
       const splitPct = (parseFloat(document.getElementById('psSplitRange').value) ?? 100) / 100;
@@ -734,7 +746,7 @@ async function renderLiveEditPreview() {
       const shape = currentHairStroke.shape || 'freehand';
       const p0 = currentHairStroke.points[0];
       const p1 = currentHairStroke.points[currentHairStroke.points.length - 1];
-      const rad = Math.max(8, Math.round(currentHairStroke.radiusNorm * Math.min(pw, ph)));
+      const rad = Math.max(12, Math.round(currentHairStroke.radiusNorm * Math.min(pw, ph)));
       lctx.save();
       lctx.strokeStyle = '#f59e0b';
       lctx.lineWidth = 2;
