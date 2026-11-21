@@ -196,98 +196,82 @@ function tightenMaskCanvas(maskSource, w, h) {
   const imgData = mctx.getImageData(0, 0, w, h);
   const d = imgData.data;
 
+  // MediaPipe supplies the person confidence in the mask's red channel.
+  // Store that confidence as ALPHA (not opaque grayscale RGB), so
+  // destination-in correctly cuts away the original background.
   for (let i = 0; i < d.length; i += 4) {
-    const v = d[i];
-    // Push background low and person/hair high so curtain/halos do not bleed
-    let mapped = 0;
-    if (v <= 72) {
-      mapped = 0;
-    } else if (v >= 210) {
-      mapped = 255;
-    } else {
-      mapped = Math.round(((v - 72) / (210 - 72)) * 255);
-    }
-    d[i] = mapped;
-    d[i + 1] = mapped;
-    d[i + 2] = mapped;
-    d[i + 3] = 255;
+    const confidence = d[i];
+    const alpha = confidence <= 35 ? 0
+      : confidence >= 220 ? 255
+      : Math.round(((confidence - 35) / 185) * 255);
+    d[i] = 255;
+    d[i + 1] = 255;
+    d[i + 2] = 255;
+    d[i + 3] = alpha;
   }
-
   mctx.putImageData(imgData, 0, 0);
   return mc;
 }
 
 // Shared AI Background Segmentation
 async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, customColor = '#2563eb') {
-  return new Promise(async (resolve) => {
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    try {
-      const selfieSeg = new SelfieSegmentation({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
-      });
-      selfieSeg.setOptions({ modelSelection: 1 });
-      const outCanvas = document.createElement('canvas');
-      outCanvas.width = w;
-      outCanvas.height = h;
-      const ctx = outCanvas.getContext('2d');
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  let selfieSeg;
+  try {
+    selfieSeg = new SelfieSegmentation({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+    });
+    selfieSeg.setOptions({ modelSelection: 1 });
+    const results = await new Promise(async (resolve, reject) => {
+      selfieSeg.onResults(resolve);
+      try {
+        await selfieSeg.send({ image: img });
+      } catch (error) {
+        reject(error);
+      }
+    });
+    const cleanMask = tightenMaskCanvas(results.segmentationMask, w, h);
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = w;
+    outCanvas.height = h;
+    const ctx = outCanvas.getContext('2d');
+    ctx.drawImage(results.image || img, 0, 0, w, h);
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(cleanMask, 0, 0, w, h);
+    ctx.globalCompositeOperation = 'source-over';
 
-      selfieSeg.onResults((results) => {
-        try {
-          const cleanMask = tightenMaskCanvas(results.segmentationMask, w, h);
-          ctx.save();
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(cleanMask, 0, 0, w, h);
-          ctx.globalCompositeOperation = 'source-in';
-          ctx.drawImage(results.image || img, 0, 0, w, h);
+    if (mode === 'transparent') return outCanvas;
 
-          if (mode === 'transparent') {
-            ctx.restore();
-            try { selfieSeg.close(); } catch (_) {}
-            resolve(outCanvas);
-            return;
-          }
-
-          ctx.globalCompositeOperation = 'destination-over';
-          if (mode === 'blur_bg') {
-            ctx.filter = `blur(${blurPx}px)`;
-            ctx.drawImage(results.image || img, 0, 0, w, h);
-            ctx.filter = 'none';
-          } else if (mode === 'studio_gradient') {
-            const grad = ctx.createRadialGradient(w / 2, h * 0.42, w * 0.08, w / 2, h / 2, Math.max(w, h) * 0.78);
-            grad.addColorStop(0, '#475569');
-            grad.addColorStop(1, '#0f172a');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, w, h);
-          } else if (mode === 'solid_color') {
-            ctx.fillStyle = customColor;
-            ctx.fillRect(0, 0, w, h);
-          } else {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, w, h);
-          }
-          ctx.restore();
-          try { selfieSeg.close(); } catch (_) {}
-          resolve(outCanvas);
-        } catch (err) {
-          ctx.restore();
-          try { selfieSeg.close(); } catch (_) {}
-          const c = document.createElement('canvas');
-          c.width = w;
-          c.height = h;
-          c.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(c);
-        }
-      });
-      await selfieSeg.send({ image: img });
-    } catch (err) {
-      const c = document.createElement('canvas');
-      c.width = w;
-      c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(c);
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = w;
+    finalCanvas.height = h;
+    const finalCtx = finalCanvas.getContext('2d');
+    if (mode === 'blur_bg') {
+      finalCtx.save();
+      finalCtx.filter = `blur(${blurPx}px)`;
+      finalCtx.drawImage(results.image || img, 0, 0, w, h);
+      finalCtx.restore();
+    } else if (mode === 'studio_gradient') {
+      const grad = finalCtx.createRadialGradient(w / 2, h * 0.42, w * 0.08, w / 2, h / 2, Math.max(w, h) * 0.78);
+      grad.addColorStop(0, '#475569');
+      grad.addColorStop(1, '#0f172a');
+      finalCtx.fillStyle = grad;
+      finalCtx.fillRect(0, 0, w, h);
+    } else if (mode === 'solid_color') {
+      finalCtx.fillStyle = customColor;
+      finalCtx.fillRect(0, 0, w, h);
+    } else {
+      finalCtx.fillStyle = '#ffffff';
+      finalCtx.fillRect(0, 0, w, h);
     }
-  });
+    finalCtx.drawImage(outCanvas, 0, 0);
+    return finalCanvas;
+  } catch (error) {
+    throw new Error('Background removal failed: ' + (error?.message || 'segmentation could not run. Check your internet connection and refresh.'));
+  } finally {
+    try { selfieSeg?.close(); } catch (_) {}
+  }
 }
 
 // ================= AUTO STUDIO PHOTO (2-PIC REFERENCE MATCH PIPELINE) =================
