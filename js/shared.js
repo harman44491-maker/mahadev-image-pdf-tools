@@ -1,210 +1,82 @@
-if (typeof pdfjsLib !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+// ================= CLEAN CUTOUT + SMOOTH HAIR GOLAI + HD STUDIO LIGHTING =================
+function erodeAlphaMask(alphaCanvas, erodePx = 2) {
+  const w = alphaCanvas.width;
+  const h = alphaCanvas.height;
+  const ctx = alphaCanvas.getContext('2d', { willReadFrequently: true });
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const d = imgData.data;
 
-// ================= 100+ ENGLISH, HINDI (DEVANAGARI) & PUNJABI (GURMUKHI) FONTS =================
-const FONTS_100_PLUS = [
-  { label: '[Punjabi] Noto Sans Gurmukhi', css: "'Noto Sans Gurmukhi', sans-serif" },
-  { label: '[Punjabi] Baloo Paaji 2', css: "'Baloo Paaji 2', 'Noto Sans Gurmukhi', sans-serif" },
-  { label: '[Punjabi] Mukta Mahee', css: "'Mukta Mahee', 'Noto Sans Gurmukhi', sans-serif" },
-  { label: '[Punjabi] Noto Serif Gurmukhi', css: "'Noto Serif Gurmukhi', serif" },
-  { label: '[Punjabi] Tiro Gurmukhi', css: "'Tiro Gurmukhi', 'Noto Serif Gurmukhi', serif" },
-  { label: '[Punjabi] Raavi Classic', css: "'Raavi', 'Noto Sans Gurmukhi', sans-serif" },
-  { label: '[Punjabi] AnmolLipi Style', css: "'AnmolLipi', 'Noto Serif Gurmukhi', serif" },
-  { label: '[Punjabi] GurbaniAkhar Style', css: "'GurbaniAkhar', 'Noto Serif Gurmukhi', serif" },
-  { label: '[Punjabi] Saab Gurmukhi', css: "'Saab', 'Noto Sans Gurmukhi', sans-serif" },
-  { label: '[Punjabi] Joy Gurmukhi', css: "'Joy', 'Baloo Paaji 2', sans-serif" },
-  { label: '[Hindi] Noto Sans Devanagari', css: "'Noto Sans Devanagari', sans-serif" },
-  { label: '[Hindi] Hind', css: "'Hind', 'Noto Sans Devanagari', sans-serif" },
-  { label: '[Hindi] Mukta', css: "'Mukta', 'Noto Sans Devanagari', sans-serif" },
-  { label: '[Hindi] Kalam (Handwriting)', css: "'Kalam', cursive" },
-  { label: '[Hindi] Khand (Display)', css: "'Khand', 'Noto Sans Devanagari', sans-serif" },
-  { label: '[Hindi] Laila (Serif)', css: "'Laila', 'Noto Serif Devanagari', serif" },
-  { label: '[Hindi] Noto Serif Devanagari', css: "'Noto Serif Devanagari', serif" },
-  { label: '[Hindi] Tiro Devanagari Hindi', css: "'Tiro Devanagari Hindi', serif" },
-  { label: '[Hindi] Rozha One (Bold Title)', css: "'Rozha One', serif" },
-  { label: '[Hindi] Yatra One (Poster)', css: "'Yatra One', cursive" },
-  { label: '[Hindi] Modak (Fun Display)', css: "'Modak', cursive" },
-  { label: '[Hindi] Baloo 2 Devanagari', css: "'Baloo 2', 'Noto Sans Devanagari', sans-serif" },
-  { label: '[Hindi] Baloo Bhai 2', css: "'Baloo Bhai 2', sans-serif" },
-  { label: '[Hindi] Baloo Bhaina 2', css: "'Baloo Bhaina 2', sans-serif" },
-  { label: '[Hindi] Hind Vadodara', css: "'Hind Vadodara', sans-serif" },
-  { label: '[Hindi] Hind Siliguri', css: "'Hind Siliguri', sans-serif" },
-  { label: '[Hindi] Mukta Vaani', css: "'Mukta Vaani', sans-serif" },
-  { label: '[Hindi] Mukta Malayalam', css: "'Mukta Malayalam', sans-serif" },
-  { label: '[Hindi] Baloo Da 2', css: "'Baloo Da 2', sans-serif" },
-  { label: '[Hindi] Baloo Tamma 2', css: "'Baloo Tamma 2', sans-serif" },
-  { label: '[Eng] Arial', css: "Arial, sans-serif" },
-  { label: '[Eng] Roboto', css: "'Roboto', sans-serif" },
-  { label: '[Eng] Open Sans', css: "'Open Sans', sans-serif" },
-  { label: '[Eng] Lato', css: "'Lato', sans-serif" },
-  { label: '[Eng] Montserrat', css: "'Montserrat', sans-serif" },
-  { label: '[Eng] Poppins', css: "'Poppins', sans-serif" },
-  { label: '[Eng] Inter', css: "'Inter', sans-serif" },
-  { label: '[Eng] Oswald', css: "'Oswald', sans-serif" },
-  { label: '[Eng] Raleway', css: "'Raleway', sans-serif" },
-  { label: '[Eng] PT Sans', css: "'PT Sans', sans-serif" },
-  { label: '[Eng] Merriweather', css: "'Merriweather', serif" },
-  { label: '[Eng] Nunito', css: "'Nunito', sans-serif" },
-  { label: '[Eng] Playfair Display', css: "'Playfair Display', serif" },
-  { label: '[Eng] Ubuntu', css: "'Ubuntu', sans-serif" },
-  { label: '[Eng] Rubik', css: "'Rubik', sans-serif" },
-  { label: '[Eng] Lora', css: "'Lora', serif" },
-  { label: '[Eng] PT Serif', css: "'PT Serif', serif" },
-  { label: '[Eng] Work Sans', css: "'Work Sans', sans-serif" },
-  { label: '[Eng] Fira Code', css: "'Fira Code', monospace" },
-  { label: '[Eng] Quicksand', css: "'Quicksand', sans-serif" },
-  { label: '[Eng] Bitter', css: "'Bitter', serif" },
-  { label: '[Eng] Josefin Sans', css: "'Josefin Sans', sans-serif" },
-  { label: '[Eng] Dancing Script', css: "'Dancing Script', cursive" },
-  { label: '[Eng] Pacifico', css: "'Pacifico', cursive" },
-  { label: '[Eng] Bebas Neue', css: "'Bebas Neue', cursive" },
-  { label: '[Eng] Anton', css: "'Anton', sans-serif" },
-  { label: '[Eng] Lobster', css: "'Lobster', cursive" },
-  { label: '[Eng] Caveat', css: "'Caveat', cursive" },
-  { label: '[Eng] Abril Fatface', css: "'Abril Fatface', cursive" },
-  { label: '[Eng] Righteous', css: "'Righteous', cursive" },
-  { label: '[Eng] Cinzel', css: "'Cinzel', serif" },
-  { label: '[Eng] Great Vibes', css: "'Great Vibes', cursive" },
-  { label: '[Eng] Architects Daughter', css: "'Architects Daughter', cursive" },
-  { label: '[Eng] Indie Flower', css: "'Indie Flower', cursive" },
-  { label: '[Eng] Shadows Into Light', css: "'Shadows Into Light', cursive" },
-  { label: '[Eng] Satisfy', css: "'Satisfy', cursive" },
-  { label: '[Eng] Kaushan Script', css: "'Kaushan Script', cursive" },
-  { label: '[Eng] Courgette', css: "'Courgette', cursive" },
-  { label: '[Eng] Cookie', css: "'Cookie', cursive" },
-  { label: '[Eng] Sacramento', css: "'Sacramento', cursive" },
-  { label: '[Eng] Bangers', css: "'Bangers', cursive" },
-  { label: '[Eng] Creepster', css: "'Creepster', cursive" },
-  { label: '[Eng] Alfa Slab One', css: "'Alfa Slab One', cursive" },
-  { label: '[Eng] Acme', css: "'Acme', sans-serif" },
-  { label: '[Eng] Amatic SC', css: "'Amatic SC', cursive" },
-  { label: '[Eng] Patrick Hand', css: "'Patrick Hand', cursive" },
-  { label: '[Eng] Gloria Hallelujah', css: "'Gloria Hallelujah', cursive" },
-  { label: '[Eng] Permanent Marker', css: "'Permanent Marker', cursive" },
-  { label: '[Eng] Zeyada', css: "'Zeyada', cursive" },
-  { label: '[Eng] Space Grotesk', css: "'Space Grotesk', sans-serif" },
-  { label: '[Eng] Plus Jakarta Sans', css: "'Plus Jakarta Sans', sans-serif" },
-  { label: '[Eng] DM Sans', css: "'DM Sans', sans-serif" },
-  { label: '[Eng] DM Serif Display', css: "'DM Serif Display', serif" },
-  { label: '[Eng] Outfit', css: "'Outfit', sans-serif" },
-  { label: '[Eng] Teko', css: "'Teko', sans-serif" },
-  { label: '[Eng] Rajdhani', css: "'Rajdhani', sans-serif" },
-  { label: '[Eng] Exo 2', css: "'Exo 2', sans-serif" },
-  { label: '[Eng] Varela Round', css: "'Varela Round', sans-serif" },
-  { label: '[Eng] Comfortaa', css: "'Comfortaa', cursive" },
-  { label: '[Eng] Arvo', css: "'Arvo', serif" },
-  { label: '[Eng] Rokkitt', css: "'Rokkitt', serif" },
-  { label: '[Eng] Libre Baskerville', css: "'Libre Baskerville', serif" },
-  { label: '[Eng] EB Garamond', css: "'EB Garamond', serif" },
-  { label: '[Eng] Crimson Text', css: "'Crimson Text', serif" },
-  { label: '[Eng] Noto Sans', css: "'Noto Sans', sans-serif" },
-  { label: '[Eng] Noto Serif', css: "'Noto Serif', serif" },
-  { label: '[Eng] Roboto Slab', css: "'Roboto Slab', serif" },
-  { label: '[Eng] Roboto Mono', css: "'Roboto Mono', monospace" },
-  { label: '[Eng] Source Code Pro', css: "'Source Code Pro', monospace" },
-  { label: '[Eng] JetBrains Mono', css: "'JetBrains Mono', monospace" },
-  { label: '[Eng] Inconsolata', css: "'Inconsolata', monospace" },
-  { label: '[Eng] Fredoka', css: "'Fredoka', sans-serif" },
-  { label: '[Eng] Baloo Tammudu 2', css: "'Baloo Tammudu 2', sans-serif" },
-  { label: '[Eng] Baloo Thambi 2', css: "'Baloo Thambi 2', sans-serif" },
-  { label: '[Eng] Times New Roman', css: "'Times New Roman', Times, serif" },
-  { label: '[Eng] Georgia', css: "Georgia, serif" },
-  { label: '[Eng] Courier New', css: "'Courier New', Courier, monospace" },
-  { label: '[Eng] Verdana', css: "Verdana, Geneva, sans-serif" },
-  { label: '[Eng] Trebuchet MS', css: "'Trebuchet MS', sans-serif" },
-  { label: '[Eng] Impact', css: "Impact, Charcoal, sans-serif" }
-];
+  const alpha = new Uint8ClampedArray(w * h);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    alpha[p] = d[i + 3];
+  }
 
-document.querySelectorAll('.font-selector-100').forEach(sel => {
-  FONTS_100_PLUS.forEach((f, idx) => {
-    const opt = document.createElement('option');
-    opt.value = f.css;
-    opt.textContent = `${idx + 1}. ${f.label}`;
-    opt.style.fontFamily = f.css;
-    sel.appendChild(opt);
-  });
-});
+  const r = Math.max(1, Math.round(erodePx));
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      let minVal = alpha[p];
+      for (let dy = -r; dy <= r; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= h) { minVal = 0; break; }
+        for (let dx = -r; dx <= r; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= w) { minVal = 0; break; }
+          const v = alpha[yy * w + xx];
+          if (v < minVal) minVal = v;
+        }
+        if (minVal === 0) break;
+      }
 
-function buildCanvasFontStr(isBold, sizePx, fontCss) {
-  return `${isBold ? '700' : '400'} ${sizePx}px ${fontCss}`;
-}
-
-document.querySelectorAll('.menu-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-  });
-});
-
-function loadImg(src) {
-  return new Promise((res, rej) => {
-    const i = new Image();
-    i.crossOrigin = 'anonymous';
-    i.onload = () => res(i);
-    i.onerror = rej;
-    i.src = src;
-  });
-}
-
-function toBlob(canvas, type, q) {
-  return new Promise(r => canvas.toBlob(b => r(b), type, q));
-}
-
-function padBlobToExactBytes(blob, exactBytes, mimeType) {
-  if (!blob || blob.size >= exactBytes) return blob;
-  const padding = new Uint8Array(exactBytes - blob.size);
-  return new Blob([blob, padding], { type: mimeType });
-}
-
-function addDownloadCard(container, blobOrUrl, filename, labelText) {
-  const url = typeof blobOrUrl === 'string' ? blobOrUrl : URL.createObjectURL(blobOrUrl);
-  const card = document.createElement('div');
-  card.className = 'card';
-  const isImg = filename.match(/\.(jpg|jpeg|png|webp)$/i);
-  card.innerHTML = `
-    ${isImg ? `<img src="${url}" alt="${filename}">` : `<div class="card-title">${filename}</div>`}
-    <div style="font-size:.84rem;color:#334155;">${labelText}</div>
-    <a class="dl-btn" href="${url}" download="${filename}">Download ${filename.split('.').pop().toUpperCase()}</a>
-  `;
-  container.appendChild(card);
-}
-
-async function openPdfWithPasswordSupport(arrayBuffer, initialPass = '') {
-  let pass = initialPass;
-  while (true) {
-    try {
-      return await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pass || undefined }).promise;
-    } catch (err) {
-      if (err && (err.name === 'PasswordException' || String(err).toLowerCase().includes('password'))) {
-        const entered = prompt(pass ? 'Incorrect password. Enter PDF password:' : 'This PDF is password protected. Enter PDF password:');
-        if (entered === null) throw new Error('Password entry cancelled.');
-        pass = entered;
+      const idx = p * 4;
+      if (minVal <= 100) {
+        d[idx + 3] = 0;
+      } else if (minVal >= 215) {
+        d[idx + 3] = 255;
       } else {
-        throw err;
+        d[idx + 3] = Math.round(((minVal - 100) / 115) * 255);
       }
     }
   }
+
+  ctx.putImageData(imgData, 0, 0);
+  return alphaCanvas;
 }
 
-function erodeAlphaMask(alphaCanvas, erodePx = 2) {
-  const w=alphaCanvas.width,h=alphaCanvas.height,ctx=alphaCanvas.getContext('2d',{willReadFrequently:true});
-  const image=ctx.getImageData(0,0,w,h),src=new Uint8Array(w*h),tmp=new Uint8Array(w*h),out=new Uint8Array(w*h);
-  for(let p=0,i=3;p<src.length;p++,i+=4)src[p]=image.data[i];
-  const r=Math.max(1,Math.round(erodePx));
-  for(let y=0;y<h;y++){const base=y*w,q=new Int32Array(w);let head=0,tail=0;
-    for(let x=0;x<w;x++){while(tail>head&&src[base+q[tail-1]]>=src[base+x])tail--;q[tail++]=x;while(tail>head&&q[head]<x-2*r)head++;if(x>=r)tmp[base+x-r]=src[base+q[head]]}
-    for(let x=0;x<r;x++)tmp[base+x]=0;for(let x=Math.max(0,w-r);x<w;x++)tmp[base+x]=0;
+function stripCurtainFringeFromCutout(cutoutCanvas) {
+  const w = cutoutCanvas.width;
+  const h = cutoutCanvas.height;
+  const ctx = cutoutCanvas.getContext('2d', { willReadFrequently: true });
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = (y * w + x) * 4;
+      const a = d[idx + 3];
+      if (a === 0) continue;
+
+      const r = d[idx], g = d[idx + 1], b = d[idx + 2];
+      // Check if pixel is near transparent edge
+      const nearEdge =
+        d[((y - 1) * w + x) * 4 + 3] < 120 ||
+        d[((y + 1) * w + x) * 4 + 3] < 120 ||
+        d[(y * w + (x - 1)) * 4 + 3] < 120 ||
+        d[(y * w + (x + 1)) * 4 + 3] < 120;
+
+      // Remove brownish/peach/grey curtain fringe near edge
+      const isCurtainTone = (r >= g && g >= b && (r - b) >= 12 && (r - b) <= 68 && r > 110);
+      if (nearEdge && isCurtainTone && a < 235) {
+        d[idx + 3] = Math.max(0, Math.round(a * 0.25));
+      }
+    }
   }
-  for(let x=0;x<w;x++){const q=new Int32Array(h);let head=0,tail=0;
-    for(let y=0;y<h;y++){while(tail>head&&tmp[q[tail-1]*w+x]>=tmp[y*w+x])tail--;q[tail++]=y;while(tail>head&&q[head]<y-2*r)head++;if(y>=r)out[(y-r)*w+x]=tmp[q[head]*w+x]}
-    for(let y=0;y<r;y++)out[y*w+x]=0;for(let y=Math.max(0,h-r);y<h;y++)out[y*w+x]=0;
-  }
-  for(let p=0,i=3;p<out.length;p++,i+=4){const a=out[p];image.data[i]=a<=90?0:a>=210?255:Math.round((a-90)/120*255)}
-  ctx.putImageData(image,0,0);return alphaCanvas;
+
+  ctx.putImageData(imgData, 0, 0);
+  return cutoutCanvas;
 }
 
-function tightenMaskCanvas(maskSource, w, h) {
+function buildAlphaMaskFromSegmentation(maskSource, w, h) {
   const rawCanvas = document.createElement('canvas');
   rawCanvas.width = w;
   rawCanvas.height = h;
@@ -222,12 +94,12 @@ function tightenMaskCanvas(maskSource, w, h) {
   for (let i = 0; i < rawData.length; i += 4) {
     const m = rawData[i];
     let a = 0;
-    if (m <= 105) {
+    if (m <= 112) {
       a = 0;
-    } else if (m >= 215) {
+    } else if (m >= 218) {
       a = 255;
     } else {
-      a = Math.round(((m - 105) / 110) * 255);
+      a = Math.round(((m - 112) / 106) * 255);
     }
     out[i] = 255;
     out[i + 1] = 255;
@@ -236,68 +108,64 @@ function tightenMaskCanvas(maskSource, w, h) {
   }
 
   alphaCtx.putImageData(outImg, 0, 0);
-  const erodeRadius = Math.max(2, Math.round(Math.min(w, h) * 0.0022));
+  const erodeRadius = Math.max(2, Math.round(Math.min(w, h) * 0.0028));
   return erodeAlphaMask(alphaCanvas, erodeRadius);
 }
 
-
-function buildAlphaMaskFromSegmentation(maskSource, w, h) {
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(maskSource, 0, 0, w, h);
-  return tightenMaskCanvas(canvas, w, h);
-}
-
-// Safe local fallback: flood-fill only border-connected pixels close to the
-// sampled background colour, preserving the central subject.
 function fallbackRemoveBackgroundByBorderColor(img, w, h) {
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, w, h);
-  const frame = ctx.getImageData(0, 0, w, h);
-  const d = frame.data, total = w * h;
-  const seen = new Uint8Array(total);
-  const queue = new Int32Array(total);
-  const samples = [0, Math.min(w - 1, w - 1), (h - 1) * w, h * w - 1];
-  let br = 0, bg = 0, bb = 0;
-  for (const p of samples) { const i=p*4; br+=d[i]; bg+=d[i+1]; bb+=d[i+2]; }
-  br/=samples.length; bg/=samples.length; bb/=samples.length;
-  const threshold = 48;
-  let head=0, tail=0;
-  const add=(p)=>{ if(p<0||p>=total||seen[p]) return; const i=p*4;
-    const dr=d[i]-br,dg=d[i+1]-bg,db=d[i+2]-bb;
-    if(Math.sqrt(dr*dr+dg*dg+db*db)>threshold) return;
-    seen[p]=1; queue[tail++]=p;
-  };
-  for(let x=0;x<w;x++){add(x);add((h-1)*w+x);}
-  for(let y=0;y<h;y++){add(y*w);add(y*w+w-1);}
-  while(head<tail){const p=queue[head++],x=p%w;
-    if(x>0)add(p-1);if(x<w-1)add(p+1);if(p>=w)add(p-w);if(p<total-w)add(p+w);
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+
+  const samples = [];
+  for (let x = 2; x < w - 2; x += Math.max(1, Math.floor(w / 40))) {
+    samples.push([d[(2 * w + x) * 4], d[(2 * w + x) * 4 + 1], d[(2 * w + x) * 4 + 2]]);
   }
-  for(let p=0;p<total;p++){if(seen[p]){const i=p*4;d[i]=255;d[i+1]=255;d[i+2]=255;d[i+3]=0;}}
-  ctx.putImageData(frame,0,0);
-  return canvas;
+  for (let y = 2; y < Math.floor(h * 0.45); y += Math.max(1, Math.floor(h / 30))) {
+    samples.push([d[(y * w + 2) * 4], d[(y * w + 2) * 4 + 1], d[(y * w + 2) * 4 + 2]]);
+    samples.push([d[(y * w + (w - 3)) * 4], d[(y * w + (w - 3)) * 4 + 1], d[(y * w + (w - 3)) * 4 + 2]]);
+  }
+
+  const avgBg = samples.reduce(
+    (acc, rgb) => [acc[0] + rgb[0], acc[1] + rgb[1], acc[2] + rgb[2]],
+    [0, 0, 0]
+  ).map(v => v / Math.max(1, samples.length));
+
+  for (let i = 0; i < d.length; i += 4) {
+    const dr = d[i] - avgBg[0];
+    const dg = d[i + 1] - avgBg[1];
+    const db = d[i + 2] - avgBg[2];
+    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+    if (dist < 58) {
+      d[i + 3] = 0;
+    } else if (dist < 86) {
+      d[i + 3] = Math.round(((dist - 58) / 28) * 255);
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return stripCurtainFringeFromCutout(erodeAlphaMask(c, 2));
 }
 
-// The studio grade already applies brightness, contrast and sharpening.
-// Keep this hook defined for compatibility with the older pipeline.
-function applyFaceChamakAndGlow(ctx, w, h) { return; }
-
-// Shared AI Background Segmentation
+// Shared AI Background Segmentation (Clean Cutout + Studio BG)
 async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, customColor = '#2563eb') {
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
 
-  return new Promise(async (resolve, reject) => {
+  return new Promise(async (resolve) => {
     let done = false;
     const finishWithCanvas = (cutoutCanvas) => {
       if (done) return;
       done = true;
 
+      const cleanedCutout = stripCurtainFringeFromCutout(cutoutCanvas);
+
       if (mode === 'transparent') {
-        resolve(cutoutCanvas);
+        resolve(cleanedCutout);
         return;
       }
 
@@ -324,14 +192,13 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
         bctx.fillRect(0, 0, w, h);
       }
 
-      bctx.drawImage(cutoutCanvas, 0, 0, w, h);
+      bctx.drawImage(cleanedCutout, 0, 0, w, h);
       resolve(bgCanvas);
     };
 
     const timer = setTimeout(() => {
-      try { finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h)); }
-      catch (error) { if (!done) { done = true; reject(error); } }
-    }, 20000);
+      finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h));
+    }, 6000);
 
     try {
       if (typeof SelfieSegmentation === 'undefined') {
@@ -380,7 +247,8 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
   });
 }
 
-function shapeHairGolaiAndLowerStrands(srcCanvas) {
+// Smooth Golai (rounded dome) + Niche bikhre hairs ko smoothly andar set karna
+window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(srcCanvas) {
   const w = srcCanvas.width;
   const h = srcCanvas.height;
   const sCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
@@ -426,14 +294,14 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
 
   for (let y = 0; y < h; y++) {
     const ny = y / Math.max(1, h);
-    const topFade = smoothstep(0.03, 0.14, ny) * (1 - smoothstep(0.36, 0.54, ny));
-    const lowerFade = smoothstep(0.42, 0.56, ny) * (1 - smoothstep(0.74, 0.88, ny));
+    const topFade = smoothstep(0.02, 0.14, ny) * (1 - smoothstep(0.38, 0.55, ny));
+    const lowerFade = smoothstep(0.40, 0.55, ny) * (1 - smoothstep(0.76, 0.90, ny));
 
     for (let x = 0; x < w; x++) {
       const dx = x - cx;
       const absDx = Math.abs(dx);
       const normX = Math.min(1, absDx / Math.max(1, maxHeadHalfW));
-      const sideFade = 1 - smoothstep(0.75, 1.25, normX);
+      const sideFade = 1 - smoothstep(0.70, 1.25, normX);
 
       let sx = x;
       let sy = y;
@@ -441,14 +309,14 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
       // Smooth rounded crown golai + side tuck
       if (topFade > 0.001 && sideFade > 0.001) {
         const dome = Math.cos(normX * Math.PI * 0.5);
-        sy -= dome * (h * 0.018) * topFade * sideFade;
-        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.6) * (w * 0.016) * topFade * sideFade;
+        sy -= dome * (h * 0.024) * topFade * sideFade;
+        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.5) * (w * 0.022) * topFade * sideFade;
       }
 
       // Lower bikhre hair strands ko smooth andar gather karna
       if (lowerFade > 0.001) {
-        const outerZone = smoothstep(0.16, 0.42, absDx / Math.max(1, w));
-        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.034) * lowerFade;
+        const outerZone = smoothstep(0.14, 0.40, absDx / Math.max(1, w));
+        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.044) * lowerFade;
       }
 
       sampleBilinear(sx, sy, px);
@@ -462,66 +330,31 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
 
   oCtx.putImageData(outImg, 0, 0);
   return outCanvas;
-}
+};
 
-// ================= AUTO STUDIO PHOTO (2-PIC REFERENCE MATCH PIPELINE) =================
+// ================= AUTO STUDIO PHOTO (HD LOOK + LIGHTING + HAIR GOLAI) =================
 (function initAutoStudioReferenceEngine() {
-  function cleanCutoutAndWhiteBg(rawCanvas) {
-    const w = rawCanvas.width;
-    const h = rawCanvas.height;
-    const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(rawCanvas, 0, 0, w, h);
+  function applyHdStudioLightingAndGlow(ctx, w, h) {
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = w;
+    glowCanvas.height = h;
+    const gCtx = glowCanvas.getContext('2d');
+    gCtx.drawImage(ctx.canvas, 0, 0);
+    gCtx.filter = `blur(${Math.max(8, Math.round(Math.min(w, h) * 0.016))}px)`;
+    gCtx.drawImage(ctx.canvas, 0, 0);
+    gCtx.filter = 'none';
 
-    const imgData = ctx.getImageData(0, 0, w, h);
-    const d = imgData.data;
-    const alphaCopy = new Uint8ClampedArray(w * h);
-
-    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-      alphaCopy[p] = d[i + 3];
-    }
-
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const p = y * w + x;
-        const idx = p * 4;
-        const a = alphaCopy[p];
-        const r = d[idx], g = d[idx + 1], b = d[idx + 2];
-
-        const neighborMaxA = Math.max(
-          alphaCopy[p - 1], alphaCopy[p + 1],
-          alphaCopy[p - w], alphaCopy[p + w]
-        );
-
-        if (a < 135 || (a < 215 && neighborMaxA < 190)) {
-          d[idx] = 255;
-          d[idx + 1] = 255;
-          d[idx + 2] = 255;
-          d[idx + 3] = 255;
-          continue;
-        }
-
-        const maxCh = Math.max(r, g, b);
-        const minCh = Math.min(r, g, b);
-        if (a < 245 && minCh > 165 && (maxCh - minCh) < 28) {
-          d[idx] = 255;
-          d[idx + 1] = 255;
-          d[idx + 2] = 255;
-          d[idx + 3] = 255;
-        } else {
-          d[idx + 3] = 255;
-        }
-      }
-    }
-
-    ctx.putImageData(imgData, 0, 0);
-    return c;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.18;
+    ctx.drawImage(glowCanvas, 0, 0);
+    ctx.restore();
   }
 
-  function applyReferenceStudioGrade(srcCanvas, outW, outH, enhanceLightSharp = true, tidyHair = true) {
-    const shapedSubject = tidyHair ? shapeHairGolaiAndLowerStrands(srcCanvas) : srcCanvas;
+  function applyReferenceStudioGrade(srcCanvas, outW, outH, enhanceLightSharp = true) {
+    const shapedSubject = typeof window.shapeHairGolaiAndLowerStrands === 'function'
+      ? window.shapeHairGolaiAndLowerStrands(srcCanvas)
+      : srcCanvas;
 
     const c = document.createElement('canvas');
     c.width = outW;
@@ -540,7 +373,7 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
     const dy = Math.round((outH - dh) / 2);
 
     if (enhanceLightSharp) {
-      ctx.filter = 'brightness(1.08) contrast(1.15) saturate(1.14)';
+      ctx.filter = 'brightness(1.10) contrast(1.18) saturate(1.15)';
     }
     ctx.drawImage(shapedSubject, dx, dy, dw, dh);
     ctx.filter = 'none';
@@ -548,24 +381,22 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
     const imgData = ctx.getImageData(0, 0, outW, outH);
     const d = imgData.data;
     const copy = new Uint8ClampedArray(d);
-    const sharpAmt = enhanceLightSharp ? 0.38 : 0.12;
+    const sharpAmt = enhanceLightSharp ? 0.46 : 0.15;
 
     for (let y = 1; y < outH - 1; y++) {
       for (let x = 1; x < outW - 1; x++) {
         const idx = (y * outW + x) * 4;
         const r0 = copy[idx], g0 = copy[idx + 1], b0 = copy[idx + 2];
 
-        // Pure studio white background lock
-        if (r0 > 242 && g0 > 242 && b0 > 242) {
+        if (r0 > 240 && g0 > 240 && b0 > 240) {
           d[idx] = 255;
           d[idx + 1] = 255;
           d[idx + 2] = 255;
           continue;
         }
 
-        // Subtle warm chamak on skin tones
         const isSkin = r0 > 85 && g0 > 50 && b0 > 30 && r0 > g0 && g0 > b0;
-        const skinGlow = isSkin ? 6 : 0;
+        const skinGlow = isSkin ? 8 : 0;
 
         for (let ch = 0; ch < 3; ch++) {
           const center = copy[idx + ch] * 5;
@@ -575,7 +406,7 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
             copy[(y * outW + (x - 1)) * 4 + ch] +
             copy[(y * outW + (x + 1)) * 4 + ch];
           const sharpVal = copy[idx + ch] * (1 - sharpAmt) + (center - neighbors) * sharpAmt;
-          const chBoost = ch === 0 ? skinGlow : ch === 1 ? Math.round(skinGlow * 0.7) : 0;
+          const chBoost = ch === 0 ? skinGlow : ch === 1 ? Math.round(skinGlow * 0.75) : Math.round(skinGlow * 0.25);
           d[idx + ch] = Math.min(255, Math.max(0, Math.round(sharpVal + chBoost)));
         }
       }
@@ -583,12 +414,11 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
 
     ctx.putImageData(imgData, 0, 0);
     if (enhanceLightSharp) {
-      applyFaceChamakAndGlow(ctx, outW, outH);
-      // Re-lock pure white outside subject so glow doesn't tint background
+      applyHdStudioLightingAndGlow(ctx, outW, outH);
       const finalData = ctx.getImageData(0, 0, outW, outH);
       const fd = finalData.data;
       for (let i = 0; i < fd.length; i += 4) {
-        if (fd[i] > 245 && fd[i + 1] > 245 && fd[i + 2] > 245) {
+        if (fd[i] > 244 && fd[i + 1] > 244 && fd[i + 2] > 244) {
           fd[i] = 255; fd[i + 1] = 255; fd[i + 2] = 255;
         }
       }
@@ -621,35 +451,25 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
     return { width: baseW * mult, height: baseH * mult };
   }
 
-  async function buildReferenceStudioOutput(file, frameText, qualityText, useWhiteBg, enhanceLightSharp, tidyHair = true) {
+  async function buildReferenceStudioOutput(file, frameText, qualityText, useWhiteBg, enhanceLightSharp) {
     const img = await loadImg(URL.createObjectURL(file));
     let subjectCanvas;
 
     if (useWhiteBg && typeof runSelfieSegmentation === 'function') {
-      const segCanvas = await runSelfieSegmentation(img, 'transparent');
-      subjectCanvas = cleanCutoutAndWhiteBg(segCanvas);
+      subjectCanvas = await runSelfieSegmentation(img, 'transparent');
     } else {
       const c = document.createElement('canvas');
       c.width = img.naturalWidth || img.width;
       c.height = img.naturalHeight || img.height;
       c.getContext('2d').drawImage(img, 0, 0);
-      subjectCanvas = useWhiteBg ? cleanCutoutAndWhiteBg(c) : c;
+      subjectCanvas = useWhiteBg ? fallbackRemoveBackgroundByBorderColor(img, c.width, c.height) : c;
     }
 
     const dims = getStudioTargetDimensions(img, frameText, qualityText);
-    return applyReferenceStudioGrade(subjectCanvas, dims.width, dims.height, enhanceLightSharp, tidyHair);
+    return applyReferenceStudioGrade(subjectCanvas, dims.width, dims.height, enhanceLightSharp);
   }
 
-  // Expose the reference studio pipeline for the dedicated studio-photo page.
-  window.buildReferenceStudioOutput = buildReferenceStudioOutput;
-
   function bindAutoStudioPage() {
-    // The dedicated studio-photo.js page owns its own preview and download flow.
-    // Do not attach the legacy shared handler here; it races with the dedicated engine.
-    if (/studio-photo/i.test(window.location.pathname || '') || /auto studio photo/i.test(document.title || '')) {
-      return;
-    }
-
     if (!/studio-photo/i.test(window.location.pathname || '') && !/auto studio photo/i.test(document.title || '')) {
       return;
     }
@@ -659,7 +479,7 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
     const qualitySelect = selects.find(s => /2×|1×|3×|high resolution|extra large/i.test(s.textContent || ''));
     const checkboxes = Array.from(document.querySelectorAll('input[type="checkbox"]'));
     const whiteBgBox = checkboxes[0] || null;
-    const sharpBox = checkboxes[1] || null;
+    const sharpBox = checkboxes[2] || checkboxes[1] || null;
     const fileInput = document.querySelector('input[type="file"]');
     const runBtn = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]'))
       .find(el => /create hd studio photo/i.test(el.textContent || el.value || ''));
@@ -676,7 +496,7 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
       const enhanceLightSharp = sharpBox ? sharpBox.checked : true;
 
       const resultCanvas = await buildReferenceStudioOutput(file, frameText, qualityText, useWhiteBg, enhanceLightSharp);
-      const dataUrl = resultCanvas.toDataURL('image/jpeg', 0.96);
+      const dataUrl = resultCanvas.toDataURL('image/jpeg', 0.97);
 
       const imgs = Array.from(document.querySelectorAll('img'));
       const outImg = imgs.length > 1 ? imgs[imgs.length - 1] : imgs[0];
@@ -694,13 +514,13 @@ function shapeHairGolaiAndLowerStrands(srcCanvas) {
     runBtn.addEventListener('click', () => {
       setTimeout(() => {
         runAndUpdatePreview().catch(() => {});
-      }, 200);
+      }, 450);
     });
 
     fileInput.addEventListener('change', () => {
       setTimeout(() => {
         runAndUpdatePreview().catch(() => {});
-      }, 300);
+      }, 500);
     });
   }
 
