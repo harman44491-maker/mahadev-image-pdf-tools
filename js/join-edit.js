@@ -150,26 +150,37 @@ function applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, testHitFn)
       const baseIdx = (gy * w + gx) * 4;
 
       if (effect === 'trim') {
-        if (copy[baseIdx + 3] > 0) {
-          d[idx + 3] = Math.max(0, Math.round(copy[baseIdx + 3] * (1 - strength * 0.95)));
+        // Non-destructive stray-hair cleanup: blend the strand into its local surroundings.
+        // Keep alpha intact so ordinary JPEG photos do not get transparent holes.
+        const lx = Math.max(0, gx - 2), rx = Math.min(w - 1, gx + 2);
+        const ty = Math.max(0, gy - 2), by = Math.min(h - 1, gy + 2);
+        for (let ch = 0; ch < 3; ch++) {
+          const surround = (
+            copy[(ty * w + gx) * 4 + ch] +
+            copy[(by * w + gx) * 4 + ch] +
+            copy[(gy * w + lx) * 4 + ch] +
+            copy[(gy * w + rx) * 4 + ch]
+          ) / 4;
+          d[idx + ch] = Math.round(copy[baseIdx + ch] * (1 - strength * 0.94) + surround * (strength * 0.94));
         }
+        d[idx + 3] = copy[baseIdx + 3];
       } else if (effect === 'darken') {
         const lum = 0.299 * copy[baseIdx] + 0.587 * copy[baseIdx + 1] + 0.114 * copy[baseIdx + 2];
-        if (lum < 210) {
-          const factor = 1 - strength * 0.45;
-          d[idx] = Math.max(8, Math.round(copy[baseIdx] * factor));
-          d[idx + 1] = Math.max(8, Math.round(copy[baseIdx + 1] * factor));
-          d[idx + 2] = Math.max(8, Math.round(copy[baseIdx + 2] * factor));
+        if (lum < 235) {
+          const factor = 1 - strength * 0.68;
+          d[idx] = Math.max(5, Math.round(copy[baseIdx] * factor));
+          d[idx + 1] = Math.max(5, Math.round(copy[baseIdx + 1] * factor));
+          d[idx + 2] = Math.max(5, Math.round(copy[baseIdx + 2] * factor));
         }
       } else {
-        const lx = Math.max(0, gx - 1);
-        const rx = Math.min(w - 1, gx + 1);
-        const ty = Math.max(0, gy - 1);
-        const by = Math.min(h - 1, gy + 1);
-        const sy = Math.min(h - 1, gy + Math.max(1, Math.round(strength * 2)));
-
-        const blend = strength * 0.82;
-        for (let ch = 0; ch < 4; ch++) {
+        // Stronger directional smudge for visible hair tuck/smoothing.
+        const lx = Math.max(0, gx - 2);
+        const rx = Math.min(w - 1, gx + 2);
+        const ty = Math.max(0, gy - 2);
+        const by = Math.min(h - 1, gy + 2);
+        const sy = Math.min(h - 1, gy + Math.max(1, Math.round(strength * 4)));
+        const blend = Math.min(0.96, strength * 0.96);
+        for (let ch = 0; ch < 3; ch++) {
           const avg = (
             copy[(ty * w + gx) * 4 + ch] +
             copy[(by * w + gx) * 4 + ch] +
@@ -179,6 +190,7 @@ function applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, testHitFn)
           ) / 6;
           d[idx + ch] = Math.round(copy[baseIdx + ch] * (1 - blend) + avg * blend);
         }
+        d[idx + 3] = copy[baseIdx + 3];
       }
     }
   }
@@ -264,9 +276,11 @@ function applyHairSetBrushStrokes(targetCanvas) {
 }
 
 const liveEditCanvas = document.getElementById('liveEditCanvas');
-liveEditCanvas.onmousedown = (e) => {
+liveEditCanvas.addEventListener('pointerdown', (e) => {
   const tool = document.getElementById('editToolSelect').value;
   if (!cachedMainImg || tool !== 'ps_auto_retouch') return;
+  e.preventDefault();
+  try { liveEditCanvas.setPointerCapture(e.pointerId); } catch (_) {}
 
   const pos = getSafeCanvasPos(liveEditCanvas, e);
   const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
@@ -293,9 +307,9 @@ liveEditCanvas.onmousedown = (e) => {
     lastHairPos = pos;
     renderLiveEditPreview();
   }
-};
+});
 
-liveEditCanvas.onmousemove = (e) => {
+liveEditCanvas.addEventListener('pointermove', (e) => {
   const pos = getSafeCanvasPos(liveEditCanvas, e);
   const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
   const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
@@ -317,15 +331,17 @@ liveEditCanvas.onmousemove = (e) => {
     lastHairPos = pos;
     renderLiveEditPreview();
   }
-};
+});
 
-window.addEventListener('mouseup', () => {
+const finishCanvasPointer = () => {
   isBrushingHair = false;
   currentHairStroke = null;
   lastHairPos = null;
   isSelectingZoom = false;
   zoomDragStart = null;
-});
+};
+window.addEventListener('pointerup', finishCanvasPointer);
+window.addEventListener('pointercancel', finishCanvasPointer);
 
 document.querySelectorAll('.quick-bg-btn').forEach(btn => {
   btn.onclick = () => {
