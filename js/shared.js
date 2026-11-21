@@ -187,91 +187,235 @@ async function openPdfWithPasswordSupport(arrayBuffer, initialPass = '') {
   }
 }
 
-function tightenMaskCanvas(maskSource, w, h) {
-  const mc = document.createElement('canvas');
-  mc.width = w;
-  mc.height = h;
-  const mctx = mc.getContext('2d', { willReadFrequently: true });
-  mctx.drawImage(maskSource, 0, 0, w, h);
-  const imgData = mctx.getImageData(0, 0, w, h);
-  const d = imgData.data;
-
-  // MediaPipe supplies the person confidence in the mask's red channel.
-  // Store that confidence as ALPHA (not opaque grayscale RGB), so
-  // destination-in correctly cuts away the original background.
-  for (let i = 0; i < d.length; i += 4) {
-    const confidence = d[i];
-    const alpha = confidence <= 35 ? 0
-      : confidence >= 220 ? 255
-      : Math.round(((confidence - 35) / 185) * 255);
-    d[i] = 255;
-    d[i + 1] = 255;
-    d[i + 2] = 255;
-    d[i + 3] = alpha;
+function erodeAlphaMask(alphaCanvas, erodePx = 2) {
+  const w=alphaCanvas.width,h=alphaCanvas.height,ctx=alphaCanvas.getContext('2d',{willReadFrequently:true});
+  const image=ctx.getImageData(0,0,w,h),src=new Uint8Array(w*h),tmp=new Uint8Array(w*h),out=new Uint8Array(w*h);
+  for(let p=0,i=3;p<src.length;p++,i+=4)src[p]=image.data[i];
+  const r=Math.max(1,Math.round(erodePx));
+  for(let y=0;y<h;y++){const base=y*w,q=new Int32Array(w);let head=0,tail=0;
+    for(let x=0;x<w;x++){while(tail>head&&src[base+q[tail-1]]>=src[base+x])tail--;q[tail++]=x;while(tail>head&&q[head]<x-2*r)head++;if(x>=r)tmp[base+x-r]=src[base+q[head]]}
+    for(let x=0;x<r;x++)tmp[base+x]=0;for(let x=Math.max(0,w-r);x<w;x++)tmp[base+x]=0;
   }
-  mctx.putImageData(imgData, 0, 0);
-  return mc;
+  for(let x=0;x<w;x++){const q=new Int32Array(h);let head=0,tail=0;
+    for(let y=0;y<h;y++){while(tail>head&&tmp[q[tail-1]*w+x]>=tmp[y*w+x])tail--;q[tail++]=y;while(tail>head&&q[head]<y-2*r)head++;if(y>=r)out[(y-r)*w+x]=tmp[q[head]*w+x]}
+    for(let y=0;y<r;y++)out[y*w+x]=0;for(let y=Math.max(0,h-r);y<h;y++)out[y*w+x]=0;
+  }
+  for(let p=0,i=3;p<out.length;p++,i+=4){const a=out[p];image.data[i]=a<=90?0:a>=210?255:Math.round((a-90)/120*255)}
+  ctx.putImageData(image,0,0);return alphaCanvas;
+}
+
+function tightenMaskCanvas(maskSource, w, h) {
+  const rawCanvas = document.createElement('canvas');
+  rawCanvas.width = w;
+  rawCanvas.height = h;
+  const rawCtx = rawCanvas.getContext('2d', { willReadFrequently: true });
+  rawCtx.drawImage(maskSource, 0, 0, w, h);
+  const rawData = rawCtx.getImageData(0, 0, w, h).data;
+
+  const alphaCanvas = document.createElement('canvas');
+  alphaCanvas.width = w;
+  alphaCanvas.height = h;
+  const alphaCtx = alphaCanvas.getContext('2d', { willReadFrequently: true });
+  const outImg = alphaCtx.createImageData(w, h);
+  const out = outImg.data;
+
+  for (let i = 0; i < rawData.length; i += 4) {
+    const m = rawData[i];
+    let a = 0;
+    if (m <= 105) {
+      a = 0;
+    } else if (m >= 215) {
+      a = 255;
+    } else {
+      a = Math.round(((m - 105) / 110) * 255);
+    }
+    out[i] = 255;
+    out[i + 1] = 255;
+    out[i + 2] = 255;
+    out[i + 3] = a;
+  }
+
+  alphaCtx.putImageData(outImg, 0, 0);
+  const erodeRadius = Math.max(2, Math.round(Math.min(w, h) * 0.0022));
+  return erodeAlphaMask(alphaCanvas, erodeRadius);
 }
 
 // Shared AI Background Segmentation
 async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, customColor = '#2563eb') {
   const w = img.naturalWidth || img.width;
   const h = img.naturalHeight || img.height;
-  let selfieSeg;
-  try {
-    selfieSeg = new SelfieSegmentation({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
-    });
-    selfieSeg.setOptions({ modelSelection: 1 });
-    const results = await new Promise(async (resolve, reject) => {
-      selfieSeg.onResults(resolve);
-      try {
-        await selfieSeg.send({ image: img });
-      } catch (error) {
-        reject(error);
+
+  return new Promise(async (resolve) => {
+    let done = false;
+    const finishWithCanvas = (cutoutCanvas) => {
+      if (done) return;
+      done = true;
+
+      if (mode === 'transparent') {
+        resolve(cutoutCanvas);
+        return;
       }
-    });
-    const cleanMask = tightenMaskCanvas(results.segmentationMask, w, h);
-    const outCanvas = document.createElement('canvas');
-    outCanvas.width = w;
-    outCanvas.height = h;
-    const ctx = outCanvas.getContext('2d');
-    ctx.drawImage(results.image || img, 0, 0, w, h);
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.drawImage(cleanMask, 0, 0, w, h);
-    ctx.globalCompositeOperation = 'source-over';
 
-    if (mode === 'transparent') return outCanvas;
+      const bgCanvas = document.createElement('canvas');
+      bgCanvas.width = w;
+      bgCanvas.height = h;
+      const bctx = bgCanvas.getContext('2d');
 
-    const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = w;
-    finalCanvas.height = h;
-    const finalCtx = finalCanvas.getContext('2d');
-    if (mode === 'blur_bg') {
-      finalCtx.save();
-      finalCtx.filter = `blur(${blurPx}px)`;
-      finalCtx.drawImage(results.image || img, 0, 0, w, h);
-      finalCtx.restore();
-    } else if (mode === 'studio_gradient') {
-      const grad = finalCtx.createRadialGradient(w / 2, h * 0.42, w * 0.08, w / 2, h / 2, Math.max(w, h) * 0.78);
-      grad.addColorStop(0, '#475569');
-      grad.addColorStop(1, '#0f172a');
-      finalCtx.fillStyle = grad;
-      finalCtx.fillRect(0, 0, w, h);
-    } else if (mode === 'solid_color') {
-      finalCtx.fillStyle = customColor;
-      finalCtx.fillRect(0, 0, w, h);
-    } else {
-      finalCtx.fillStyle = '#ffffff';
-      finalCtx.fillRect(0, 0, w, h);
+      if (mode === 'blur_bg') {
+        bctx.filter = `blur(${blurPx}px)`;
+        bctx.drawImage(img, 0, 0, w, h);
+        bctx.filter = 'none';
+      } else if (mode === 'studio_gradient') {
+        const grad = bctx.createRadialGradient(w / 2, h * 0.42, w * 0.08, w / 2, h / 2, Math.max(w, h) * 0.78);
+        grad.addColorStop(0, '#475569');
+        grad.addColorStop(1, '#0f172a');
+        bctx.fillStyle = grad;
+        bctx.fillRect(0, 0, w, h);
+      } else if (mode === 'solid_color') {
+        bctx.fillStyle = customColor;
+        bctx.fillRect(0, 0, w, h);
+      } else {
+        bctx.fillStyle = '#ffffff';
+        bctx.fillRect(0, 0, w, h);
+      }
+
+      bctx.drawImage(cutoutCanvas, 0, 0, w, h);
+      resolve(bgCanvas);
+    };
+
+    const timer = setTimeout(() => {
+      finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h));
+    }, 6000);
+
+    try {
+      if (typeof SelfieSegmentation === 'undefined') {
+        clearTimeout(timer);
+        finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h));
+        return;
+      }
+
+      const selfieSeg = new SelfieSegmentation({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+      });
+      selfieSeg.setOptions({ modelSelection: 1 });
+
+      selfieSeg.onResults((results) => {
+        clearTimeout(timer);
+        try {
+          if (!results || !results.segmentationMask) {
+            finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h));
+            return;
+          }
+
+          const alphaMask = buildAlphaMaskFromSegmentation(results.segmentationMask, w, h);
+          const cutout = document.createElement('canvas');
+          cutout.width = w;
+          cutout.height = h;
+          const cctx = cutout.getContext('2d');
+          cctx.clearRect(0, 0, w, h);
+          cctx.drawImage(results.image || img, 0, 0, w, h);
+          cctx.globalCompositeOperation = 'destination-in';
+          cctx.drawImage(alphaMask, 0, 0, w, h);
+          cctx.globalCompositeOperation = 'source-over';
+
+          try { selfieSeg.close(); } catch (_) {}
+          finishWithCanvas(cutout);
+        } catch (_) {
+          try { selfieSeg.close(); } catch (_) {}
+          finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h));
+        }
+      });
+
+      await selfieSeg.send({ image: img });
+    } catch (_) {
+      clearTimeout(timer);
+      finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h));
     }
-    finalCtx.drawImage(outCanvas, 0, 0);
-    return finalCanvas;
-  } catch (error) {
-    throw new Error('Background removal failed: ' + (error?.message || 'segmentation could not run. Check your internet connection and refresh.'));
-  } finally {
-    try { selfieSeg?.close(); } catch (_) {}
+  });
+}
+
+function shapeHairGolaiAndLowerStrands(srcCanvas) {
+  const w = srcCanvas.width;
+  const h = srcCanvas.height;
+  const sCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
+  const srcData = sCtx.getImageData(0, 0, w, h).data;
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = w;
+  outCanvas.height = h;
+  const oCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+  const outImg = oCtx.createImageData(w, h);
+  const dst = outImg.data;
+
+  const cx = w * 0.5;
+  const maxHeadHalfW = w * 0.34;
+
+  const sampleBilinear = (fx, fy, outPx) => {
+    if (fx < 0 || fx >= w - 1 || fy < 0 || fy >= h - 1) {
+      outPx[0] = 255; outPx[1] = 255; outPx[2] = 255; outPx[3] = 0;
+      return;
+    }
+    const x0 = Math.floor(fx), y0 = Math.floor(fy);
+    const x1 = x0 + 1, y1 = y0 + 1;
+    const wx = fx - x0, wy = fy - y0;
+
+    const i00 = (y0 * w + x0) * 4;
+    const i10 = (y0 * w + x1) * 4;
+    const i01 = (y1 * w + x0) * 4;
+    const i11 = (y1 * w + x1) * 4;
+
+    for (let ch = 0; ch < 4; ch++) {
+      const top = srcData[i00 + ch] * (1 - wx) + srcData[i10 + ch] * wx;
+      const bot = srcData[i01 + ch] * (1 - wx) + srcData[i11 + ch] * wx;
+      outPx[ch] = Math.round(top * (1 - wy) + bot * wy);
+    }
+  };
+
+  const smoothstep = (edge0, edge1, x) => {
+    const t = Math.max(0, Math.min(1, (x - edge0) / Math.max(0.0001, edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+  };
+
+  const px = [255, 255, 255, 0];
+
+  for (let y = 0; y < h; y++) {
+    const ny = y / Math.max(1, h);
+    const topFade = smoothstep(0.03, 0.14, ny) * (1 - smoothstep(0.36, 0.54, ny));
+    const lowerFade = smoothstep(0.42, 0.56, ny) * (1 - smoothstep(0.74, 0.88, ny));
+
+    for (let x = 0; x < w; x++) {
+      const dx = x - cx;
+      const absDx = Math.abs(dx);
+      const normX = Math.min(1, absDx / Math.max(1, maxHeadHalfW));
+      const sideFade = 1 - smoothstep(0.75, 1.25, normX);
+
+      let sx = x;
+      let sy = y;
+
+      // Smooth rounded crown golai + side tuck
+      if (topFade > 0.001 && sideFade > 0.001) {
+        const dome = Math.cos(normX * Math.PI * 0.5);
+        sy -= dome * (h * 0.018) * topFade * sideFade;
+        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.6) * (w * 0.016) * topFade * sideFade;
+      }
+
+      // Lower bikhre hair strands ko smooth andar gather karna
+      if (lowerFade > 0.001) {
+        const outerZone = smoothstep(0.16, 0.42, absDx / Math.max(1, w));
+        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.034) * lowerFade;
+      }
+
+      sampleBilinear(sx, sy, px);
+      const dstIdx = (y * w + x) * 4;
+      dst[dstIdx] = px[0];
+      dst[dstIdx + 1] = px[1];
+      dst[dstIdx + 2] = px[2];
+      dst[dstIdx + 3] = px[3];
+    }
   }
+
+  oCtx.putImageData(outImg, 0, 0);
+  return outCanvas;
 }
 
 // ================= AUTO STUDIO PHOTO (2-PIC REFERENCE MATCH PIPELINE) =================
@@ -331,6 +475,8 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
   }
 
   function applyReferenceStudioGrade(srcCanvas, outW, outH, enhanceLightSharp = true) {
+    const shapedSubject = shapeHairGolaiAndLowerStrands(srcCanvas);
+
     const c = document.createElement('canvas');
     c.width = outW;
     c.height = outH;
@@ -341,34 +487,39 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, outW, outH);
 
-    const scale = Math.min(outW / srcCanvas.width, outH / srcCanvas.height);
-    const dw = Math.round(srcCanvas.width * scale);
-    const dh = Math.round(srcCanvas.height * scale);
+    const scale = Math.min(outW / shapedSubject.width, outH / shapedSubject.height);
+    const dw = Math.round(shapedSubject.width * scale);
+    const dh = Math.round(shapedSubject.height * scale);
     const dx = Math.round((outW - dw) / 2);
     const dy = Math.round((outH - dh) / 2);
 
     if (enhanceLightSharp) {
-      ctx.filter = 'brightness(1.06) contrast(1.16) saturate(1.12)';
+      ctx.filter = 'brightness(1.08) contrast(1.15) saturate(1.14)';
     }
-    ctx.drawImage(srcCanvas, dx, dy, dw, dh);
+    ctx.drawImage(shapedSubject, dx, dy, dw, dh);
     ctx.filter = 'none';
 
     const imgData = ctx.getImageData(0, 0, outW, outH);
     const d = imgData.data;
     const copy = new Uint8ClampedArray(d);
-    const sharpAmt = enhanceLightSharp ? 0.42 : 0.15;
+    const sharpAmt = enhanceLightSharp ? 0.38 : 0.12;
 
     for (let y = 1; y < outH - 1; y++) {
       for (let x = 1; x < outW - 1; x++) {
         const idx = (y * outW + x) * 4;
         const r0 = copy[idx], g0 = copy[idx + 1], b0 = copy[idx + 2];
 
-        if (r0 > 236 && g0 > 236 && b0 > 236) {
+        // Pure studio white background lock
+        if (r0 > 242 && g0 > 242 && b0 > 242) {
           d[idx] = 255;
           d[idx + 1] = 255;
           d[idx + 2] = 255;
           continue;
         }
+
+        // Subtle warm chamak on skin tones
+        const isSkin = r0 > 85 && g0 > 50 && b0 > 30 && r0 > g0 && g0 > b0;
+        const skinGlow = isSkin ? 6 : 0;
 
         for (let ch = 0; ch < 3; ch++) {
           const center = copy[idx + ch] * 5;
@@ -377,13 +528,27 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
             copy[((y + 1) * outW + x) * 4 + ch] +
             copy[(y * outW + (x - 1)) * 4 + ch] +
             copy[(y * outW + (x + 1)) * 4 + ch];
-          const val = copy[idx + ch] * (1 - sharpAmt) + (center - neighbors) * sharpAmt;
-          d[idx + ch] = Math.min(255, Math.max(0, Math.round(val)));
+          const sharpVal = copy[idx + ch] * (1 - sharpAmt) + (center - neighbors) * sharpAmt;
+          const chBoost = ch === 0 ? skinGlow : ch === 1 ? Math.round(skinGlow * 0.7) : 0;
+          d[idx + ch] = Math.min(255, Math.max(0, Math.round(sharpVal + chBoost)));
         }
       }
     }
 
     ctx.putImageData(imgData, 0, 0);
+    if (enhanceLightSharp) {
+      applyFaceChamakAndGlow(ctx, outW, outH);
+      // Re-lock pure white outside subject so glow doesn't tint background
+      const finalData = ctx.getImageData(0, 0, outW, outH);
+      const fd = finalData.data;
+      for (let i = 0; i < fd.length; i += 4) {
+        if (fd[i] > 245 && fd[i + 1] > 245 && fd[i + 2] > 245) {
+          fd[i] = 255; fd[i + 1] = 255; fd[i + 2] = 255;
+        }
+      }
+      ctx.putImageData(finalData, 0, 0);
+    }
+
     return c;
   }
 
