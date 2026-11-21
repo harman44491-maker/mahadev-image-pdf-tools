@@ -250,6 +250,12 @@ function applyHairSetBrushStrokes(targetCanvas) {
 
     for(let y=minY;y<maxY;y++){
       for(let x=minX;x<maxX;x++){
+        const si=(y*w+x)*4, oi=((y-minY)*bw+(x-minX))*4;
+        // Preserve untouched pixels inside the processing rectangle.
+        out.data[oi]=source[si];
+        out.data[oi+1]=source[si+1];
+        out.data[oi+2]=source[si+2];
+        out.data[oi+3]=source[si+3];
         let dist=Infinity;
         if(shape==='circle'){
           const rr=Math.max(rad,Math.hypot((p1.x-p0.x)*w,(p1.y-p0.y)*h));
@@ -277,7 +283,6 @@ function applyHairSetBrushStrokes(targetCanvas) {
           ? Math.max(0.18,Math.min(1,(Math.min(x-minX,maxX-1-x,y-minY,maxY-1-y)+feather)/feather))
           : Math.pow(Math.max(0,1-dist/Math.max(1,rad)),0.65);
         if(strength<=0) continue;
-        const si=(y*w+x)*4, oi=((y-minY)*bw+(x-minX))*4;
         const blend=effect==='darken' ? 0 : (effect==='trim' ? Math.min(0.98,strength*0.96) : Math.min(0.94,strength*0.88));
 
         if(effect==='darken'){
