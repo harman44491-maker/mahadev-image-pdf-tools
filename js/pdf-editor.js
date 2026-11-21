@@ -1,5 +1,10 @@
 // ================= 5. VISUAL PDF EDITOR =================
     let edPdfDoc = null, edCurrentPage = 1, edMode = 'select';
+    const edPreviewCanvas = document.getElementById('edPreviewCanvas');
+    const edPreviewCtx = edPreviewCanvas.getContext('2d');
+    if (typeof pdfjsLib !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
     let edPageItems = {}, edExtractedTextBoxes = [];
     let edSelectedIdx = -1, edDragging = false, edDragOffset = { x: 0, y: 0 }, edDrawStart = null;
     const edCanvas = document.getElementById('edCanvas');
@@ -19,23 +24,36 @@
       const f = document.getElementById('edPdfFile').files[0];
       const status = document.getElementById('edStatus');
       if (!f) return alert('Please choose a PDF file first.');
+      if (typeof pdfjsLib === 'undefined' || !pdfjsLib.getDocument) {
+        status.textContent = 'PDF reader library did not load. Refresh the page and try again.';
+        status.classList.remove('hidden');
+        return;
+      }
       status.textContent = 'Opening PDF in editor...'; status.classList.remove('hidden');
       try {
-        const openPass = document.getElementById('edOpenPass').value;
-        edPdfDoc = await openPdfWithPasswordSupport(await f.arrayBuffer(), openPass);
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const openPass = document.getElementById('edOpenPass').value || '';
+        // The visual editor requires a PDF.js document (getPage/getViewport),
+        // not a pdf-lib document. Keep the reader and writer libraries separate.
+        edPdfDoc = await pdfjsLib.getDocument({ data: bytes, password: openPass }).promise;
         edPageItems = {};
         const sel = document.getElementById('edPageSelect');
         sel.innerHTML = '';
         for (let i = 1; i <= edPdfDoc.numPages; i++) {
           edPageItems[i] = [];
-          const opt = document.createElement('option'); opt.value = i; opt.textContent = `Page ${i} of ${edPdfDoc.numPages}`;
+          const opt = document.createElement('option');
+          opt.value = i; opt.textContent = `Page ${i} of ${edPdfDoc.numPages}`;
           sel.appendChild(opt);
         }
         edCurrentPage = 1;
         await renderEditorPage(1);
         status.classList.add('hidden');
       } catch (err) {
-        status.textContent = 'Could not open PDF: ' + err.message;
+        const message = err && err.name === 'PasswordException'
+          ? 'This PDF is password-protected. Enter the correct Open Password and click Load / Open PDF.'
+          : 'Could not open PDF: ' + (err.message || String(err));
+        status.textContent = message;
+        status.classList.remove('hidden');
       }
     }
 
@@ -55,6 +73,10 @@
       edCanvas.width = vp.width; edCanvas.height = vp.height;
       edBgCanvas.width = vp.width; edBgCanvas.height = vp.height;
       await page.render({ canvasContext: edBgCanvas.getContext('2d'), viewport: vp }).promise;
+      edPreviewCanvas.width = vp.width;
+      edPreviewCanvas.height = vp.height;
+      edPreviewCtx.clearRect(0, 0, vp.width, vp.height);
+      edPreviewCtx.drawImage(edBgCanvas, 0, 0);
 
       const tc = await page.getTextContent();
       edExtractedTextBoxes = tc.items.map(item => {
@@ -249,7 +271,11 @@
       }
 
       const pass = document.getElementById('edPdfPassword').value;
-      const bytes = pass ? await outPdf.save({ userPassword: pass, ownerPassword: pass }) : await outPdf.save();
-      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'edited_document.pdf', `Edited PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Password Protected' : ''}`);
-      status.classList.add('hidden');
+      if (pass) {
+        status.textContent = 'Edited PDF created. Note: password encryption is not supported by the current PDF writer, so the output will be saved without a password.';
+      }
+      const bytes = await outPdf.save();
+      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'edited_document.pdf', `Edited PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Saved without password encryption' : ''}`);
+      status.classList.remove('hidden');
+      if (!pass) status.classList.add('hidden');
     };
