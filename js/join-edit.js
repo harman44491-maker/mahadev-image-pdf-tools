@@ -13,6 +13,9 @@ let cachedTransparentCutout = null;
 let cachedCutoutKey = '';
 let cachedAutoHairFitImage = null;
 let isRunningAutoHairFit = false;
+let cachedHairstyleSource = null;
+let cachedHairstyleMode = 'none';
+let cachedHairstyleResult = null;
 
 // Selected Area Zoom state (normalized 0..1)
 let zoomSelectionNorm = null;
@@ -29,6 +32,9 @@ function invalidateHairAndBgCache() {
   cachedAutoHairFitImage = null;
   cachedTransparentCutout = null;
   cachedCutoutKey = '';
+  cachedHairstyleSource = null;
+  cachedHairstyleMode = 'none';
+  cachedHairstyleResult = null;
 }
 
 function getSafeCanvasPos(canvas, e) {
@@ -211,6 +217,148 @@ async function runAutoHairFit(img) {
   });
 }
 
+
+// ================= HAIRSTYLE REDESIGN (LOCAL GEOMETRIC HAIR SHAPING) =================
+let hairstyleRedesignMode = 'none';
+
+function getSelectedHairstyleMode() {
+  const el = document.getElementById('hairstyleRedesignSelect');
+  hairstyleRedesignMode = (el && el.value) ? el.value : 'none';
+  return hairstyleRedesignMode;
+}
+
+async function applyHairstyleRedesign(img, styleMode = 'rounded_golai') {
+  if (!img || styleMode === 'none') return img;
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) return img;
+
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = w; srcCanvas.height = h;
+  const sCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
+  sCtx.drawImage(img, 0, 0, w, h);
+  const srcData = sCtx.getImageData(0, 0, w, h).data;
+
+  let maskData = null;
+  if (typeof SelfieSegmentation !== 'undefined') {
+    let segmenter = null;
+    try {
+      const maskResult = await new Promise(resolve => {
+        let done = false;
+        const finish = value => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          try { segmenter?.close(); } catch (_) {}
+          resolve(value);
+        };
+        const timer = setTimeout(() => finish(null), 8000);
+        try {
+          segmenter = new SelfieSegmentation({
+            locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+          });
+          segmenter.setOptions({ modelSelection: 1 });
+          segmenter.onResults(results => {
+            try {
+              if (!results?.segmentationMask) return finish(null);
+              const mc = document.createElement('canvas');
+              mc.width = w; mc.height = h;
+              const mctx = mc.getContext('2d', { willReadFrequently: true });
+              mctx.drawImage(results.segmentationMask, 0, 0, w, h);
+              finish(mctx.getImageData(0, 0, w, h).data);
+            } catch (_) { finish(null); }
+          });
+          Promise.resolve(segmenter.send({ image: img })).catch(() => finish(null));
+        } catch (_) { finish(null); }
+      });
+      maskData = maskResult;
+    } catch (_) {
+      maskData = null;
+    } finally {
+      try { segmenter?.close(); } catch (_) {}
+    }
+  }
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = w; outCanvas.height = h;
+  const oCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+  const outImg = oCtx.createImageData(w, h);
+  const dst = outImg.data;
+  const cx = w * 0.5;
+  const maxHeadHalfW = w * 0.34;
+
+  const sampleBilinear = (fx, fy, outPx) => {
+    if (fx < 0 || fx >= w - 1 || fy < 0 || fy >= h - 1) {
+      outPx[0] = 255; outPx[1] = 255; outPx[2] = 255; outPx[3] = 0;
+      return;
+    }
+    const x0 = Math.floor(fx), y0 = Math.floor(fy);
+    const x1 = x0 + 1, y1 = y0 + 1;
+    const wx = fx - x0, wy = fy - y0;
+    const i00 = (y0 * w + x0) * 4, i10 = (y0 * w + x1) * 4;
+    const i01 = (y1 * w + x0) * 4, i11 = (y1 * w + x1) * 4;
+    for (let ch = 0; ch < 4; ch++) {
+      const top = srcData[i00 + ch] * (1 - wx) + srcData[i10 + ch] * wx;
+      const bot = srcData[i01 + ch] * (1 - wx) + srcData[i11 + ch] * wx;
+      outPx[ch] = Math.round(top * (1 - wy) + bot * wy);
+    }
+  };
+
+  const px = [0, 0, 0, 255];
+  for (let y = 0; y < h; y++) {
+    const ny = y / Math.max(1, h);
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      const dx = x - cx;
+      const absDx = Math.abs(dx);
+      const normX = Math.min(1, absDx / Math.max(1, maxHeadHalfW));
+      const maskValue = maskData ? maskData[idx] : 200;
+      const upperSide = ny >= 0.03 && ny <= 0.54 && absDx <= maxHeadHalfW * 1.25;
+      const lowerEnds = ny >= 0.42 && ny <= 0.85 && absDx >= w * 0.14 && absDx <= w * 0.48;
+      const hairWeight = (upperSide || lowerEnds)
+        ? Math.min(1, Math.max(0.25, maskValue / 180)) : 0;
+      let sx = x, sy = y;
+
+      if (hairWeight > 0) {
+        if (styleMode === 'rounded_golai') {
+          if (upperSide) {
+            sx = x + (normX * normX) * (w * 0.022) * (dx > 0 ? 1 : -1) * hairWeight;
+            sy = y - (1 - normX * normX) * (h * 0.022) * hairWeight;
+          }
+          if (lowerEnds) {
+            sx = x + Math.sin(((ny - 0.42) / 0.43) * Math.PI) * (w * 0.045) * (dx > 0 ? 1 : -1) * hairWeight;
+          }
+        } else if (styleMode === 'neat_tuck') {
+          sx = x + (w * 0.025) * (dx > 0 ? 1 : -1) * hairWeight
+            + (lowerEnds ? (w * 0.035) * (dx > 0 ? 1 : -1) * hairWeight : 0);
+        } else if (styleMode === 'lower_gather' && lowerEnds) {
+          sx = x + Math.sin(((ny - 0.42) / 0.43) * Math.PI) * (w * 0.06) * (dx > 0 ? 1 : -1) * hairWeight;
+        } else if (styleMode === 'soft_volume' && upperSide) {
+          sx = x + (normX * (1 - normX * 0.5)) * (w * 0.015) * (dx > 0 ? 1 : -1) * hairWeight;
+          sy = y - (1 - normX * normX) * (h * 0.03) * hairWeight;
+        }
+      }
+      sampleBilinear(sx, sy, px);
+      dst[idx] = px[0]; dst[idx + 1] = px[1];
+      dst[idx + 2] = px[2]; dst[idx + 3] = px[3];
+    }
+  }
+  oCtx.putImageData(outImg, 0, 0);
+  return outCanvas;
+}
+
+async function getPreparedHairstyleSource(source) {
+  const mode = getSelectedHairstyleMode();
+  if (mode === 'none') return source;
+  if (cachedHairstyleSource === source && cachedHairstyleMode === mode && cachedHairstyleResult) {
+    return cachedHairstyleResult;
+  }
+  cachedHairstyleSource = source;
+  cachedHairstyleMode = mode;
+  cachedHairstyleResult = await applyHairstyleRedesign(source, mode);
+  return cachedHairstyleResult;
+}
+
 async function getPreparedHairSource(baseImg) {
   const autoHairFit = Boolean(document.getElementById('psAutoHairFitToggle')?.checked);
   if (!autoHairFit) return baseImg;
@@ -240,7 +388,7 @@ async function getPreparedHairSource(baseImg) {
 }
 
 async function getPreparedCutoutSource(subjectSource, useAutoHairFit) {
-  const key = `${useAutoHairFit ? 'hairfit' : 'raw'}_${subjectSource.width || subjectSource.naturalWidth}x${subjectSource.height || subjectSource.naturalHeight}`;
+  const key = `${useAutoHairFit ? 'hairfit' : 'raw'}_${getSelectedHairstyleMode()}_${subjectSource.width || subjectSource.naturalWidth}x${subjectSource.height || subjectSource.naturalHeight}`;
   if (cachedTransparentCutout && cachedCutoutKey === key) {
     return cachedTransparentCutout;
   }
@@ -886,6 +1034,7 @@ async function renderLiveEditPreview() {
     const autoHairFit = document.getElementById('psAutoHairFitToggle').checked;
 
     let baseSrc = await getPreparedHairSource(cachedMainImg);
+    baseSrc = await getPreparedHairstyleSource(baseSrc);
     if (removeBg) {
       baseSrc = await getPreparedCutoutSource(baseSrc, autoHairFit);
     }
@@ -978,3 +1127,56 @@ document.getElementById('editFiles').onchange = async (e) => {
   cachedMainImg = await loadImg(URL.createObjectURL(f));
   renderLiveEditPreview();
 };
+
+document.getElementById('hairstyleRedesignSelect')?.addEventListener('change', async () => {
+  invalidateHairAndBgCache();
+  await renderLiveEditPreview();
+});
+
+// Export the full-resolution Photoshop Auto Retouch result, including the
+// selected hairstyle shape adjustment and optional background replacement.
+document.getElementById('editRunBtn')?.addEventListener('click', async () => {
+  const tool = document.getElementById('editToolSelect')?.value;
+  if (tool !== 'ps_auto_retouch') return;
+  const status = document.getElementById('editStatus');
+  const output = document.getElementById('editOutput');
+  if (!cachedMainImg) {
+    if (status) { status.textContent = 'Please select a photo first.'; status.classList.remove('hidden'); }
+    return;
+  }
+  const btn = document.getElementById('editRunBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing Photo...';
+  if (status) { status.textContent = 'Applying retouch and hairstyle settings...'; status.classList.remove('hidden'); }
+  try {
+    let source = await getPreparedHairSource(cachedMainImg);
+    source = await getPreparedHairstyleSource(source);
+    const removeBg = Boolean(document.getElementById('psRemoveBgToggle')?.checked);
+    if (removeBg) source = await getPreparedCutoutSource(source, Boolean(document.getElementById('psAutoHairFitToggle')?.checked));
+
+    const workSource = getActiveWorkingSource(source);
+    const outW = workSource.width || workSource.naturalWidth;
+    const outH = workSource.height || workSource.naturalHeight;
+    const enhanced = applyPhotoshopDigitalRetouch(workSource, outW, outH);
+    const finalCanvas = removeBg ? compositeBackgroundBehindSubject(enhanced) : enhanced;
+    const blob = await new Promise((resolve, reject) => {
+      finalCanvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create the output image.')), 'image/png');
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'mahadev-studio-hairstyle-retouch.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    if (status) status.textContent = 'Done! Your edited photo has been downloaded.';
+    if (output) output.innerHTML = '';
+  } catch (error) {
+    if (status) status.textContent = error?.message || 'Photo processing failed. Please try again.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Apply & Download';
+  }
+});
+
