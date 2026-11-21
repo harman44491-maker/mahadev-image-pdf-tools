@@ -61,6 +61,33 @@ function applyStudioRetouchAndSharpen(sourceCanvas, targetW, targetH) {
   return snapLightBackgroundToPureWhite(c);
 }
 
+function addPassportPreviewCard(container, blob, filename, detail = '') {
+  if (!container || !(blob instanceof Blob)) throw new Error('Passport photo preview could not be created.');
+  const card = document.createElement('div');
+  card.className = 'output-card passport-preview-card';
+  card.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:12px;margin:10px 0;border:1px solid #dbe3ef;border-radius:10px;background:#fff;width:min(100%,280px);box-sizing:border-box;';
+  const title = document.createElement('div');
+  title.textContent = [filename, detail].filter(Boolean).join(' — ');
+  title.style.cssText = 'font-size:14px;color:#334155;overflow-wrap:anywhere;';
+  const preview = document.createElement('img');
+  const url = URL.createObjectURL(blob);
+  preview.src = url;
+  preview.alt = filename || 'Generated passport photo preview';
+  preview.loading = 'lazy';
+  preview.style.cssText = 'display:block;max-width:100%;max-height:360px;width:auto;height:auto;object-fit:contain;margin:0 auto;border:1px solid #e2e8f0;border-radius:4px;background:#fff;';
+  preview.addEventListener('error', () => { preview.alt = 'Preview unavailable — use Download to save the generated image.'; }, { once: true });
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename || 'passport-photo.jpg';
+  link.textContent = 'Download';
+  link.className = 'btn-green';
+  link.style.cssText = 'display:inline-block;text-decoration:none;padding:9px 16px;border-radius:7px;color:#fff;background:#059669;font-weight:700;';
+  link.addEventListener('click', () => setTimeout(() => URL.revokeObjectURL(url), 60000), { once: true });
+  card.append(title, preview, link);
+  container.appendChild(card);
+  return card;
+}
+
 document.getElementById('ppGenerateBtn').onclick = async () => {
   const file = document.getElementById('ppFile').files[0];
   const out = document.getElementById('ppOutput');
@@ -100,7 +127,7 @@ document.getElementById('ppGenerateBtn').onclick = async () => {
 
   const sheetMode = document.getElementById('ppSheet').value;
   if (sheetMode === 'single' || sheetMode === 'both') {
-    addDownloadCard(out, await toBlob(finalPhotoCanvas, 'image/jpeg', 0.98), 'passport_HD_white_bg.jpg', `HD Passport (${finalPhotoCanvas.width}×${finalPhotoCanvas.height}px)`);
+    addPassportPreviewCard(out, await toBlob(finalPhotoCanvas, 'image/jpeg', 0.98), 'passport_HD_white_bg.jpg', `HD Passport (${finalPhotoCanvas.width}×${finalPhotoCanvas.height}px)`);
   }
   if (sheetMode !== 'single') {
     const sheetType = sheetMode === 'a4' ? 'a4' : '4x6';
@@ -118,7 +145,7 @@ document.getElementById('ppGenerateBtn').onclick = async () => {
       }
       x = gap; y += ph + gap;
     }
-    addDownloadCard(out, await toBlob(sCanvas, 'image/jpeg', 0.97), `passport_print_sheet_${sheetType}.jpg`, `${drawn} HD Copies on ${sheetType.toUpperCase()} Sheet`);
+    addPassportPreviewCard(out, await toBlob(sCanvas, 'image/jpeg', 0.97), `passport_print_sheet_${sheetType}.jpg`, `${drawn} HD Copies on ${sheetType.toUpperCase()} Sheet`);
   }
   status.classList.add('hidden');
 };
