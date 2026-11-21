@@ -10,6 +10,13 @@
   <link rel="stylesheet" href="csss/style.css">
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
   <style>
+    #liveEditPreviewWrap { position: relative; }
+    #hairBrushMagnifier {
+      position: absolute; top: 54px; right: 14px; width: 190px; height: 190px;
+      display: none; border: 3px solid #0f766e; border-radius: 50%;
+      background: #fff; box-shadow: 0 5px 20px rgba(15,23,42,.28);
+      pointer-events: none; z-index: 20;
+    }
     #liveEditCanvas,
     #sigCanvas {
       touch-action: none;
@@ -167,13 +174,13 @@
         <!-- ZOOM NEAR PHOTO FOR EASY HAIR BRUSHING -->
         <div class="inputs-row near-photo-zoom-bar">
           <label style="background:#fff;border-color:#0284c7;font-weight:700;color:#0369a1;">
-            <input type="checkbox" id="psZoomSelectMode"> Zoom Photo for Hair Brush
+            <input type="checkbox" id="psZoomSelectMode" checked> Brush Magnifier
           </label>
-          <label style="background:#fff;">Zoom Scale:
-            <input type="range" id="psZoomScaleRange" min="1" max="5" step="0.1" value="2" style="width:85px;">
-            <input type="number" id="psZoomScaleNum" min="1" max="5" step="0.1" value="2" style="width:62px;">x
+          <label style="background:#fff;">Brush Zoom:
+            <input type="range" id="psZoomScaleRange" min="1" max="6" step="0.25" value="2" style="width:100px;">
+            <input type="number" id="psZoomScaleNum" min="1" max="6" step="0.25" value="2" style="width:62px;">x
           </label>
-          <label style="background:#fff;"><input type="checkbox" id="psZoomSharpToggle" checked> HD Detail Sharpen</label>
+          <span style="font-size:12px;color:#0369a1;">Magnifies only the brush area; original photo size stays unchanged.</span>
           <button type="button" class="chip" id="psZoomResetBoxBtn">Reset Zoom</button>
         </div>
 
@@ -308,6 +315,7 @@
         <p id="livePreviewCaption" style="font-size:.84rem;color:#0f766e;font-weight:700;margin-bottom:4px;">Live Digital Studio Preview (Left: Digital Retouched • Right: Original):</p>
         <p id="canvasToolHint" class="canvas-tool-hint">Hair Set Brush Active: Drag directly on top/side hairs to smooth, tuck &amp; clean stray hair.</p>
         <canvas id="liveEditCanvas" class="live-preview"></canvas>
+        <canvas id="hairBrushMagnifier" width="200" height="200" aria-hidden="true"></canvas>
       </div>
 
       <div class="controls-row">
@@ -319,6 +327,6 @@
   </main>
 
   <script src="js/shared.js?v=2"></script>
-  <script src="js/join-edit.js?v=6"></script>
+  <script src="js/join-edit.js?v=7"></script>
 </body>
 </html>
