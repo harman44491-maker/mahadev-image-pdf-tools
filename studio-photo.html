@@ -23,12 +23,12 @@
 </nav></div></header>
 <main class="container"><section class="panel active">
 <h1>Auto Studio Photo – White Background &amp; HD</h1>
-<p class="studio-note">Upload a portrait to create a white-background studio photo. AI Studio Pro uses server-side generative editing for a more natural hair outline; Browser Fast uses local background segmentation. Generative editing can still make small changes to image details, so always review the result.</p>
+<p class="studio-note">Upload a portrait to create a white-background studio photo. Processing runs locally in your browser; your photo is not sent to an AI editing server.</p>
 <div class="studio-upload"><strong>Select or drop your original photo</strong><p style="margin:8px 0;color:#64748b">JPG, PNG or WEBP</p><input type="file" id="studioFile" accept="image/jpeg,image/png,image/webp"></div>
 <div class="studio-controls">
 <label>Photo Frame: <select id="studioFrame"><option value="reference" selected>Reference Style (1232 × 1277)</option><option value="square">Square (1200 × 1200)</option><option value="portrait">Portrait (1050 × 1350)</option><option value="original">Keep Original Ratio</option></select></label>
 <label>Output Quality: <select id="studioScale"><option value="1">HD – 1×</option><option value="2" selected>High Resolution – 2×</option><option value="3">Extra Large – 3×</option></select></label>
-<label>Studio Engine: <select id="studioAiModeSelect"><option value="ai_studio_pro" selected>AI Studio Pro (Generative AI)</option><option value="browser_fast">Browser Fast (Local)</option></select></label>
+
 <label><input type="checkbox" id="studioWhiteBg" checked> White Background (Local)</label><label><input type="checkbox" id="studioHairTidy" checked> Hair Edge Tidy (Local)</label><label><input type="checkbox" id="studioEnhance" checked> Light &amp; Sharpness Enhancement</label>
 </div>
 <div class="controls-row"><button type="button" class="btn-green" id="studioCreate">Create HD Studio Photo</button></div>
