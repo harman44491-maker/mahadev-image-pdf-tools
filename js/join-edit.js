@@ -1283,11 +1283,28 @@ function joinEditDownload(canvas, filename = 'mahadev-edited-image.png', type = 
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
       if (!blob) return reject(new Error('Could not export the edited image.'));
+      const output = document.getElementById('editOutput');
+      if (!output) return reject(new Error('Output preview area is missing.'));
+      const card = document.createElement('div');
+      card.className = 'output-card output-card-with-preview';
+      card.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:12px;margin:10px 0;border:1px solid #dbe3ef;border-radius:10px;background:#fff;max-width:100%;box-sizing:border-box;';
+      const title = document.createElement('div');
+      title.textContent = filename;
+      title.style.cssText = 'font-size:14px;color:#334155;overflow-wrap:anywhere;';
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1800);
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = 'Edited image preview';
+      image.loading = 'lazy';
+      image.style.cssText = 'display:block;max-width:min(100%,420px);max-height:520px;width:auto;height:auto;object-fit:contain;margin:0 auto;border:1px solid #e2e8f0;border-radius:6px;background:#fff;';
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.textContent = 'Download';
+      link.className = 'btn-green';
+      link.style.cssText = 'display:inline-block;text-decoration:none;padding:9px 16px;border-radius:7px;color:#fff;background:#059669;font-weight:700;';
+      card.append(title, image, link);
+      output.appendChild(card);
       resolve();
     }, type);
   });
