@@ -10,6 +10,7 @@ document.getElementById('clearSigBtn').onclick = () => sigCtx.clearRect(0, 0, si
 let cachedMainImg = null;
 let cachedLogoImg = null;
 let cachedTransparentCutout = null;
+let cachedAutoHairFitImage = null;
 
 // Selected Area Zoom state (normalized 0..1)
 let zoomSelectionNorm = null;
@@ -44,6 +45,96 @@ function getSelectedBrushEffect() {
   if (modeVal.includes('darken')) return 'darken';
   if (modeVal.includes('erase') || modeVal.includes('trim')) return 'trim';
   return 'tuck';
+}
+
+/*
+ * Auto Hair Fit uses the MediaPipe person matte to conservatively clean
+ * narrow upward flyaway strands along the top hair contour.
+ */
+async function runAutoHairFit(img) {
+  return new Promise(async (resolve) => {
+    const fallback = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      resolve(c);
+    };
+    try {
+      const segmenter = new SelfieSegmentation({
+        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+      });
+      segmenter.setOptions({ modelSelection: 1 });
+      segmenter.onResults(results => {
+        try {
+          const w = img.width, h = img.height;
+          const maskCanvas = document.createElement('canvas');
+          maskCanvas.width = w; maskCanvas.height = h;
+          const mctx = maskCanvas.getContext('2d', { willReadFrequently: true });
+          mctx.drawImage(results.segmentationMask, 0, 0, w, h);
+          const mask = mctx.getImageData(0, 0, w, h).data;
+          const srcCanvas = document.createElement('canvas');
+          srcCanvas.width = w; srcCanvas.height = h;
+          const sctx = srcCanvas.getContext('2d', { willReadFrequently: true });
+          sctx.drawImage(img, 0, 0, w, h);
+          const imageData = sctx.getImageData(0, 0, w, h);
+          const pixels = imageData.data;
+
+          const left = Math.floor(w * 0.08), right = Math.ceil(w * 0.92);
+          const topLimit = Math.floor(h * 0.62);
+          const edge = new Int32Array(w);
+          edge.fill(-1);
+          for (let x = left; x < right; x++) {
+            for (let y = 0; y < topLimit; y++) {
+              if (mask[(y * w + x) * 4] >= 112) { edge[x] = y; break; }
+            }
+          }
+
+          const radius = Math.max(3, Math.min(18, Math.round(w * 0.009)));
+          const smoothEdge = new Int32Array(w);
+          smoothEdge.fill(-1);
+          for (let x = left; x < right; x++) {
+            const values = [];
+            for (let xx = Math.max(left, x - radius); xx <= Math.min(right - 1, x + radius); xx++) {
+              if (edge[xx] >= 0) values.push(edge[xx]);
+            }
+            if (values.length >= 3) {
+              values.sort((a, b) => a - b);
+              smoothEdge[x] = values[Math.floor(values.length / 2)];
+            }
+          }
+
+          for (let x = left; x < right; x++) {
+            const actualTop = edge[x], fittedTop = smoothEdge[x];
+            if (actualTop < 0 || fittedTop < 0 || fittedTop - actualTop < Math.max(3, Math.round(h * 0.003))) continue;
+            const sampleGap = Math.max(4, Math.round(h * 0.012));
+            let bgY = Math.max(0, fittedTop - sampleGap);
+            while (bgY > 0 && mask[(bgY * w + x) * 4] > 42) bgY--;
+            const bgIdx = (bgY * w + x) * 4;
+            const bgR = pixels[bgIdx], bgG = pixels[bgIdx + 1], bgB = pixels[bgIdx + 2];
+            const yEnd = Math.min(fittedTop, actualTop + Math.max(2, Math.round(h * 0.035)));
+            for (let y = actualTop; y < yEnd; y++) {
+              const idx = (y * w + x) * 4;
+              const confidence = mask[idx] / 255;
+              if (confidence < 0.10) continue;
+              const blend = Math.min(0.92, confidence * 0.92);
+              pixels[idx] = Math.round(pixels[idx] * (1 - blend) + bgR * blend);
+              pixels[idx + 1] = Math.round(pixels[idx + 1] * (1 - blend) + bgG * blend);
+              pixels[idx + 2] = Math.round(pixels[idx + 2] * (1 - blend) + bgB * blend);
+            }
+          }
+          sctx.putImageData(imageData, 0, 0);
+          resolve(srcCanvas);
+        } catch (err) {
+          console.warn('Auto Hair Fit cleanup fallback:', err);
+          fallback();
+        }
+      });
+      await segmenter.send({ image: img });
+    } catch (err) {
+      console.warn('Auto Hair Fit segmentation unavailable:', err);
+      fallback();
+    }
+  });
 }
 
 // ONLY zoom when "Zoom Photo for Hair Brush" checkbox is explicitly checked
@@ -425,6 +516,12 @@ document.getElementById('psRemoveBgToggle').onchange = () => {
   updatePsBgControls();
   renderLiveEditPreview();
 };
+document.getElementById('psAutoHairFitToggle').onchange = () => {
+  cachedAutoHairFitImage = null;
+  cachedTransparentCutout = null;
+  updatePsBgControls();
+  renderLiveEditPreview();
+};
 document.getElementById('psBgStyleSelect').onchange = () => {
   updatePsBgControls();
   renderLiveEditPreview();
@@ -666,13 +763,24 @@ async function renderLiveEditPreview() {
     liveEditCanvas.style.cursor = hairBrushChecked ? 'cell' : 'default';
 
     const removeBg = document.getElementById('psRemoveBgToggle').checked;
+    const autoHairFit = document.getElementById('psAutoHairFitToggle').checked;
     let baseSrc = cachedMainImg;
+    if (autoHairFit) {
+      if (!cachedAutoHairFitImage) {
+        const st = document.getElementById('editStatus');
+        st.textContent = 'AI Auto Hair Fit: Cleaning separated flyaway strands...';
+        st.classList.remove('hidden');
+        cachedAutoHairFitImage = await runAutoHairFit(cachedMainImg);
+        st.classList.add('hidden');
+      }
+      baseSrc = cachedAutoHairFitImage;
+    }
     if (removeBg) {
       if (!cachedTransparentCutout) {
         const st = document.getElementById('editStatus');
         st.textContent = 'AI Removing Background for Live Preview...';
         st.classList.remove('hidden');
-        cachedTransparentCutout = await runSelfieSegmentation(cachedMainImg, 'transparent');
+        cachedTransparentCutout = await runSelfieSegmentation(baseSrc, 'transparent');
         st.classList.add('hidden');
       }
       baseSrc = cachedTransparentCutout;
@@ -682,7 +790,7 @@ async function renderLiveEditPreview() {
     const enhanced = applyPhotoshopDigitalRetouch(workingSrc, pw, ph);
     const finalEnhanced = removeBg ? compositeBackgroundBehindSubject(enhanced) : enhanced;
 
-    if (removeBg || zoomModeChecked || hairStrokes.length > 0) {
+    if (removeBg || autoHairFit || zoomModeChecked || hairStrokes.length > 0) {
       lctx.drawImage(finalEnhanced, 0, 0, pw, ph);
     } else {
       const splitPct = (parseFloat(document.getElementById('psSplitRange').value) ?? 100) / 100;
@@ -759,6 +867,7 @@ async function renderLiveEditPreview() {
 document.getElementById('editFiles').onchange = async (e) => {
   const f = e.target.files[0];
   cachedTransparentCutout = null;
+  cachedAutoHairFitImage = null;
   hairStrokes = [];
   zoomSelectionNorm = null;
   if (!f) { cachedMainImg = null; renderLiveEditPreview(); return; }
@@ -990,15 +1099,19 @@ document.getElementById('editRunBtn').onclick = async () => {
 
   if (tool === 'ps_auto_retouch') {
     const removeBg = document.getElementById('psRemoveBgToggle').checked;
+    const autoHairFit = document.getElementById('psAutoHairFitToggle').checked;
     const bgStyle = document.getElementById('psBgStyleSelect').value;
-    status.textContent = removeBg
-      ? 'Removing Background & Applying Digital Studio Retouch...'
-      : 'Applying Photoshop Digital Studio Look...';
+    status.textContent = autoHairFit
+      ? 'Applying AI Auto Hair Fit and Digital Studio Retouch...'
+      : (removeBg ? 'Removing Background & Applying Digital Studio Retouch...' : 'Applying Photoshop Digital Studio Look...');
     status.classList.remove('hidden');
 
-    const baseSource = removeBg
-      ? (cachedTransparentCutout || (cachedTransparentCutout = await runSelfieSegmentation(im, 'transparent')))
+    const fittedSource = autoHairFit
+      ? (cachedAutoHairFitImage || (cachedAutoHairFitImage = await runAutoHairFit(im)))
       : im;
+    const baseSource = removeBg
+      ? (cachedTransparentCutout || (cachedTransparentCutout = await runSelfieSegmentation(fittedSource, 'transparent')))
+      : fittedSource;
 
     const workingSrc = getActiveWorkingSource(baseSource);
     const outW = workingSrc.width || im.width;
