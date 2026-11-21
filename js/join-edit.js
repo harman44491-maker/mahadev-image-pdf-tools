@@ -1329,53 +1329,92 @@ function joinEditCanvasFromImage(img) {
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   return c;
 }
-function joinEditFrameCanvas(source, frameIndex, customFrame) {
-  const c = joinEditCanvas(source.width, source.height), ctx = c.getContext('2d');
-  ctx.drawImage(source, 0, 0);
-  if (customFrame) {
-    ctx.drawImage(customFrame, 0, 0, c.width, c.height);
-    return c;
-  }
-  const palettes = [
-    ['#d4af37','#fff1a8'],['#111827','#94a3b8'],['#7f1d1d','#fca5a5'],['#1e3a8a','#93c5fd'],
-    ['#14532d','#86efac'],['#581c87','#d8b4fe'],['#9a3412','#fdba74'],['#0f766e','#99f6e4'],
-    ['#be185d','#fbcfe8'],['#374151','#e5e7eb']
+function drawProFrame(ctx, w, h, idx, thickPct) {
+  const t = Math.max(2, Math.round(Math.min(w, h) * (thickPct / 100)));
+  const palette = [
+    ['#b45309', '#fbbf24', '#fef3c7'], ['#475569', '#cbd5e1', '#f8fafc'],
+    ['#9d174d', '#f472b6', '#fce7f3'], ['#0284c7', '#22d3ee', '#cffafe'],
+    ['#9333ea', '#e879f9', '#fae8ff'], ['#09090b', '#27272a', '#a1a1aa'],
+    ['#d6d3d1', '#fafaf9', '#78716c'], ['#a16207', '#fde047', '#fef9c3'],
+    ['#065f46', '#10b981', '#d1fae5'], ['#1e40af', '#3b82f6', '#dbeafe'],
+    ['#991b1b', '#ef4444', '#fee2e2'], ['#5b21b6', '#8b5cf6', '#ede9fe'],
+    ['#c2410c', '#fb923c', '#ffedd5'], ['#0f766e', '#2dd4bf', '#ccfbf1']
   ];
-  const pair = palettes[frameIndex % palettes.length];
-  const thickness = Math.max(2, Math.min(20, Number(document.getElementById('frameThickness')?.value) || 6)) / 100 * Math.min(c.width,c.height);
-  const style = Math.floor(frameIndex / 10);
+  const [c1,c2,c3]=palette[idx%palette.length];
+  const styleType=idx%5;
   ctx.save();
-  ctx.strokeStyle = pair[0]; ctx.lineWidth = thickness;
-  ctx.strokeRect(thickness/2, thickness/2, c.width-thickness, c.height-thickness);
-  ctx.strokeStyle = pair[1]; ctx.lineWidth = Math.max(1, thickness * .22);
-  const inset = thickness * (1.25 + (style % 3) * .35);
-  ctx.strokeRect(inset, inset, c.width-2*inset, c.height-2*inset);
-  if (style % 2 === 0) {
-    const corner = Math.max(8, thickness * 1.2);
-    for (const [x,y,sx,sy] of [[inset,inset,1,1],[c.width-inset,inset,-1,1],[inset,c.height-inset,1,-1],[c.width-inset,c.height-inset,-1,-1]]) {
-      ctx.beginPath(); ctx.moveTo(x,y+sy*corner); ctx.lineTo(x,y); ctx.lineTo(x+sx*corner,y); ctx.stroke();
-    }
+  if(styleType===0){
+    const g=ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,c1);g.addColorStop(.5,c2);g.addColorStop(1,c1);
+    ctx.strokeStyle=g;ctx.lineWidth=t*2;ctx.strokeRect(0,0,w,h);
+    ctx.strokeStyle=c3;ctx.lineWidth=Math.max(1.5,t*.22);
+    ctx.strokeRect(t*.75,t*.75,w-t*1.5,h-t*1.5);
+  } else if(styleType===1){
+    ctx.strokeStyle=c1;ctx.lineWidth=t*1.9;ctx.strokeRect(0,0,w,h);
+    ctx.strokeStyle=c2;ctx.lineWidth=Math.max(2,t*.35);
+    ctx.strokeRect(t*1.1,t*1.1,w-t*2.2,h-t*2.2);
+  } else if(styleType===2){
+    ctx.strokeStyle=c2;ctx.lineWidth=t*1.3;ctx.strokeRect(0,0,w,h);
+    const cs=t*2.5;ctx.fillStyle=c1;
+    [[0,0],[w-cs,0],[0,h-cs],[w-cs,h-cs]].forEach(([x,y])=>ctx.fillRect(x,y,cs,cs));
+    ctx.strokeStyle=c3;ctx.lineWidth=2;
+    [[2,2],[w-cs+2,2],[2,h-cs+2],[w-cs+2,h-cs+2]].forEach(([x,y])=>ctx.strokeRect(x,y,cs-4,cs-4));
+  } else if(styleType===3){
+    ctx.strokeStyle=c3;ctx.lineWidth=t*2.1;ctx.strokeRect(0,0,w,h);
+    ctx.fillStyle=c3;ctx.fillRect(0,h-t*3.1,w,t*3.1);
+    ctx.strokeStyle=c1;ctx.lineWidth=2;ctx.strokeRect(2,2,w-4,h-4);
+  } else {
+    ctx.strokeStyle=c1;ctx.lineWidth=t*1.5;ctx.strokeRect(t*.4,t*.4,w-t*.8,h-t*.8);
+    ctx.setLineDash([t*1.2,t*.6]);ctx.strokeStyle=c2;ctx.lineWidth=Math.max(2,t*.35);
+    ctx.strokeRect(t*1.2,t*1.2,w-t*2.4,h-t*2.4);ctx.setLineDash([]);
   }
   ctx.restore();
+}
+function joinEditFrameCanvas(source, frameIndex, customFrame) {
+  const c=joinEditCanvas(source.width,source.height),ctx=c.getContext('2d');
+  ctx.drawImage(source,0,0);
+  if(customFrame){ctx.drawImage(customFrame,0,0,c.width,c.height);return c;}
+  const thickness=Math.max(2,Math.min(20,Number(document.getElementById('frameThickness')?.value)||6));
+  drawProFrame(ctx,c.width,c.height,frameIndex,thickness);
   return c;
 }
 function joinEditInitFrameGallery() {
-  const gallery = document.getElementById('frameGallery');
-  if (!gallery || gallery.dataset.ready === '1') return;
-  gallery.dataset.ready = '1';
-  const names = ['Royal Gold','Classic Black','Ruby Red','Royal Blue','Emerald','Violet','Copper','Teal','Rose','Silver'];
-  for (let i=0;i<50;i++) {
+  const gallery=document.getElementById('frameGallery');
+  if(!gallery||gallery.dataset.ready==='1') return;
+  gallery.dataset.ready='1';
+  gallery.style.display='grid';
+  gallery.style.gridTemplateColumns='repeat(auto-fill,minmax(76px,1fr))';
+  gallery.style.gap='9px';
+  gallery.style.padding='12px';
+  gallery.style.maxHeight='300px';
+  gallery.style.overflowY='auto';
+  for(let i=0;i<50;i++){
     const b=document.createElement('button');
-    b.type='button'; b.className='chip'; b.style.cssText='min-width:100px;min-height:58px;margin:4px;border:4px solid '+[['#d4af37','#fff1a8'],['#111827','#94a3b8'],['#7f1d1d','#fca5a5'],['#1e3a8a','#93c5fd'],['#14532d','#86efac'],['#581c87','#d8b4fe'],['#9a3412','#fdba74'],['#0f766e','#99f6e4'],['#be185d','#fbcfe8'],['#374151','#e5e7eb']][i%10][0]+';background:#fff;font-size:12px;';
-    b.textContent=String(i+1).padStart(2,'0')+'. '+names[i%10]+' '+(Math.floor(i/10)+1);
+    b.type='button';
+    b.className='frame-thumb'+(i===joinEditSelectedFrame?' selected':'');
+    b.title='Select frame '+String(i+1).padStart(2,'0');
+    b.setAttribute('aria-label','Select frame '+(i+1));
+    b.style.cssText='display:flex;align-items:center;justify-content:center;min-height:92px;padding:7px;background:#fff;border:2px solid #cbd5e1;border-radius:10px;cursor:pointer;transition:.15s;';
+    const c=document.createElement('canvas');c.width=58;c.height=68;c.style.cssText='width:58px;height:68px;display:block;background:#e2e8f0;border-radius:3px;';
+    const ctx=c.getContext('2d');
+    ctx.fillStyle='#e2e8f0';ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillStyle='#cbd5e1';ctx.fillRect(10,12,38,44);
+    ctx.fillStyle='#94a3b8';ctx.beginPath();ctx.arc(29,26,8,0,Math.PI*2);ctx.fill();
+    ctx.fillRect(17,36,24,15);
+    drawProFrame(ctx,c.width,c.height,i,9);
+    b.appendChild(c);
     b.addEventListener('click',()=>{
       joinEditSelectedFrame=i;
-      gallery.querySelectorAll('button').forEach((x,n)=>{x.style.outline=n===i?'3px solid #0d9488':'none';});
+      gallery.querySelectorAll('button').forEach((el,n)=>{
+        el.classList.toggle('selected',n===i);
+        el.style.borderColor=n===i?'#0d9488':'#cbd5e1';
+        el.style.boxShadow=n===i?'0 0 0 2px rgba(13,148,136,.2)':'none';
+      });
       const badge=document.getElementById('selectedFrameBadge');
-      if(badge) badge.textContent='Selected: '+String(i+1).padStart(2,'0')+'. '+names[i%10];
-      if (cachedMainImg && document.getElementById('editToolSelect')?.value === 'photo_frame') renderLiveEditPreview();
+      if(badge) badge.textContent='Selected Frame: '+String(i+1).padStart(2,'0');
+      if(cachedMainImg&&document.getElementById('editToolSelect')?.value==='photo_frame') renderLiveEditPreview();
       const status=document.getElementById('editStatus');
-      if(status){status.textContent='Live preview updated: '+String(i+1).padStart(2,'0')+'. '+names[i%10];status.classList.remove('hidden');}
+      if(status){status.textContent='Live preview updated: Frame '+String(i+1).padStart(2,'0');status.classList.remove('hidden');}
     });
     gallery.appendChild(b);
   }
