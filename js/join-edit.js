@@ -272,7 +272,6 @@ liveEditCanvas.onmousedown = (e) => {
   const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
   const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
 
-  // Shift/Alt + drag allows custom zoom crop box anytime; otherwise Hair Brush draws directly on zoomed/full photo
   if ((e.shiftKey || e.altKey) && document.getElementById('psZoomSelectMode')?.checked) {
     zoomDragStart = { x: nx, y: ny };
     isSelectingZoom = true;
@@ -326,6 +325,12 @@ window.addEventListener('mouseup', () => {
   lastHairPos = null;
   isSelectingZoom = false;
   zoomDragStart = null;
+});
+
+document.querySelectorAll('.quick-bg-btn').forEach(btn => {
+  btn.onclick = () => {
+    setQuickStudioBg(btn.dataset.bgStyle, btn.dataset.bgColor);
+  };
 });
 
 document.getElementById('psZoomSelectMode').onchange = () => {
@@ -819,7 +824,6 @@ document.getElementById('cbResetBtn').onclick = () => {
   renderLiveEditPreview();
 };
 
-// 50 Ready-Made Pro Frames
 const PRO_FRAME_NAMES = [
   'Royal Gold', 'Silver Shine', 'Rose Gold', 'Neon Cyan', 'Neon Magenta',
   'Obsidian Pro', 'Ivory Mat', 'Champagne Gold', 'Emerald Luxe', 'Sapphire Pro',
