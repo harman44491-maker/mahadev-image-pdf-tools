@@ -1,3 +1,103 @@
+// ================= SHARED TOOLKIT HELPERS =================
+// Common helpers used by Image Resizer, Passport, PDF, Watermark and Editor pages.
+function toBlob(canvas, mime = 'image/jpeg', quality = 0.92) {
+  return new Promise((resolve, reject) => {
+    if (!canvas || typeof canvas.toBlob !== 'function') {
+      reject(new Error('Image canvas is not available in this browser.'));
+      return;
+    }
+    try {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Could not encode the image. Try a different format or smaller dimensions.'));
+      }, mime, quality);
+    } catch (error) { reject(error); }
+  });
+}
+
+function padBlobToExactBytes(blob, targetBytes, outputType) {
+  const target = Math.max(0, Math.floor(Number(targetBytes) || 0));
+  if (!(blob instanceof Blob) || !target || blob.size >= target) return blob;
+  const padding = new Uint8Array(target - blob.size);
+  return new Blob([blob, padding], { type: outputType || blob.type });
+}
+
+function addDownloadCard(container, blob, filename, detail = '') {
+  if (!container || !(blob instanceof Blob)) throw new Error('Download output could not be created.');
+  const card = document.createElement('div');
+  card.className = 'output-card';
+  card.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px;margin:10px 0;border:1px solid #dbe3ef;border-radius:10px;background:#fff;';
+  const info = document.createElement('span');
+  info.textContent = [filename, detail].filter(Boolean).join(' — ');
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = filename || 'download';
+  link.textContent = 'Download';
+  link.className = 'btn-green';
+  link.style.cssText = 'display:inline-block;text-decoration:none;padding:9px 16px;border-radius:7px;color:#fff;background:#059669;font-weight:700;';
+  link.addEventListener('click', () => setTimeout(() => URL.revokeObjectURL(url), 30000), { once: true });
+  card.append(info, link);
+  container.appendChild(card);
+  return card;
+}
+
+function buildCanvasFontStr(bold, size, font) {
+  const px = Math.max(1, Number(size) || 16);
+  const family = String(font || 'Arial').replace(/[;{}]/g, '').trim() || 'Arial';
+  return (bold ? '700 ' : '400 ') + px + 'px "' + family.replace(/"/g, '') + '"';
+}
+
+function getCanvasMousePos(canvas, event) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / Math.max(1, rect.width);
+  const sy = canvas.height / Math.max(1, rect.height);
+  return { x: (event.clientX - rect.left) * sx, y: (event.clientY - rect.top) * sy };
+}
+
+async function openPdfWithPasswordSupport(inputBytes, password = '') {
+  if (typeof PDFLib === 'undefined' || !PDFLib.PDFDocument) {
+    throw new Error('PDF library did not load. Refresh the page and try again.');
+  }
+  const bytes = inputBytes instanceof Uint8Array
+    ? new Uint8Array(inputBytes)
+    : new Uint8Array(inputBytes instanceof ArrayBuffer ? inputBytes : await inputBytes.arrayBuffer());
+
+  try {
+    return await PDFLib.PDFDocument.load(bytes);
+  } catch (originalError) {
+    if (!password) {
+      throw new Error('This PDF may be password-protected or damaged. Enter its opening password and try again.');
+    }
+    if (typeof pdfjsLib === 'undefined' || !pdfjsLib.getDocument) {
+      throw new Error('Password-protected PDF support is unavailable because the PDF reader library did not load.');
+    }
+    try {
+      const task = pdfjsLib.getDocument({ data: bytes, password });
+      const source = await task.promise;
+      const rebuilt = await PDFLib.PDFDocument.create();
+      for (let pageNo = 1; pageNo <= source.numPages; pageNo++) {
+        const page = await source.getPage(pageNo);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const jpg = await toBlob(canvas, 'image/jpeg', 0.94);
+        const embedded = await rebuilt.embedJpg(await jpg.arrayBuffer());
+        const outPage = rebuilt.addPage([viewport.width, viewport.height]);
+        outPage.drawImage(embedded, { x: 0, y: 0, width: viewport.width, height: viewport.height });
+        canvas.width = 1;
+        canvas.height = 1;
+      }
+      return rebuilt;
+    } catch (passwordError) {
+      throw new Error('Could not open this PDF. Check the password or try a different PDF file.');
+    }
+  }
+}
+
 function loadImg(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
