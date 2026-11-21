@@ -1390,9 +1390,14 @@ async function joinEditBlurBackground(img) {
           const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
           const base=joinEditCanvas(w,h),ctx=base.getContext('2d');
           ctx.filter='blur(12px)';ctx.drawImage(img,0,0,w,h);ctx.filter='none';
-          const fg=joinEditCanvas(w,h),fctx=fg.getContext('2d');
-          fctx.drawImage(img,0,0,w,h);fctx.globalCompositeOperation='destination-in';
-          fctx.drawImage(results.segmentationMask,0,0,w,h);fctx.globalCompositeOperation='source-over';
+          const maskCanvas=joinEditCanvas(w,h),mctx=maskCanvas.getContext('2d',{willReadFrequently:true});
+          mctx.drawImage(results.segmentationMask,0,0,w,h);
+          const maskData=mctx.getImageData(0,0,w,h).data;
+          const fg=joinEditCanvas(w,h),fctx=fg.getContext('2d',{willReadFrequently:true});
+          fctx.drawImage(img,0,0,w,h);
+          const fgData=fctx.getImageData(0,0,w,h),fd=fgData.data;
+          for(let p=0,i=0;p<w*h;p++,i+=4) fd[i+3]=Math.round(fd[i+3]*(maskData[i]/255));
+          fctx.putImageData(fgData,0,0);
           ctx.drawImage(fg,0,0);
           finish(null,base);
         } catch(err){finish(err);}
@@ -1436,8 +1441,8 @@ async function joinEditProcessTool(tool) {
   if(tool==='join_images'||tool==='merge_photo_sig'){
     if(imgs.length<2) throw new Error('Please select at least two image files.');
     const vertical=tool==='merge_photo_sig';
-    const targetW=vertical?Math.max(...imgs.map(i=>i.naturalWidth||i.width)):imgs.reduce((n,i)=>n+(i.naturalWidth||i.width),0);
-    const targetH=vertical?imgs.reduce((n,i)=>n+(i.naturalHeight||i.height),0):Math.max(...imgs.map(i=>i.naturalHeight||i.height));
+    const targetW=vertical?Math.max(...imgs.map(i=>i.naturalWidth||i.width)):imgs.reduce((n,i)=>n+Math.round((i.naturalWidth||i.width)*Math.max(...imgs.map(x=>x.naturalHeight||x.height))/(i.naturalHeight||i.height)),0);
+    const targetH=vertical?imgs.reduce((n,i)=>n+Math.round((i.naturalHeight||i.height)*Math.max(...imgs.map(x=>x.naturalWidth||x.width))/(i.naturalWidth||i.width)),0):Math.max(...imgs.map(i=>i.naturalHeight||i.height));
     const c=joinEditCanvas(targetW,targetH),ctx=c.getContext('2d');let offset=0;
     imgs.forEach(img=>{const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;if(vertical){const dw=targetW,dh=ih*targetW/iw;ctx.drawImage(img,0,offset,dw,dh);offset+=dh;}else{const dh=targetH,dw=iw*targetH/ih;ctx.drawImage(img,offset,0,dw,dh);offset+=dw;}});
     await joinEditDownload(c,vertical?'mahadev-photo-signature-merge.png':'mahadev-joined-images.png');
