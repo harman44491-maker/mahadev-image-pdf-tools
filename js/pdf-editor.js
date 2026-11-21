@@ -9,6 +9,37 @@
     let edSelectedIdx = -1, edDragging = false, edDragOffset = { x: 0, y: 0 }, edDrawStart = null;
     const edCanvas = document.getElementById('edCanvas');
     const edCtx = edCanvas.getContext('2d');
+    const edFontFamilies = [
+      'Roboto','Open Sans','Lato','Montserrat','Poppins','Oswald','Raleway','Nunito','Nunito Sans','Ubuntu',
+      'Merriweather','Playfair Display','PT Sans','PT Serif','Source Sans 3','Source Serif 4','Roboto Slab','Rubik','Work Sans','Fira Sans',
+      'DM Sans','DM Serif Display','Libre Baskerville','Bebas Neue','Barlow','Barlow Condensed','Cabin','Comfortaa','Dancing Script','Lobster',
+      'Kanit','Mukta','Hind','Karla','Inconsolata','Josefin Sans','Quicksand','Titillium Web','Arimo','Asap',
+      'Archivo','Archivo Black','Assistant','Abel','Acme','Alegreya','Alegreya Sans','Alfa Slab One','Amatic SC','Anton',
+      'Averia Serif Libre','Bitter','Bree Serif','Cairo','Cardo','Chakra Petch','Cinzel','Cormorant Garamond','Courgette','Crimson Text',
+      'Cuprum','Exo 2','Fjalla One','Frank Ruhl Libre','Gelasio','Heebo','IBM Plex Mono','IBM Plex Sans','IBM Plex Serif','Inria Sans',
+      'Inria Serif','Istok Web','Kalam','Khand','Lexend','Manrope','Maven Pro','Merriweather Sans','M PLUS 1p','Nanum Gothic',
+      'Noto Sans','Noto Serif','Old Standard TT','Oxygen','Pathway Gothic One','Prata','Prompt','Public Sans','Rajdhani','Red Hat Display',
+      'Saira','Signika','Slabo 27px','Space Grotesk','Spectral','Teko','Tinos','Varela Round','Yanone Kaffeesatz','Zilla Slab'
+    ];
+    const edFontLanguage = document.getElementById('edFontLanguage');
+    const edFontFamily = document.getElementById('edFontFamily');
+    function populateEditorFonts() {
+      const lang = edFontLanguage.value;
+      const list = lang === 'pa' ? ['Noto Sans Gurmukhi','Noto Serif Gurmukhi','Tiro Gurmukhi','Mukta Mahee','Baloo Paaji 2']
+        : lang === 'hi' ? ['Noto Sans Devanagari','Noto Serif Devanagari','Tiro Devanagari Hindi','Hind','Mukta','Kalam']
+        : edFontFamilies;
+      edFontFamily.innerHTML = '';
+      list.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        edFontFamily.appendChild(opt);
+      });
+      edFontFamily.value = lang === 'pa' ? 'Noto Sans Gurmukhi' : lang === 'hi' ? 'Noto Sans Devanagari' : 'Roboto';
+      syncSelectedEditorTextStyle();
+    }
+    edFontLanguage.addEventListener('change', populateEditorFonts);
+    populateEditorFonts();
+
     let edBgCanvas = document.createElement('canvas');
 
     document.querySelectorAll('#edToolbar .chip').forEach(btn => {
