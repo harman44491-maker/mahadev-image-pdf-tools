@@ -1009,7 +1009,7 @@ function drawLogoOverlayOnCanvas(ctx, cw, ch, logoImg) {
 async function renderLiveEditPreview() {
   const tool = document.getElementById('editToolSelect').value;
   const wrap = document.getElementById('liveEditPreviewWrap');
-  if (!cachedMainImg || !['ps_auto_retouch', 'img_contrast', 'add_logo_photo'].includes(tool)) {
+  if (!cachedMainImg || !['ps_auto_retouch', 'img_contrast', 'add_logo_photo', 'photo_frame'].includes(tool)) {
     wrap.classList.add('hidden');
     return;
   }
@@ -1114,6 +1114,16 @@ async function renderLiveEditPreview() {
     liveEditCanvas.style.cursor = 'default';
     lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
     drawLogoOverlayOnCanvas(lctx, pw, ph, cachedLogoImg);
+  } else if (tool === 'photo_frame') {
+    liveEditCanvas.style.cursor = 'default';
+    const source = joinEditCanvas(pw, ph);
+    source.getContext('2d').drawImage(cachedMainImg, 0, 0, pw, ph);
+    const framed = joinEditFrameCanvas(source, joinEditSelectedFrame, joinEditCustomFrame);
+    lctx.drawImage(framed, 0, 0, pw, ph);
+    const caption = document.getElementById('livePreviewCaption');
+    if (caption) caption.textContent = 'Live Photo Frame Preview: Selected frame is shown on your photo.';
+    const hint = document.getElementById('canvasToolHint');
+    if (hint) hint.textContent = 'Choose another frame or upload a custom transparent PNG frame to update this live preview.';
   }
 }
 
@@ -1216,7 +1226,7 @@ function updateJoinEditToolPanel() {
   show('edNumWrap', ['rotate','blur_image','add_border'].includes(tool));
   show('hwTextWrap', isHandwriting);
   show('sigPadWrap', isSignature);
-  show('liveEditPreviewWrap', false);
+  show('liveEditPreviewWrap', isFrame || isPs || isContrast || isLogo);
 
   const runBtn = document.getElementById('editRunBtn');
   if (runBtn) {
@@ -1246,7 +1256,7 @@ function updateJoinEditToolPanel() {
     status.textContent = '';
     status.classList.add('hidden');
   }
-  if (cachedMainImg && ['ps_auto_retouch','img_contrast','add_logo_photo'].includes(tool)) {
+  if (cachedMainImg && ['ps_auto_retouch','img_contrast','add_logo_photo','photo_frame'].includes(tool)) {
     renderLiveEditPreview();
   }
 }
@@ -1363,6 +1373,9 @@ function joinEditInitFrameGallery() {
       gallery.querySelectorAll('button').forEach((x,n)=>{x.style.outline=n===i?'3px solid #0d9488':'none';});
       const badge=document.getElementById('selectedFrameBadge');
       if(badge) badge.textContent='Selected: '+String(i+1).padStart(2,'0')+'. '+names[i%10];
+      if (cachedMainImg && document.getElementById('editToolSelect')?.value === 'photo_frame') renderLiveEditPreview();
+      const status=document.getElementById('editStatus');
+      if(status){status.textContent='Live preview updated: '+String(i+1).padStart(2,'0')+'. '+names[i%10];status.classList.remove('hidden');}
     });
     gallery.appendChild(b);
   }
@@ -1370,7 +1383,13 @@ function joinEditInitFrameGallery() {
 }
 document.getElementById('customFrameFile')?.addEventListener('change', async e=>{
   const file=e.target.files?.[0]; if(!file){joinEditCustomFrame=null;return;}
-  try { const url=URL.createObjectURL(file); joinEditCustomFrame=await loadImg(url); URL.revokeObjectURL(url); }
+  try {
+    const url=URL.createObjectURL(file);
+    try { joinEditCustomFrame=await loadImg(url); } finally { URL.revokeObjectURL(url); }
+    if (cachedMainImg && document.getElementById('editToolSelect')?.value === 'photo_frame') renderLiveEditPreview();
+    const s=document.getElementById('editStatus');
+    if(s){s.textContent='Custom frame loaded. Live preview updated.';s.classList.remove('hidden');}
+  }
   catch(err){ joinEditCustomFrame=null; const s=document.getElementById('editStatus'); if(s){s.textContent=err.message;s.classList.remove('hidden');} }
 });
 joinEditInitFrameGallery();
@@ -1517,3 +1536,5 @@ document.getElementById('editRunBtn')?.addEventListener('click', async()=>{
     if(btn){btn.disabled=false;const label=document.getElementById('editToolSelect')?.selectedOptions?.[0]?.textContent||'Apply & Download';btn.textContent=label.length>26?'Apply & Download':label;}
   }
 });
+
+// ================= JOIN_EDIT_FRAME_LIVE_PREVIEW_V1 =================
