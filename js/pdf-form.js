@@ -107,7 +107,7 @@
       (ffVisItems[ffVisPage] || []).forEach(it => {
         ffCtx.font = buildCanvasFontStr(it.bold, it.size, it.font);
         ffCtx.fillStyle = '#0f172a';
-        ffCtx.fillText(it.text, it.x, it.y);
+        ffCtx.fillText(transliterateIndicText(it.text, it.script || getFontScript(it.font)), it.x, it.y);
       });
     }
 
@@ -119,7 +119,7 @@
       const size = parseInt(document.getElementById('ffVisSize').value) || 15;
       const font = document.getElementById('ffFontFamily').value;
       const bold = document.getElementById('ffBoldToggle').checked;
-      ffVisItems[ffVisPage].push({ x: pos.x, y: pos.y, text: txt, size, font, bold });
+      ffVisItems[ffVisPage].push({ x: pos.x, y: pos.y, text: txt, size, font, script: getFontScript(document.getElementById('ffFontFamily')), bold });
       redrawFfCanvas();
     };
 
@@ -145,7 +145,7 @@
           (ffVisItems[pNum] || []).forEach(it => {
             ctx.font = buildCanvasFontStr(it.bold, it.size, it.font);
             ctx.fillStyle = '#0f172a';
-            ctx.fillText(it.text, it.x, it.y);
+            ctx.fillText(transliterateIndicText(it.text, it.script || getFontScript(it.font)), it.x, it.y);
           });
           const emb = await outPdf.embedJpg(await (await toBlob(c, 'image/jpeg', 0.94)).arrayBuffer());
           const np = outPdf.addPage([emb.width, emb.height]);

@@ -92,8 +92,9 @@
         } else if (it.type === 'text') {
           edCtx.font = buildCanvasFontStr(it.bold, it.size, it.font);
           edCtx.fillStyle = it.color;
-          edCtx.fillText(it.text, it.x, it.y + it.size);
-          it.w = Math.max(30, edCtx.measureText(it.text).width);
+          const displayText = transliterateIndicText(it.text, it.script || getFontScript(it.font));
+          edCtx.fillText(displayText, it.x, it.y + it.size);
+          it.w = Math.max(30, edCtx.measureText(displayText).width);
           it.h = it.size + 6;
         } else if (it.type === 'image' && it.imgObj) {
           edCtx.drawImage(it.imgObj, it.x, it.y, it.w, it.h);
@@ -112,6 +113,7 @@
       if (edSelectedIdx >= 0 && items[edSelectedIdx]?.type === 'text') {
         items[edSelectedIdx].text = document.getElementById('edTextInput').value;
         items[edSelectedIdx].font = document.getElementById('edFontFamily').value;
+        items[edSelectedIdx].script = getFontScript(document.getElementById('edFontFamily'));
         items[edSelectedIdx].bold = document.getElementById('edBoldToggle').checked;
         items[edSelectedIdx].size = parseInt(document.getElementById('edFontSize').value) || 16;
         items[edSelectedIdx].color = document.getElementById('edColor').value;
@@ -160,7 +162,7 @@
         const hit = edExtractedTextBoxes.find(tb => pos.x >= tb.x && pos.x <= tb.x + tb.w && pos.y >= tb.y && pos.y <= tb.y + tb.h);
         if (hit) {
           items.push({ type: 'whiteout', x: hit.x - 2, y: hit.y - 2, w: hit.w + 6, h: hit.h + 4 });
-          items.push({ type: 'text', x: hit.x, y: hit.y, w: hit.w, h: hit.h, text: hit.text, size: hit.fontSize, font: curFont, bold: curBold, color: curColor });
+          items.push({ type: 'text', x: hit.x, y: hit.y, w: hit.w, h: hit.h, text: hit.text, size: hit.fontSize, font: curFont, script: getFontScript(document.getElementById('edFontFamily')), bold: curBold, color: curColor });
           edSelectedIdx = items.length - 1;
           document.getElementById('edTextInput').value = hit.text;
           document.getElementById('edTextInput').focus();
@@ -189,7 +191,7 @@
 
         const txt = document.getElementById('edTextInput').value || 'New Edited Text';
         const size = parseInt(document.getElementById('edFontSize').value) || 16;
-        items.push({ type: 'text', x: pos.x, y: pos.y - size, w: 100, h: size + 6, text: txt, size, font: curFont, bold: curBold, color: curColor });
+        items.push({ type: 'text', x: pos.x, y: pos.y - size, w: 100, h: size + 6, text: txt, size, font: curFont, script: getFontScript(document.getElementById('edFontFamily')), bold: curBold, color: curColor });
         edSelectedIdx = items.length - 1;
         redrawEditorCanvas();
         return;
@@ -260,7 +262,7 @@
           } else if (it.type === 'text') {
             ctx.font = buildCanvasFontStr(it.bold, it.size, it.font);
             ctx.fillStyle = it.color;
-            ctx.fillText(it.text, it.x, it.y + it.size);
+            ctx.fillText(transliterateIndicText(it.text, it.script || getFontScript(it.font)), it.x, it.y + it.size);
           } else if (it.type === 'image' && it.imgObj) {
             ctx.drawImage(it.imgObj, it.x, it.y, it.w, it.h);
           }

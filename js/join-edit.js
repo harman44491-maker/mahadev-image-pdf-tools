@@ -717,8 +717,11 @@
       const status = document.getElementById('editStatus');
       out.innerHTML = ''; status.classList.add('hidden');
       const files = Array.from(document.getElementById('editFiles').files);
-      const t1 = document.getElementById('editText1').value;
-      const t2 = document.getElementById('editText2').value;
+      const fontScript = getFontScript(document.getElementById('editFontFamily'));
+      const rawT1 = document.getElementById('editText1').value;
+      const rawT2 = document.getElementById('editText2').value;
+      const t1 = transliterateIndicText(rawT1, fontScript);
+      const t2 = transliterateIndicText(rawT2, fontScript);
       const n1 = parseFloat(document.getElementById('editNum1').value) || 10;
       const col = document.getElementById('editColor').value;
       const chosenFont = document.getElementById('editFontFamily').value;
@@ -730,7 +733,8 @@
       }
 
       if (tool === 'text_handwriting') {
-        const text = document.getElementById('hwLongText').value || t1 || 'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ • नमस्ते • Hello';
+        const rawText = document.getElementById('hwLongText').value || rawT1 || 'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ • नमस्ते • Hello';
+        const text = transliterateIndicText(rawText, fontScript);
         const c = document.createElement('canvas'); c.width = 900; c.height = 1200;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, c.width, c.height);
@@ -751,7 +755,7 @@
       }
 
       if (tool === 'latex_img') {
-        const expr = t1 || 'E = mc²  |  x = (-b ± √(b² - 4ac)) / 2a';
+        const expr = rawT1 ? t1 : 'E = mc²  |  x = (-b ± √(b² - 4ac)) / 2a';
         const c = document.createElement('canvas'); c.width = 900; c.height = 240;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);

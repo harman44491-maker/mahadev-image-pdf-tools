@@ -36,10 +36,11 @@
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const pxSize = Math.max(8, Math.min(120, Number(sizePt) || 36)) * 2;
+      const displayText = transliterateIndicText(text, getFontScript(document.getElementById('pdfWmFont')));
       const fontCss = buildCanvasFontStr(bold, pxSize, font);
-      await document.fonts.load(fontCss, text || 'Watermark ਪੰਜਾਬੀ हिन्दी');
+      await document.fonts.load(fontCss, displayText || 'Watermark ਪੰਜਾਬੀ हिन्दी');
       ctx.font = fontCss;
-      const textWidth = Math.max(1, ctx.measureText(text).width);
+      const textWidth = Math.max(1, ctx.measureText(displayText).width);
       const radians = Math.max(-180, Math.min(180, Number(rotation) || 0)) * Math.PI / 180;
       const rotatedWidth = Math.abs(Math.cos(radians)) * textWidth + Math.abs(Math.sin(radians)) * pxSize;
       const rotatedHeight = Math.abs(Math.sin(radians)) * textWidth + Math.abs(Math.cos(radians)) * pxSize;
@@ -53,7 +54,7 @@
       ctx.fillStyle = color || '#777777';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(text, 0, 0);
+      ctx.fillText(displayText, 0, 0);
       return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not render watermark text.')), 'image/png'));
     }
 

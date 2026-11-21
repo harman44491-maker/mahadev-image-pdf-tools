@@ -120,10 +120,147 @@ if (typeof pdfjsLib !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
         const opt = document.createElement('option');
         opt.value = f.css;
         opt.textContent = `${idx + 1}. ${f.label}`;
+        opt.dataset.script = f.label.startsWith('[Punjabi]') ? 'pa' : f.label.startsWith('[Hindi]') ? 'hi' : 'en';
         opt.style.fontFamily = f.css;
         sel.appendChild(opt);
       });
     });
+
+
+// Roman-English typing is phonetic transliteration, not meaning-based translation.
+function getFontScript(fontOrSelect) {
+  let select = fontOrSelect;
+  if (typeof select === 'string') select = document.getElementById(select);
+  let value = '';
+  if (select && typeof select === 'object' && select.tagName === 'SELECT') {
+    const option = select.selectedOptions && select.selectedOptions[0];
+    if (option && option.dataset.script) return option.dataset.script;
+    value = select.value || '';
+  } else {
+    value = String(fontOrSelect || '');
+  }
+  const font = FONTS_100_PLUS.find(item => item.css === value);
+  if (font) {
+    if (font.label.startsWith('[Punjabi]')) return 'pa';
+    if (font.label.startsWith('[Hindi]')) return 'hi';
+    return 'en';
+  }
+  const lower = value.toLowerCase();
+  if (/gurmukhi|punjabi|raavi|anmol|saab|joy|mahee/.test(lower)) return 'pa';
+  if (/devanagari|hindi/.test(lower)) return 'hi';
+  return 'en';
+}
+
+const ROMAN_INDIC_PHRASES = {
+  hi: {
+    'good morning': 'गुड मॉर्निंग',
+    'happy birthday': 'हैप्पी बर्थडे',
+    'sat sri akal': 'सत श्री अकाल',
+    'sat sri akaal': 'सत श्री अकाल'
+  },
+  pa: {
+    'good morning': 'ਗੁੱਡ ਮੋਰਨਿੰਗ',
+    'happy birthday': 'ਹੈਪੀ ਬਰਥਡੇ',
+    'sat sri akal': 'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ',
+    'sat sri akaal': 'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ'
+  }
+};
+const ROMAN_INDIC_WORDS = {
+  hi: {
+    hello: 'हेलो', hi: 'हाय', bye: 'बाय', punjabi: 'पंजाबी', hindi: 'हिंदी',
+    english: 'इंग्लिश', namaste: 'नमस्ते', namaskar: 'नमस्कार', shukriya: 'शुक्रिया',
+    dhanyavaad: 'धन्यवाद', sri: 'श्री', akaal: 'अकाल', akal: 'अकाल',
+    hai: 'है', hain: 'हैं', mein: 'मैं', mai: 'मैं', mera: 'मेरा', meri: 'मेरी',
+    naam: 'नाम', thanks: 'थैंक्स', thank: 'थैंक', please: 'प्लीज़'
+  },
+  pa: {
+    hello: 'ਹੈਲੋ', hi: 'ਹਾਇ', bye: 'ਬਾਇ', punjabi: 'ਪੰਜਾਬੀ', hindi: 'ਹਿੰਦੀ',
+    english: 'ਇੰਗਲਿਸ਼', namaste: 'ਨਮਸਤੇ', namaskar: 'ਨਮਸਕਾਰ', shukriya: 'ਸ਼ੁਕਰੀਆ',
+    dhanyavaad: 'ਧੰਨਵਾਦ', sri: 'ਸ੍ਰੀ', akaal: 'ਅਕਾਲ', akal: 'ਅਕਾਲ',
+    hai: 'ਹੈ', hain: 'ਹਨ', mein: 'ਮੈਂ', mai: 'ਮੈਂ', mera: 'ਮੇਰਾ', meri: 'ਮੇਰੀ',
+    naam: 'ਨਾਮ', thanks: 'ਥੈਂਕਸ', thank: 'ਥੈਂਕ', please: 'ਪਲੀਜ਼'
+  }
+};
+const ROMAN_INDIC_VOWELS = [
+  { key: 'aa', hi: ['आ', 'ा'], pa: ['ਆ', 'ਾ'] },
+  { key: 'ii', hi: ['ई', 'ी'], pa: ['ਈ', 'ੀ'] },
+  { key: 'ee', hi: ['ई', 'ी'], pa: ['ਈ', 'ੀ'] },
+  { key: 'uu', hi: ['ऊ', 'ू'], pa: ['ਊ', 'ੂ'] },
+  { key: 'oo', hi: ['ऊ', 'ू'], pa: ['ਊ', 'ੂ'] },
+  { key: 'ai', hi: ['ऐ', 'ै'], pa: ['ਐ', 'ੈ'] },
+  { key: 'au', hi: ['औ', 'ौ'], pa: ['ਔ', 'ੌ'] },
+  { key: 'a', hi: ['अ', ''], pa: ['ਅ', ''] },
+  { key: 'i', hi: ['इ', 'ि'], pa: ['ਇ', 'ਿ'] },
+  { key: 'u', hi: ['उ', 'ु'], pa: ['ਉ', 'ੁ'] },
+  { key: 'e', hi: ['ए', 'े'], pa: ['ਏ', 'ੇ'] },
+  { key: 'o', hi: ['ओ', 'ो'], pa: ['ਓ', 'ੋ'] }
+];
+const ROMAN_INDIC_CONSONANTS = [
+  { key: 'ksh', hi: 'क्ष', pa: 'ਕ੍ਸ਼' },
+  { key: 'chh', hi: 'छ', pa: 'ਛ' },
+  { key: 'kh', hi: 'ख', pa: 'ਖ' }, { key: 'gh', hi: 'घ', pa: 'ਘ' },
+  { key: 'ch', hi: 'च', pa: 'ਚ' }, { key: 'jh', hi: 'झ', pa: 'ਝ' },
+  { key: 'th', hi: 'थ', pa: 'ਥ' }, { key: 'dh', hi: 'ध', pa: 'ਧ' },
+  { key: 'ph', hi: 'फ', pa: 'ਫ' }, { key: 'bh', hi: 'भ', pa: 'ਭ' },
+  { key: 'sh', hi: 'श', pa: 'ਸ਼' }, { key: 'ng', hi: 'ङ', pa: 'ਙ' },
+  { key: 'ny', hi: 'ञ', pa: 'ਞ' },
+  { key: 'k', hi: 'क', pa: 'ਕ' }, { key: 'g', hi: 'ग', pa: 'ਗ' },
+  { key: 'j', hi: 'ज', pa: 'ਜ' }, { key: 't', hi: 'त', pa: 'ਤ' },
+  { key: 'd', hi: 'द', pa: 'ਦ' }, { key: 'n', hi: 'न', pa: 'ਨ' },
+  { key: 'p', hi: 'प', pa: 'ਪ' }, { key: 'b', hi: 'ब', pa: 'ਬ' },
+  { key: 'm', hi: 'म', pa: 'ਮ' }, { key: 'y', hi: 'य', pa: 'ਯ' },
+  { key: 'r', hi: 'र', pa: 'ਰ' }, { key: 'l', hi: 'ल', pa: 'ਲ' },
+  { key: 'v', hi: 'व', pa: 'ਵ' }, { key: 'w', hi: 'व', pa: 'ਵ' },
+  { key: 's', hi: 'स', pa: 'ਸ' }, { key: 'h', hi: 'ह', pa: 'ਹ' },
+  { key: 'f', hi: 'फ़', pa: 'ਫ਼' }, { key: 'z', hi: 'ज़', pa: 'ਜ਼' },
+  { key: 'q', hi: 'क़', pa: 'ਕ਼' }, { key: 'c', hi: 'क', pa: 'ਕ' },
+  { key: 'x', hi: 'क्ष', pa: 'ਕ੍ਸ਼' }
+];
+function transliterateRomanWord(word, script) {
+  const lower = word.toLowerCase();
+  const vowelAt = index => ROMAN_INDIC_VOWELS.find(v => lower.startsWith(v.key, index));
+  const consonantAt = index => ROMAN_INDIC_CONSONANTS.find(c => lower.startsWith(c.key, index));
+  const out = [];
+  let i = 0;
+  while (i < lower.length) {
+    const vowel = vowelAt(i);
+    if (vowel) {
+      out.push(vowel[script][0]);
+      i += vowel.key.length;
+      continue;
+    }
+    const consonant = consonantAt(i);
+    if (!consonant) {
+      out.push(word[i]);
+      i++;
+      continue;
+    }
+    out.push(consonant[script]);
+    i += consonant.key.length;
+    const followingVowel = vowelAt(i);
+    if (followingVowel) {
+      out.push(followingVowel[script][1]);
+      i += followingVowel.key.length;
+    } else if (consonantAt(i)) {
+      out.push(script === 'pa' ? '੍' : '्');
+    }
+  }
+  return out.join('');
+}
+function transliterateIndicText(text, fontOrScript) {
+  const value = String(text == null ? '' : text);
+  const rawScript = String(fontOrScript || '');
+  const script = /^(hi|pa|en)$/.test(rawScript) ? rawScript : getFontScript(fontOrScript);
+  if (script === 'en' || !value) return value;
+  const phrase = value.trim().toLowerCase().replace(/\s+/g, ' ');
+  const phraseResult = ROMAN_INDIC_PHRASES[script][phrase];
+  if (phraseResult) return phraseResult;
+  return value.replace(/[A-Za-z]+/g, word => {
+    const key = word.toLowerCase();
+    const dictionaryWord = ROMAN_INDIC_WORDS[script][key];
+    return dictionaryWord || transliterateRomanWord(word, script);
+  });
+}
 
     function buildCanvasFontStr(isBold, sizePx, fontCss) {
       return `${isBold ? '700' : '400'} ${sizePx}px ${fontCss}`;
