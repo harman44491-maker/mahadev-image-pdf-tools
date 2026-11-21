@@ -103,9 +103,13 @@
       ? 'Removing background and refining hair edges locally...'
       : 'Preparing studio photo locally...');
 
-    const canvas = await window.buildReferenceStudioOutput(
+    let canvas = await window.buildReferenceStudioOutput(
       file, frameText, qualityText, useWhiteBg, enhance, tidyHair
     );
+    const edgeCleaner = document.getElementById('edgeCleanerToggle');
+    if ((!edgeCleaner || edgeCleaner.checked) && typeof window.cleanSideAndCrownEdges === 'function') {
+      canvas = window.cleanSideAndCrownEdges(canvas);
+    }
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .96));
     if (!blob) throw new Error('Could not export the studio photo. Try HD – 1× quality.');
     return { blob, width: canvas.width, height: canvas.height, engine: 'Browser Local' };
