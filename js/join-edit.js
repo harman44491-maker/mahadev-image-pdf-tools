@@ -685,6 +685,41 @@
     }
     init50FrameGallery();
 
+    const editIndicTextTools = ['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'];
+    function getEditIndicSource() {
+      const tool = document.getElementById('editToolSelect').value;
+      if (tool === 'text_handwriting') {
+        const longText = document.getElementById('hwLongText').value;
+        if (longText.trim()) return longText;
+      }
+      return document.getElementById('editText1').value;
+    }
+    function refreshEditIndicText(force = false) {
+      const script = getFontScript(document.getElementById('editFontFamily'));
+      const tool = document.getElementById('editToolSelect').value;
+      const wrap = document.getElementById('edIndicTextWrap');
+      const show = editIndicTextTools.includes(tool) && script !== 'en';
+      wrap.classList.toggle('hidden', !show);
+      if (!show) return;
+      const source = getEditIndicSource();
+      const output = document.getElementById('edIndicTextOutput');
+      if (force || output.dataset.source !== source || output.dataset.script !== script) {
+        output.value = transliterateIndicText(source, script);
+        output.dataset.source = source;
+        output.dataset.script = script;
+      }
+    }
+    function getEditIndicText(source, script) {
+      if (script === 'en') return source;
+      const output = document.getElementById('edIndicTextOutput');
+      if (output.dataset.source !== source || output.dataset.script !== script) {
+        output.value = transliterateIndicText(source, script);
+        output.dataset.source = source;
+        output.dataset.script = script;
+      }
+      return output.value;
+    }
+
     function updateEditToolUI() {
       const v = document.getElementById('editToolSelect').value;
       document.getElementById('sigPadWrap').classList.toggle('hidden', v !== 'sig_maker');
@@ -701,14 +736,20 @@
       document.getElementById('edFontLbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('edBoldLbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('edColorLbl').classList.toggle('hidden', !['name_date', 'add_border', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('edFontSizeLbl').classList.toggle('hidden', !['add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
       document.getElementById('edNumWrap').classList.toggle('hidden', !['add_border', 'blur_image', 'rotate', 'blur_bg'].includes(v));
       if (v === 'name_date' && document.getElementById('editColor').value === '#1e293b') {
         document.getElementById('editColor').value = '#ffffff';
       }
+      refreshEditIndicText();
       updatePsBgControls();
       renderLiveEditPreview();
     }
     document.getElementById('editToolSelect').onchange = updateEditToolUI;
+    document.getElementById('editText1').addEventListener('input', () => refreshEditIndicText(true));
+    document.getElementById('hwLongText').addEventListener('input', () => refreshEditIndicText(true));
+    document.getElementById('editFontFamily').addEventListener('change', () => refreshEditIndicText(true));
+    document.getElementById('edIndicRefreshBtn').onclick = () => refreshEditIndicText(true);
     updateEditToolUI();
 
     document.getElementById('editRunBtn').onclick = async () => {
@@ -720,11 +761,13 @@
       const fontScript = getFontScript(document.getElementById('editFontFamily'));
       const rawT1 = document.getElementById('editText1').value;
       const rawT2 = document.getElementById('editText2').value;
-      const t1 = transliterateIndicText(rawT1, fontScript);
+      const textSource = tool === 'text_handwriting' ? (document.getElementById('hwLongText').value || rawT1) : rawT1;
+      const t1 = getEditIndicText(textSource, fontScript);
       const t2 = transliterateIndicText(rawT2, fontScript);
       const n1 = parseFloat(document.getElementById('editNum1').value) || 10;
       const col = document.getElementById('editColor').value;
       const chosenFont = document.getElementById('editFontFamily').value;
+      const editFontSize = Math.max(8, Math.min(240, parseInt(document.getElementById('editFontSize').value, 10) || 40));
       const isBold = document.getElementById('editBoldToggle').checked;
 
       if (tool === 'sig_maker') {
@@ -734,19 +777,20 @@
 
       if (tool === 'text_handwriting') {
         const rawText = document.getElementById('hwLongText').value || rawT1 || 'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ • नमस्ते • Hello';
-        const text = transliterateIndicText(rawText, fontScript);
+        const text = getEditIndicText(rawText, fontScript);
         const c = document.createElement('canvas'); c.width = 900; c.height = 1200;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, c.width, c.height);
         ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
-        for (let y = 110; y < 1150; y += 38) { ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(840, y); ctx.stroke(); }
+        const lineGap = Math.max(24, Math.round(editFontSize * 1.45));
+        for (let y = 110; y < 1150; y += lineGap) { ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(840, y); ctx.stroke(); }
         ctx.strokeStyle = '#f87171'; ctx.beginPath(); ctx.moveTo(110, 0); ctx.lineTo(110, 1200); ctx.stroke();
-        ctx.fillStyle = col; ctx.font = buildCanvasFontStr(isBold, 26, chosenFont);
+        ctx.fillStyle = col; ctx.font = buildCanvasFontStr(isBold, editFontSize, chosenFont);
         const words = text.split(/\s+/);
         let line = '', y = 104;
         for (const w of words) {
           const test = line + w + ' ';
-          if (ctx.measureText(test).width > 700) { ctx.fillText(line, 125, y); line = w + ' '; y += 38; }
+          if (ctx.measureText(test).width > 700) { ctx.fillText(line, 125, y); line = w + ' '; y += lineGap; }
           else line = test;
         }
         ctx.fillText(line, 125, y);
@@ -759,7 +803,7 @@
         const c = document.createElement('canvas'); c.width = 900; c.height = 240;
         const ctx = c.getContext('2d');
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
-        ctx.fillStyle = col; ctx.font = buildCanvasFontStr(isBold, 34, chosenFont);
+        ctx.fillStyle = col; ctx.font = buildCanvasFontStr(isBold, editFontSize, chosenFont);
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(expr, c.width / 2, c.height / 2);
         addDownloadCard(out, await toBlob(c, 'image/png', 1), 'formula_image.png', 'Formula / LaTeX Image');
@@ -927,7 +971,7 @@
         }
 
         if (tool === 'add_text_img') {
-          const fs = Math.max(24, Math.round(c.width * 0.05));
+          const fs = editFontSize;
           ctx.fillStyle = col;
           ctx.font = buildCanvasFontStr(isBold, fs, chosenFont);
           ctx.textAlign = 'center';
@@ -936,7 +980,7 @@
         if (tool === 'watermark_img') {
           ctx.save(); ctx.translate(c.width / 2, c.height / 2); ctx.rotate(-Math.PI / 6);
           ctx.fillStyle = col; ctx.globalAlpha = 0.35;
-          ctx.font = buildCanvasFontStr(isBold, Math.max(28, Math.round(c.width * 0.06)), chosenFont);
+          ctx.font = buildCanvasFontStr(isBold, editFontSize, chosenFont);
           ctx.textAlign = 'center';
           ctx.fillText(t1 || 'WATERMARK', 0, 0); ctx.restore();
         }

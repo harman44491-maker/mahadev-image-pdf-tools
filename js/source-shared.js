@@ -170,6 +170,8 @@ const ROMAN_INDIC_WORDS = {
     hello: 'हेलो', hi: 'हाय', bye: 'बाय', punjabi: 'पंजाबी', hindi: 'हिंदी',
     english: 'इंग्लिश', namaste: 'नमस्ते', namaskar: 'नमस्कार', shukriya: 'शुक्रिया',
     dhanyavaad: 'धन्यवाद', sri: 'श्री', akaal: 'अकाल', akal: 'अकाल',
+    narinder: 'नरिंदर', narendra: 'नरेंद्र', harinder: 'हरिंदर', gurpreet: 'गुरप्रीत',
+    gurmeet: 'गुरमीत', gurbani: 'गुरबानी', singh: 'सिंह',
     hai: 'है', hain: 'हैं', mein: 'मैं', mai: 'मैं', mera: 'मेरा', meri: 'मेरी',
     naam: 'नाम', thanks: 'थैंक्स', thank: 'थैंक', please: 'प्लीज़'
   },
@@ -177,6 +179,8 @@ const ROMAN_INDIC_WORDS = {
     hello: 'ਹੈਲੋ', hi: 'ਹਾਇ', bye: 'ਬਾਇ', punjabi: 'ਪੰਜਾਬੀ', hindi: 'ਹਿੰਦੀ',
     english: 'ਇੰਗਲਿਸ਼', namaste: 'ਨਮਸਤੇ', namaskar: 'ਨਮਸਕਾਰ', shukriya: 'ਸ਼ੁਕਰੀਆ',
     dhanyavaad: 'ਧੰਨਵਾਦ', sri: 'ਸ੍ਰੀ', akaal: 'ਅਕਾਲ', akal: 'ਅਕਾਲ',
+    narinder: 'ਨਰਿੰਦਰ', narendra: 'ਨਰਿੰਦਰ', harinder: 'ਹਰਿੰਦਰ', gurpreet: 'ਗੁਰਪ੍ਰੀਤ',
+    gurmeet: 'ਗੁਰਮੀਤ', gurbani: 'ਗੁਰਬਾਣੀ', singh: 'ਸਿੰਘ',
     hai: 'ਹੈ', hain: 'ਹਨ', mein: 'ਮੈਂ', mai: 'ਮੈਂ', mera: 'ਮੇਰਾ', meri: 'ਮੇਰੀ',
     naam: 'ਨਾਮ', thanks: 'ਥੈਂਕਸ', thank: 'ਥੈਂਕ', please: 'ਪਲੀਜ਼'
   }

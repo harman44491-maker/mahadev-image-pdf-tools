@@ -61,6 +61,13 @@
         <label id="edFontLbl">Font (100 Eng/Hin/Punjabi): <select class="font-selector-100" id="editFontFamily" style="max-width:210px;"></select></label>
         <label id="edBoldLbl"><input type="checkbox" id="editBoldToggle" checked> <strong>Bold</strong></label>
         <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
+        <label id="edFontSizeLbl" class="hidden">Font Size (px): <input type="number" id="editFontSize" value="40" min="8" max="240" step="1" style="width:72px;"></label>
+      </div>
+
+      <div id="edIndicTextWrap" class="inputs-row hidden" style="justify-content:center;">
+        <label style="flex:1;max-width:620px;">Script spelling (review/edit): <input type="text" id="edIndicTextOutput" style="width:100%;" aria-describedby="edIndicTextHint"></label>
+        <button type="button" class="chip" id="edIndicRefreshBtn">Refresh suggestion</button>
+        <small id="edIndicTextHint" style="width:100%;text-align:center;color:#64748b;">Names can have alternate spellings. Check or correct this script text before applying it.</small>
       </div>
 
       <!-- ZOOM SELECTED AREA CONTROLS -->
@@ -268,7 +275,7 @@
       <div id="editStatus" class="status-note hidden"></div>
       <div class="output-area" id="editOutput"></div>
     </section></main>
-  <script src="js/source-shared.js?v=2"></script>
-  <script src="js/join-edit.js?v=4"></script>
+  <script src="js/source-shared.js?v=3"></script>
+  <script src="js/join-edit.js?v=5"></script>
 </body>
 </html>
