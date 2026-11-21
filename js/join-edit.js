@@ -298,6 +298,306 @@ function applyHairSetBrushStrokes(targetCanvas) {
   return targetCanvas;
 }
 
+const liveEditCanvas = document.getElementById('liveEditCanvas');
+liveEditCanvas.addEventListener('pointerdown', (e) => {
+  const tool = document.getElementById('editToolSelect').value;
+  if (!cachedMainImg || tool !== 'ps_auto_retouch') return;
+  e.preventDefault();
+  try { liveEditCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+
+  const pos = getSafeCanvasPos(liveEditCanvas, e);
+  const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
+  const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
+
+  if ((e.shiftKey || e.altKey) && document.getElementById('psZoomSelectMode')?.checked) {
+    zoomDragStart = { x: nx, y: ny };
+    isSelectingZoom = true;
+    zoomSelectionNorm = { x: nx, y: ny, w: 0.04, h: 0.04 };
+    renderLiveEditPreview();
+    return;
+  }
+
+  if (document.getElementById('hairBrushToggle')?.checked) {
+    isBrushingHair = true;
+    const brushPx = parseFloat(document.getElementById('hairBrushSize')?.value) || 24;
+    currentHairStroke = {
+      shape: getSelectedBrushShape(),
+      effect: getSelectedBrushEffect(),
+      radiusNorm: brushPx / Math.max(1, Math.min(liveEditCanvas.width, liveEditCanvas.height)),
+      points: [{ x: nx, y: ny }]
+    };
+    hairStrokes.push(currentHairStroke);
+    lastHairPos = pos;
+    renderLiveEditPreview();
+  }
+});
+
+liveEditCanvas.addEventListener('pointermove', (e) => {
+  const pos = getSafeCanvasPos(liveEditCanvas, e);
+  const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
+  const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
+
+  if (isSelectingZoom && zoomDragStart) {
+    zoomSelectionNorm = {
+      x: Math.min(zoomDragStart.x, nx),
+      y: Math.min(zoomDragStart.y, ny),
+      w: Math.max(0.04, Math.abs(nx - zoomDragStart.x)),
+      h: Math.max(0.04, Math.abs(ny - zoomDragStart.y))
+    };
+    renderLiveEditPreview();
+    return;
+  }
+
+  if (isBrushingHair && currentHairStroke) {
+    if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 1.5) return;
+    currentHairStroke.points.push({ x: nx, y: ny });
+    lastHairPos = pos;
+    renderLiveEditPreview();
+  }
+});
+
+const finishCanvasPointer = () => {
+  isBrushingHair = false;
+  currentHairStroke = null;
+  lastHairPos = null;
+  isSelectingZoom = false;
+  zoomDragStart = null;
+};
+window.addEventListener('pointerup', finishCanvasPointer);
+window.addEventListener('pointercancel', finishCanvasPointer);
+
+document.querySelectorAll('.quick-bg-btn').forEach(btn => {
+  btn.onclick = () => {
+    setQuickStudioBg(btn.dataset.bgStyle, btn.dataset.bgColor);
+  };
+});
+
+document.getElementById('psZoomSelectMode').onchange = () => {
+  if (document.getElementById('psZoomSelectMode').checked && document.getElementById('hairBrushToggle')) {
+    document.getElementById('hairBrushToggle').checked = true;
+  }
+  updatePsBgControls();
+  renderLiveEditPreview();
+};
+
+document.getElementById('psZoomResetBoxBtn').onclick = () => {
+  zoomSelectionNorm = null;
+  if (document.getElementById('psZoomScaleRange')) document.getElementById('psZoomScaleRange').value = 1;
+  if (document.getElementById('psZoomScaleNum')) document.getElementById('psZoomScaleNum').value = 1;
+  renderLiveEditPreview();
+};
+
+document.getElementById('hairUndoBtn').onclick = () => {
+  if (hairStrokes.length) {
+    hairStrokes.pop();
+    renderLiveEditPreview();
+  }
+};
+document.getElementById('hairResetBtn').onclick = () => {
+  hairStrokes = [];
+  renderLiveEditPreview();
+};
+
+document.getElementById('hairBrushToggle').onchange = () => {
+  const active = document.getElementById('hairBrushToggle').checked;
+  if (!active) isBrushingHair = false;
+  liveEditCanvas.style.cursor = active ? 'cell' : 'default';
+  updatePsBgControls();
+  renderLiveEditPreview();
+};
+
+document.getElementById('hairBrushMode').onchange = () => {
+  if (hairStrokes.length) {
+    hairStrokes[hairStrokes.length - 1].effect = getSelectedBrushEffect();
+    renderLiveEditPreview();
+  }
+};
+
+if (document.getElementById('hairBrushShape')) {
+  document.getElementById('hairBrushShape').onchange = () => {
+    if (hairStrokes.length) {
+      hairStrokes[hairStrokes.length - 1].shape = getSelectedBrushShape();
+      renderLiveEditPreview();
+    }
+  };
+}
+
+if (document.getElementById('hairBrushSize')) {
+  document.getElementById('hairBrushSize').oninput = () => {
+    const val = document.getElementById('hairBrushSize').value;
+    const lbl = document.getElementById('hairBrushSizeVal');
+    if (lbl) lbl.textContent = `${val}px`;
+  };
+}
+
+function setQuickStudioBg(style, hexCol) {
+  document.getElementById('psRemoveBgToggle').checked = true;
+  document.getElementById('psBgStyleSelect').value = style;
+  if (hexCol) document.getElementById('psBgCustomColor').value = hexCol;
+  updatePsBgControls();
+  renderLiveEditPreview();
+}
+
+function updatePsBgControls() {
+  const enabled = document.getElementById('psRemoveBgToggle').checked;
+  const hairActive = document.getElementById('hairBrushToggle').checked;
+  const zoomActive = document.getElementById('psZoomSelectMode')?.checked;
+  const bgStyle = document.getElementById('psBgStyleSelect').value;
+  document.getElementById('psBgColorControls').classList.toggle('hidden', !enabled);
+  document.getElementById('psCustomColorLbl').classList.toggle('hidden', !(enabled && bgStyle === 'solid_custom'));
+
+  const splitEl = document.getElementById('psSplitRange');
+  const splitLbl = document.getElementById('psSplitVal');
+  if (splitEl && splitLbl) splitLbl.textContent = `${splitEl.value}%`;
+
+  const hintEl = document.getElementById('canvasToolHint');
+  if (zoomActive) {
+    if (hintEl) hintEl.textContent = 'Zoomed Hair Brush Mode: Drag directly on zoomed hair to smooth/trim. Hold Shift+Drag to pick custom crop area.';
+    document.getElementById('livePreviewCaption').textContent = 'Zoomed Hair Brush Preview: Drag on hair to set/trim stray strands';
+  } else if (hairActive) {
+    if (hintEl) hintEl.textContent = 'Hair Set Brush Active: Drag over top/side hairs to smooth, darken or trim stray strands.';
+    document.getElementById('livePreviewCaption').textContent = 'Live Digital Studio Preview: Hair Brush & Digital Studio Retouch';
+  } else {
+    if (hintEl) hintEl.textContent = 'Tip: Enable "Hair Set & Stray Hair Brush" or "Zoom Photo for Hair Brush" above to edit hair.';
+    document.getElementById('livePreviewCaption').textContent = enabled
+      ? 'Live Digital Studio Preview (AI Background Removed)'
+      : 'Live Digital Studio Preview (Left: Digital Retouched • Right: Original)';
+  }
+}
+
+document.getElementById('psRemoveBgToggle').onchange = () => {
+  updatePsBgControls();
+  renderLiveEditPreview();
+};
+document.getElementById('psBgStyleSelect').onchange = () => {
+  updatePsBgControls();
+  renderLiveEditPreview();
+};
+document.getElementById('psBgCustomColor').oninput = renderLiveEditPreview;
+
+function applyPhotoshopDigitalRetouch(sourceDrawable, targetW, targetH) {
+  const depthPct = (parseFloat(document.getElementById('psDepthNum').value) || 0) / 100;
+  const tonePct = (parseFloat(document.getElementById('psToneNum').value) || 0) / 100;
+  const smoothPct = (parseFloat(document.getElementById('psSmoothNum').value) || 0) / 100;
+  const sharpPct = (parseFloat(document.getElementById('psSharpNum').value) || 0) / 100;
+  const autoWb = document.getElementById('psAutoWb').checked;
+
+  const c = document.createElement('canvas');
+  c.width = targetW; c.height = targetH;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(sourceDrawable, 0, 0, targetW, targetH);
+
+  if (smoothPct > 0.02) {
+    const blurC = document.createElement('canvas');
+    blurC.width = targetW; blurC.height = targetH;
+    const bCtx = blurC.getContext('2d');
+    const blurRad = Math.max(2, Math.round(Math.min(targetW, targetH) * 0.007 * smoothPct));
+    bCtx.filter = `blur(${blurRad}px)`;
+    bCtx.drawImage(c, 0, 0);
+    bCtx.filter = 'none';
+
+    const baseData = ctx.getImageData(0, 0, targetW, targetH);
+    const blurData = bCtx.getImageData(0, 0, targetW, targetH);
+    const bd = baseData.data, sd = blurData.data;
+
+    for (let i = 0; i < bd.length; i += 4) {
+      if (bd[i + 3] < 10) continue;
+      const r = bd[i], g = bd[i + 1], b = bd[i + 2];
+      const diff = (Math.abs(r - sd[i]) + Math.abs(g - sd[i + 1]) + Math.abs(b - sd[i + 2])) / 3;
+      if (diff < 32) {
+        const isSkin = (r > 65 && g > 35 && b > 18 && r > g && r > b && (r - g) > 8);
+        const blend = smoothPct * (isSkin ? 0.72 : 0.30) * (1 - diff / 32);
+        bd[i] = Math.round(r * (1 - blend) + sd[i] * blend);
+        bd[i + 1] = Math.round(g * (1 - blend) + sd[i + 1] * blend);
+        bd[i + 2] = Math.round(b * (1 - blend) + sd[i + 2] * blend);
+      }
+    }
+    ctx.putImageData(baseData, 0, 0);
+  }
+
+  const imgData = ctx.getImageData(0, 0, targetW, targetH);
+  const d = imgData.data;
+
+  let scaleR = 1, scaleG = 1, scaleB = 1;
+  if (autoWb) {
+    let sumR = 0, sumG = 0, sumB = 0, count = 0;
+    const step = Math.max(4, Math.floor((d.length / 4) / 25000) * 4);
+    for (let i = 0; i < d.length; i += step) {
+      if (d[i + 3] < 128) continue;
+      sumR += d[i]; sumG += d[i + 1]; sumB += d[i + 2]; count++;
+    }
+    if (count > 0) {
+      const avgR = sumR / count, avgG = sumG / count, avgB = sumB / count;
+      const avgGray = (avgR + avgG + avgB) / 3;
+      scaleR = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgR)) - 1) * 0.45));
+      scaleG = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgG)) - 1) * 0.45));
+      scaleB = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgB)) - 1) * 0.45));
+    }
+  }
+
+  const contrastFactor = 1 + depthPct * 0.34;
+
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 5) continue;
+    let r = d[i] * scaleR;
+    let g = d[i + 1] * scaleG;
+    let b = d[i + 2] * scaleB;
+
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+    if (tonePct > 0.01 && lum < 0.48) {
+      const shadowLift = Math.pow((0.48 - lum) / 0.48, 1.5) * tonePct * 24;
+      r += shadowLift;
+      g += shadowLift;
+      b += shadowLift;
+    }
+
+    r = (r - 128) * contrastFactor + 128;
+    g = (g - 128) * contrastFactor + 128;
+    b = (b - 128) * contrastFactor + 128;
+
+    const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+    const sat = maxC > 0 ? (maxC - minC) / maxC : 0;
+    const vibAmt = (depthPct * 0.24 + sharpPct * 0.12) * (1 - sat * 0.7);
+    const avg = (r + g + b) / 3;
+    r += (r - avg) * vibAmt;
+    g += (g - avg) * vibAmt;
+    b += (b - avg) * vibAmt;
+
+    d[i] = Math.min(255, Math.max(0, Math.round(r)));
+    d[i + 1] = Math.min(255, Math.max(0, Math.round(g)));
+    d[i + 2] = Math.min(255, Math.max(0, Math.round(b)));
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  if (sharpPct > 0.02) {
+    const sData = ctx.getImageData(0, 0, targetW, targetH);
+    const sd = sData.data;
+    const copy = new Uint8ClampedArray(sd);
+    const amt = sharpPct * 0.54;
+    for (let y = 1; y < targetH - 1; y++) {
+      for (let x = 1; x < targetW - 1; x++) {
+        const idx = (y * targetW + x) * 4;
+        if (copy[idx + 3] < 20) continue;
+        for (let ch = 0; ch < 3; ch++) {
+          const center = copy[idx + ch] * 5;
+          const neighbors = copy[((y - 1) * targetW + x) * 4 + ch]
+                          + copy[((y + 1) * targetW + x) * 4 + ch]
+                          + copy[(y * targetW + (x - 1)) * 4 + ch]
+                          + copy[(y * targetW + (x + 1)) * 4 + ch];
+          const sharpVal = center - neighbors;
+          sd[idx + ch] = Math.min(255, Math.max(0, Math.round(copy[idx + ch] * (1 - amt) + sharpVal * amt)));
+        }
+      }
+    }
+    ctx.putImageData(sData, 0, 0);
+  }
+
+  return applyHairSetBrushStrokes(c);
+}
+
 function compositeBackgroundBehindSubject(subjectCanvas) {
   const bgStyle = document.getElementById('psBgStyleSelect').value;
   if (bgStyle === 'transparent') return subjectCanvas;
