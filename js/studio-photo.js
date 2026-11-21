@@ -106,7 +106,7 @@
     const canvas = composeStudioPhoto(subjectCanvas, width, height, document.getElementById('studioEnhance').checked);
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .96));
     if (!blob) throw new Error('The browser could not export this image. Try a smaller output size.');
-    return { blob, width, height, engine: 'Browser Fast' };
+    return { blob, width, height, engine: 'Browser Local' };
   }
 
   fileInput.addEventListener('change', async () => {
@@ -154,12 +154,12 @@
       outputUrl = URL.createObjectURL(result.blob);
       const dimensions = result.width && result.height
         ? result.width + ' × ' + result.height + ' px'
-        : 'Generative high-resolution PNG';
+        : 'Local browser output';
       const figure = addPreview(result.engine + ' Result', outputUrl, dimensions + ' • Review identity and details before use');
       const download = document.createElement('a');
       download.className = 'dl-btn';
       download.href = outputUrl;
-      download.download = 'studio_photo_' + result.engine.toLowerCase().replace(/[^a-z0-9]+/g, '_') + (result.width ? '_' + result.width + 'x' + result.height : '') + '.png';
+      download.download = 'studio_photo_local_' + result.engine.toLowerCase().replace(/[^a-z0-9]+/g, '_') + (result.width ? '_' + result.width + 'x' + result.height : '') + '.png';
       download.textContent = 'Download Studio Photo';
       figure.appendChild(download);
       setStatus('Done. Review the edited image carefully, especially the hair edges and background.');
