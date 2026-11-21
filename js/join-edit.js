@@ -238,13 +238,18 @@ function applyHairSetBrushStrokes(targetCanvas) {
 
     // Take a fresh snapshot for every stroke so multiple strokes build on each other.
     const source = ctx.getImageData(0,0,w,h).data;
-    const blurCanvas=document.createElement('canvas');
-    blurCanvas.width=w; blurCanvas.height=h;
-    const blurCtx=blurCanvas.getContext('2d');
-    blurCtx.filter= `blur(${Math.max(1.5,Math.min(5,rad*0.16))}px)`;
-    blurCtx.drawImage(targetCanvas,0,0);
-    blurCtx.filter='none';
-    const softened=blurCtx.getImageData(0,0,w,h).data;
+    // Blur is only used for the gentle Tuck/Smooth action. Trim uses a local
+    // edge-aware median replacement so it does not smear a whole selected area.
+    let softened = null;
+    if (effect === 'tuck') {
+      const blurCanvas=document.createElement('canvas');
+      blurCanvas.width=w; blurCanvas.height=h;
+      const blurCtx=blurCanvas.getContext('2d');
+      blurCtx.filter= `blur(${Math.max(1,Math.min(2.2,rad*0.07))}px)`;
+      blurCtx.drawImage(targetCanvas,0,0);
+      blurCtx.filter='none';
+      softened=blurCtx.getImageData(0,0,w,h).data;
+    }
     const out=ctx.createImageData(bw,bh);
     const feather=Math.max(2,rad*0.28);
 
@@ -283,14 +288,30 @@ function applyHairSetBrushStrokes(targetCanvas) {
           ? Math.max(0.18,Math.min(1,(Math.min(x-minX,maxX-1-x,y-minY,maxY-1-y)+feather)/feather))
           : Math.pow(Math.max(0,1-dist/Math.max(1,rad)),0.65);
         if(strength<=0) continue;
-        const blend=effect==='darken' ? 0 : (effect==='trim' ? Math.min(0.98,strength*0.96) : Math.min(0.94,strength*0.88));
-
         if(effect==='darken'){
-          const factor=1-strength*0.62;
+          const factor=1-strength*0.42;
           out.data[oi]=Math.max(4,Math.round(source[si]*factor));
           out.data[oi+1]=Math.max(4,Math.round(source[si+1]*factor));
           out.data[oi+2]=Math.max(4,Math.round(source[si+2]*factor));
+        }else if(effect==='trim'){
+          // Replace only thin, high-contrast stray strands; leave normal hair/skin texture intact.
+          const neigh=[[],[],[]];
+          for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
+            if(!ox && !oy) continue;
+            const xx=Math.max(0,Math.min(w-1,x+ox)), yy=Math.max(0,Math.min(h-1,y+oy));
+            const ni=(yy*w+xx)*4;
+            for(let ch=0;ch<3;ch++) neigh[ch].push(source[ni+ch]);
+          }
+          const med=neigh.map(a=>{a.sort((m,n)=>m-n);return a[4];});
+          const lum=0.299*source[si]+0.587*source[si+1]+0.114*source[si+2];
+          const medLum=0.299*med[0]+0.587*med[1]+0.114*med[2];
+          const contrast=Math.abs(lum-medLum);
+          if(contrast>24){
+            const blend=Math.min(0.62,Math.max(0,(contrast-24)/90)*0.62*strength);
+            for(let ch=0;ch<3;ch++) out.data[oi+ch]=Math.round(source[si+ch]*(1-blend)+med[ch]*blend);
+          }
         }else{
+          const blend=Math.min(0.24,strength*0.24);
           for(let ch=0;ch<3;ch++){
             out.data[oi+ch]=Math.round(source[si+ch]*(1-blend)+softened[si+ch]*blend);
           }
