@@ -152,6 +152,14 @@
           edCtx.strokeRect(it.x - 2, it.y - 2, it.w + 4, it.h + 4);
         }
       });
+      // Mirror the current edited canvas so the adjacent panel is a true live preview.
+      if (edPreviewCanvas.width !== edCanvas.width || edPreviewCanvas.height !== edCanvas.height) {
+        edPreviewCanvas.width = edCanvas.width;
+        edPreviewCanvas.height = edCanvas.height;
+      }
+      edPreviewCtx.clearRect(0, 0, edPreviewCanvas.width, edPreviewCanvas.height);
+      edPreviewCtx.drawImage(edCanvas, 0, 0);
+
     }
 
     function syncSelectedEditorTextStyle() {
