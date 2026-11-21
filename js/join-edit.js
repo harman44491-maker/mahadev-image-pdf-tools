@@ -144,130 +144,96 @@ function applyHairSetBrushStrokes(targetCanvas) {
   const ctx = targetCanvas.getContext('2d');
 
   for (const stroke of hairStrokes) {
-    if (!stroke.points || !stroke.points.length) continue;
-    const points = stroke.points;
+    const points = stroke.points || [];
+    if (!points.length) continue;
     const shape = stroke.shape || 'freehand';
     const effect = stroke.effect || 'tuck';
-    const rad = Math.max(8, Math.round((stroke.radiusNorm || 0.025) * Math.min(w, h)));
-    const p0 = points[0];
-    const p1 = points[points.length - 1];
+    // radiusNorm stores half of the requested on-screen brush diameter,
+    // mapped to the canvas backing pixels. Magnifier zoom never changes it.
+    const rad = Math.max(1, Math.round((stroke.radiusNorm || 0.01) * Math.min(w, h)));
+    const xs = points.map(p => p.x * w), ys = points.map(p => p.y * h);
+    const minX = Math.max(0, Math.floor(Math.min(...xs) - rad - 2));
+    const minY = Math.max(0, Math.floor(Math.min(...ys) - rad - 2));
+    const maxX = Math.min(w, Math.ceil(Math.max(...xs) + rad + 2));
+    const maxY = Math.min(h, Math.ceil(Math.max(...ys) + rad + 2));
+    const bw = maxX - minX, bh = maxY - minY;
+    if (bw < 1 || bh < 1) continue;
 
-    let minX = 0, minY = 0, maxX = w, maxY = h;
-    if (shape === 'circle') {
-      const radius = Math.max(rad, Math.hypot((p1.x-p0.x)*w, (p1.y-p0.y)*h));
-      minX = Math.max(0, Math.floor(p0.x*w-radius-rad));
-      minY = Math.max(0, Math.floor(p0.y*h-radius-rad));
-      maxX = Math.min(w, Math.ceil(p0.x*w+radius+rad));
-      maxY = Math.min(h, Math.ceil(p0.y*h+radius+rad));
-    } else if (shape === 'rect') {
-      minX = Math.max(0, Math.floor(Math.min(p0.x,p1.x)*w));
-      minY = Math.max(0, Math.floor(Math.min(p0.y,p1.y)*h));
-      maxX = Math.min(w, Math.ceil(Math.max(p0.x,p1.x)*w));
-      maxY = Math.min(h, Math.ceil(Math.max(p0.y,p1.y)*h));
-      if (maxX-minX < rad) maxX = Math.min(w,minX+rad);
-      if (maxY-minY < rad) maxY = Math.min(h,minY+rad);
-    } else {
-      const xs=points.map(p=>p.x*w), ys=points.map(p=>p.y*h);
-      minX=Math.max(0,Math.floor(Math.min(...xs)-rad));
-      minY=Math.max(0,Math.floor(Math.min(...ys)-rad));
-      maxX=Math.min(w,Math.ceil(Math.max(...xs)+rad));
-      maxY=Math.min(h,Math.ceil(Math.max(...ys)+rad));
-    }
-
-    const bw=maxX-minX, bh=maxY-minY;
-    if (bw<1 || bh<1) continue;
-
-    // Take a fresh snapshot for every stroke so multiple strokes build on each other.
-    const source = ctx.getImageData(0,0,w,h).data;
-    // Blur is only used for the gentle Tuck/Smooth action. Trim uses a local
-    // edge-aware median replacement so it does not smear a whole selected area.
+    const source = ctx.getImageData(0, 0, w, h).data;
     let softened = null;
     if (effect === 'tuck') {
-      const blurCanvas=document.createElement('canvas');
-      blurCanvas.width=w; blurCanvas.height=h;
-      const blurCtx=blurCanvas.getContext('2d');
-      blurCtx.filter= `blur(${Math.max(1,Math.min(2.2,rad*0.07))}px)`;
-      blurCtx.drawImage(targetCanvas,0,0);
-      blurCtx.filter='none';
-      softened=blurCtx.getImageData(0,0,w,h).data;
+      const blurCanvas = document.createElement('canvas');
+      blurCanvas.width = w; blurCanvas.height = h;
+      const blurCtx = blurCanvas.getContext('2d');
+      blurCtx.filter = `blur(${Math.max(1, Math.min(2.2, rad * 0.07))}px)`;
+      blurCtx.drawImage(targetCanvas, 0, 0);
+      blurCtx.filter = 'none';
+      softened = blurCtx.getImageData(0, 0, w, h).data;
     }
-    const out=ctx.createImageData(bw,bh);
-    const feather=Math.max(2,rad*0.28);
+    const out = ctx.createImageData(bw, bh);
+    const feather = Math.max(1, rad * 0.28);
 
-    for(let y=minY;y<maxY;y++){
-      for(let x=minX;x<maxX;x++){
-        const si=(y*w+x)*4, oi=((y-minY)*bw+(x-minX))*4;
-        // Preserve untouched pixels inside the processing rectangle.
-        out.data[oi]=source[si];
-        out.data[oi+1]=source[si+1];
-        out.data[oi+2]=source[si+2];
-        out.data[oi+3]=source[si+3];
-        let dist=Infinity;
-        if(shape==='circle'){
-          const rr=Math.max(rad,Math.hypot((p1.x-p0.x)*w,(p1.y-p0.y)*h));
-          dist=Math.hypot(x-p0.x*w,y-p0.y*h);
-          if(dist>rr) continue;
-          dist=Math.max(0,dist-(rr-rad));
-        }else if(shape==='rect'){
-          const left=Math.min(p0.x,p1.x)*w, right=Math.max(p0.x,p1.x)*w;
-          const top=Math.min(p0.y,p1.y)*h, bottom=Math.max(p0.y,p1.y)*h;
-          const edge=Math.min(x-left,right-x,y-top,bottom-y);
-          dist=Math.max(0,rad-edge);
-        }else{
-          for(let i=0;i<points.length;i++){
-            const a=points[Math.max(0,i-1)], b=points[i];
-            const ax=a.x*w, ay=a.y*h, bx=b.x*w, by=b.y*h;
-            const vx=bx-ax, vy=by-ay;
-            const len2=vx*vx+vy*vy;
-            const t=len2?Math.max(0,Math.min(1,((x-ax)*vx+(y-ay)*vy)/len2)):0;
-            dist=Math.min(dist,Math.hypot(x-(ax+t*vx),y-(ay+t*vy)));
-          }
-          if(dist>rad) continue;
-        }
+    for (let y = minY; y < maxY; y++) {
+      for (let x = minX; x < maxX; x++) {
+        const si = (y * w + x) * 4, oi = ((y - minY) * bw + (x - minX)) * 4;
+        out.data[oi] = source[si];
+        out.data[oi + 1] = source[si + 1];
+        out.data[oi + 2] = source[si + 2];
+        out.data[oi + 3] = source[si + 3];
 
-        const strength=shape==='rect'
-          ? Math.max(0.18,Math.min(1,(Math.min(x-minX,maxX-1-x,y-minY,maxY-1-y)+feather)/feather))
-          : Math.pow(Math.max(0,1-dist/Math.max(1,rad)),0.65);
-        if(strength<=0) continue;
-        if(effect==='darken'){
-          const factor=1-strength*0.42;
-          out.data[oi]=Math.max(4,Math.round(source[si]*factor));
-          out.data[oi+1]=Math.max(4,Math.round(source[si+1]*factor));
-          out.data[oi+2]=Math.max(4,Math.round(source[si+2]*factor));
-        }else if(effect==='trim'){
-          // Replace only thin, high-contrast stray strands; leave normal hair/skin texture intact.
-          const neigh=[[],[],[]];
-          for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
-            if(!ox && !oy) continue;
-            const xx=Math.max(0,Math.min(w-1,x+ox)), yy=Math.max(0,Math.min(h-1,y+oy));
-            const ni=(yy*w+xx)*4;
-            for(let ch=0;ch<3;ch++) neigh[ch].push(source[ni+ch]);
-          }
-          const med=neigh.map(a=>{a.sort((m,n)=>m-n);return a[4];});
-          const lum=0.299*source[si]+0.587*source[si+1]+0.114*source[si+2];
-          const medLum=0.299*med[0]+0.587*med[1]+0.114*med[2];
-          const contrast=Math.abs(lum-medLum);
-          if(contrast>24){
-            const blend=Math.min(0.62,Math.max(0,(contrast-24)/90)*0.62*strength);
-            for(let ch=0;ch<3;ch++) out.data[oi+ch]=Math.round(source[si+ch]*(1-blend)+med[ch]*blend);
-          }
-        }else{
-          const blend=Math.min(0.24,strength*0.24);
-          for(let ch=0;ch<3;ch++){
-            out.data[oi+ch]=Math.round(source[si+ch]*(1-blend)+softened[si+ch]*blend);
-          }
+        let dist = Infinity, dxBest = 0, dyBest = 0;
+        for (let i = 0; i < points.length; i++) {
+          const a = points[Math.max(0, i - 1)], b = points[i];
+          const ax = a.x * w, ay = a.y * h, bx = b.x * w, by = b.y * h;
+          const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy;
+          const t = len2 ? Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / len2)) : 0;
+          const dx = x - (ax + t * vx), dy = y - (ay + t * vy);
+          const d = shape === 'rect' ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.hypot(dx, dy);
+          if (d < dist) { dist = d; dxBest = dx; dyBest = dy; }
         }
-        out.data[oi+3]=source[si+3];
+        if (dist > rad) continue;
+
+        let strength;
+        if (shape === 'rect') {
+          const edge = Math.min(rad - Math.abs(dxBest), rad - Math.abs(dyBest));
+          strength = Math.max(0.12, Math.min(1, (edge + feather) / feather));
+        } else {
+          strength = Math.pow(Math.max(0, 1 - dist / Math.max(1, rad)), 0.65);
+        }
+        if (strength <= 0) continue;
+
+        if (effect === 'darken') {
+          const factor = 1 - strength * 0.42;
+          out.data[oi] = Math.max(4, Math.round(source[si] * factor));
+          out.data[oi + 1] = Math.max(4, Math.round(source[si + 1] * factor));
+          out.data[oi + 2] = Math.max(4, Math.round(source[si + 2] * factor));
+        } else if (effect === 'trim') {
+          const neigh = [[], [], []];
+          for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+            if (!ox && !oy) continue;
+            const xx = Math.max(0, Math.min(w - 1, x + ox)), yy = Math.max(0, Math.min(h - 1, y + oy));
+            const ni = (yy * w + xx) * 4;
+            for (let ch = 0; ch < 3; ch++) neigh[ch].push(source[ni + ch]);
+          }
+          const med = neigh.map(a => { a.sort((m, n) => m - n); return a[4]; });
+          const lum = 0.299 * source[si] + 0.587 * source[si + 1] + 0.114 * source[si + 2];
+          const medLum = 0.299 * med[0] + 0.587 * med[1] + 0.114 * med[2];
+          const contrast = Math.abs(lum - medLum);
+          if (contrast > 24) {
+            const blend = Math.min(0.62, Math.max(0, (contrast - 24) / 90) * 0.62 * strength);
+            for (let ch = 0; ch < 3; ch++) out.data[oi + ch] = Math.round(source[si + ch] * (1 - blend) + med[ch] * blend);
+          }
+        } else {
+          const blend = Math.min(0.24, strength * 0.24);
+          for (let ch = 0; ch < 3; ch++) out.data[oi + ch] = Math.round(source[si + ch] * (1 - blend) + softened[si + ch] * blend);
+        }
+        out.data[oi + 3] = source[si + 3];
       }
     }
-    ctx.putImageData(out,minX,minY);
+    ctx.putImageData(out, minX, minY);
   }
   return targetCanvas;
 }
-
-const liveEditCanvas = document.getElementById('liveEditCanvas');
-const hairBrushMagnifier = document.getElementById('hairBrushMagnifier');
-let lastMagnifierPos = null;
 
 function hideHairBrushMagnifier() {
   if (hairBrushMagnifier) hairBrushMagnifier.style.display = 'none';
@@ -298,10 +264,11 @@ function drawHairBrushMagnifier(pos) {
     const pts=currentHairStroke.points, p0=pts[0], p1=pts[pts.length-1];
     const x0=p0.x*cw,y0=p0.y*ch,x1=p1.x*cw,y1=p1.y*ch;
     if(currentHairStroke.shape==='circle'){
-      const r=Math.max(currentHairStroke.radiusNorm*Math.min(cw,ch),Math.hypot(x1-x0,y1-y0));
-      ctx.beginPath();ctx.arc(lx(x0),ly(y0),r*kx,0,Math.PI*2);ctx.stroke();
+      const r=currentHairStroke.radiusNorm*Math.min(cw,ch);
+      ctx.beginPath();ctx.arc(lx(x1),ly(y1),r*kx,0,Math.PI*2);ctx.stroke();
     }else if(currentHairStroke.shape==='rect'){
-      ctx.strokeRect(lx(Math.min(x0,x1)),ly(Math.min(y0,y1)),Math.max(1,Math.abs(x1-x0)*kx),Math.max(1,Math.abs(y1-y0)*ky));
+      const r=currentHairStroke.radiusNorm*Math.min(cw,ch);
+      ctx.strokeRect(lx(x1-r),ly(y1-r),Math.max(1,2*r*kx),Math.max(1,2*r*ky));
     }else{
       ctx.beginPath();pts.forEach((p,i)=>{const x=lx(p.x*cw),y=ly(p.y*ch);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();
     }
@@ -325,10 +292,13 @@ liveEditCanvas.addEventListener('pointerdown',(e)=>{
   if(document.getElementById('hairBrushToggle')?.checked){
     isBrushingHair=true;
     const brushPx=parseFloat(document.getElementById('hairBrushSize')?.value)||24;
-    const magnification=getBrushMagnification();
+    const canvasRect=liveEditCanvas.getBoundingClientRect();
+    const scaleX=liveEditCanvas.width/Math.max(1,canvasRect.width);
+    const scaleY=liveEditCanvas.height/Math.max(1,canvasRect.height);
+    const radiusCanvas=(brushPx/2)*Math.max(scaleX,scaleY);
     currentHairStroke={
-      shape:getSelectedBrushShape(),effect:getSelectedBrushEffect(),magnification,
-      radiusNorm:brushPx/magnification/Math.max(1,Math.min(liveEditCanvas.width,liveEditCanvas.height)),
+      shape:getSelectedBrushShape(),effect:getSelectedBrushEffect(),brushSizePx:brushPx,
+      radiusNorm:radiusCanvas/Math.max(1,Math.min(liveEditCanvas.width,liveEditCanvas.height)),
       points:[{x:nx,y:ny}]
     };
     hairStrokes.push(currentHairStroke);lastHairPos=pos;
@@ -763,32 +733,31 @@ async function renderLiveEditPreview() {
 
     if (hairBrushChecked && currentHairStroke && currentHairStroke.points.length) {
       const shape = currentHairStroke.shape || 'freehand';
-      const p0 = currentHairStroke.points[0];
-      const p1 = currentHairStroke.points[currentHairStroke.points.length - 1];
-      const rad = Math.max(8, Math.round(currentHairStroke.radiusNorm * Math.min(pw, ph)));
+      const pts = currentHairStroke.points;
+      const p1 = pts[pts.length - 1];
+      const cx = p1.x * pw, cy = p1.y * ph;
+      const rad = Math.max(1, Math.round(currentHairStroke.radiusNorm * Math.min(pw, ph)));
       lctx.save();
       lctx.strokeStyle = '#f59e0b';
       lctx.lineWidth = 2;
       lctx.setLineDash([5, 3]);
       if (shape === 'circle') {
-        const cx = p0.x * pw, cy = p0.y * ph;
-        const r = Math.max(rad, Math.hypot((p1.x - p0.x) * pw, (p1.y - p0.y) * ph));
         lctx.beginPath();
-        lctx.arc(cx, cy, r, 0, Math.PI * 2);
+        lctx.arc(cx, cy, rad, 0, Math.PI * 2);
         lctx.stroke();
       } else if (shape === 'rect') {
-        const x = Math.min(p0.x, p1.x) * pw;
-        const y = Math.min(p0.y, p1.y) * ph;
-        const wBox = Math.max(rad, Math.abs(p1.x - p0.x) * pw);
-        const hBox = Math.max(rad, Math.abs(p1.y - p0.y) * ph);
-        lctx.strokeRect(x, y, wBox, hBox);
+        lctx.strokeRect(cx - rad, cy - rad, rad * 2, rad * 2);
       } else {
         lctx.beginPath();
-        currentHairStroke.points.forEach((pt, idx) => {
+        pts.forEach((pt, idx) => {
           const pxPt = pt.x * pw, pyPt = pt.y * ph;
           if (idx === 0) lctx.moveTo(pxPt, pyPt);
           else lctx.lineTo(pxPt, pyPt);
         });
+        lctx.setLineDash([]);
+        lctx.lineWidth = Math.max(1, rad * 2);
+        lctx.lineCap = 'round';
+        lctx.lineJoin = 'round';
         lctx.stroke();
       }
       lctx.restore();
