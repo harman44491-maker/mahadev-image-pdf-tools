@@ -13,11 +13,79 @@
       document.getElementById('pdfRangeLbl').classList.toggle('hidden', tool !== 'split_pdf');
       document.getElementById('pdfSecondFileBox').classList.toggle('hidden', !['sign_pdf', 'add_img_pdf'].includes(tool));
       document.getElementById('pdfTextLbl').classList.toggle('hidden', tool !== 'watermark_pdf');
+      document.getElementById('pdfWatermarkStyleBox').classList.toggle('hidden', tool !== 'watermark_pdf');
       document.getElementById('pdfContrastLbl').classList.toggle('hidden', tool !== 'contrast_pdf');
       document.getElementById('pdfPassLbl').classList.toggle('hidden', !['protect_pdf', 'unlock_pdf'].includes(tool));
       document.getElementById('pdfCropLbl').classList.toggle('hidden', !['crop_pdf', 'redact_pdf'].includes(tool));
     }
     document.getElementById('pdfToolSelect').onchange = updatePdfControls;
+
+    const pdfWmFontFamilies = [
+      'Roboto','Open Sans','Lato','Montserrat','Poppins','Oswald','Raleway','Nunito','Nunito Sans','Ubuntu',
+      'Merriweather','Playfair Display','PT Sans','PT Serif','Source Sans 3','Source Serif 4','Roboto Slab','Rubik','Work Sans','Fira Sans',
+      'DM Sans','DM Serif Display','Libre Baskerville','Bebas Neue','Barlow','Barlow Condensed','Cabin','Comfortaa','Dancing Script','Lobster',
+      'Kanit','Mukta','Hind','Karla','Inconsolata','Josefin Sans','Quicksand','Titillium Web','Arimo','Asap',
+      'Archivo','Archivo Black','Assistant','Abel','Acme','Alegreya','Alegreya Sans','Alfa Slab One','Amatic SC','Anton',
+      'Averia Serif Libre','Bitter','Bree Serif','Cairo','Cardo','Chakra Petch','Cinzel','Cormorant Garamond','Courgette','Crimson Text',
+      'Cuprum','Exo 2','Fjalla One','Frank Ruhl Libre','Gelasio','Heebo','IBM Plex Mono','IBM Plex Sans','IBM Plex Serif','Inria Sans',
+      'Inria Serif','Istok Web','Kalam','Khand','Lexend','Manrope','Maven Pro','Merriweather Sans','M PLUS 1p','Nanum Gothic',
+      'Noto Sans','Noto Serif','Old Standard TT','Oxygen','Pathway Gothic One','Prata','Prompt','Public Sans','Rajdhani','Red Hat Display',
+      'Saira','Signika','Slabo 27px','Space Grotesk','Spectral','Teko','Tinos','Varela Round','Yanone Kaffeesatz','Zilla Slab'
+    ];
+    const pdfWmGurmukhiFonts = ['Noto Sans Gurmukhi','Noto Serif Gurmukhi'];
+    const pdfWmFontSelect = document.getElementById('pdfWmFont');
+    function populatePdfWatermarkFonts() {
+      const lang = document.getElementById('pdfWmLanguage').value;
+      const families = lang === 'pa' ? pdfWmGurmukhiFonts : (lang === 'hi' ? ['Noto Sans Devanagari','Noto Serif Devanagari', ...pdfWmFontFamilies] : pdfWmFontFamilies);
+      const current = pdfWmFontSelect.value;
+      pdfWmFontSelect.innerHTML = '';
+      families.forEach((family, index) => {
+        const option = document.createElement('option');
+        option.value = family;
+        option.textContent = family;
+        pdfWmFontSelect.appendChild(option);
+      });
+      if (families.includes(current)) pdfWmFontSelect.value = current;
+      else pdfWmFontSelect.value = lang === 'pa' ? 'Noto Sans Gurmukhi' : lang === 'hi' ? 'Noto Sans Devanagari' : 'Roboto';
+    }
+    function loadPdfWatermarkFont(family, weight, text) {
+      const encoded = encodeURIComponent(family).replace(/%20/g, '+');
+      const id = 'pdf-wm-font-' + encoded.replace(/[^a-z0-9]/gi, '-');
+      if (!document.getElementById(id)) {
+        const link = document.createElement('link');
+        link.id = id;
+        link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?family=' + encoded + ':wght@400;700&display=swap';
+        document.head.appendChild(link);
+      }
+      return document.fonts.load(weight + ' 72px "' + family + '"', text || 'Watermark ਪੰਜਾਬੀ हिन्दी');
+    }
+    document.getElementById('pdfWmLanguage').addEventListener('change', populatePdfWatermarkFonts);
+    populatePdfWatermarkFonts();
+
+    async function createPdfWatermarkImage(text, family, bold, color, opacity, sizePt, rotation, language) {
+      const fallback = language === 'pa' ? 'Noto Sans Gurmukhi' : language === 'hi' ? 'Noto Sans Devanagari' : 'sans-serif';
+      const fontSize = Math.max(8, Math.min(120, Number(sizePt) || 36)) * 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = 2400;
+      canvas.height = 520;
+      const ctx = canvas.getContext('2d');
+      await loadPdfWatermarkFont(family, bold ? '700' : '400', text);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((Math.max(-180, Math.min(180, Number(rotation) || 0)) * Math.PI) / 180);
+      ctx.globalAlpha = Math.max(0.05, Math.min(1, (Number(opacity) || 45) / 100));
+      ctx.fillStyle = color || '#777777';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = (bold ? '700 ' : '400 ') + fontSize + 'px "' + family + '", "' + fallback + '", sans-serif';
+      ctx.fillText(text, 0, 0, canvas.width * 0.88);
+      ctx.restore();
+      return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not render watermark text.')), 'image/png'));
+    }
+
+
 
     async function buildCompressedPdfFromPages(pdf, scale, quality, filterCss = 'none') {
       const outPdf = await PDFLib.PDFDocument.create();
@@ -217,9 +285,35 @@
             if (tool === 'page_num_pdf') {
               p.drawText(`Page ${idx + 1} of ${pages.length}`, { x: p.getWidth() / 2 - 35, y: 20, size: 11, color: PDFLib.rgb(0.2, 0.2, 0.2) });
             } else {
-              p.drawText(wmTxt, { x: 60, y: p.getHeight() / 2, size: 36, color: PDFLib.rgb(0.75, 0.75, 0.75), opacity: 0.45, rotate: PDFLib.degrees(35) });
+              // Render text to a transparent PNG so English, Hindi and Gurmukhi all work.
+              // This avoids PDF standard-font Unicode limitations.
+              // Watermark image is generated once per page size below.
+              p.__needsCustomWatermark = true;
             }
           });
+          if (tool === 'watermark_pdf') {
+            const wmLang = document.getElementById('pdfWmLanguage').value;
+            const wmFont = pdfWmFontSelect.value || (wmLang === 'pa' ? 'Noto Sans Gurmukhi' : wmLang === 'hi' ? 'Noto Sans Devanagari' : 'Roboto');
+            const wmPng = await createPdfWatermarkImage(
+              wmTxt, wmFont,
+              document.getElementById('pdfWmBold').checked,
+              document.getElementById('pdfWmColor').value,
+              document.getElementById('pdfWmOpacity').value,
+              document.getElementById('pdfWmSize').value,
+              document.getElementById('pdfWmRotation').value,
+              wmLang
+            );
+            const wmBytes = await wmPng.arrayBuffer();
+            const embeddedWm = await pdfDoc.embedPng(wmBytes);
+            pages.forEach(p => {
+              const maxW = p.getWidth() * 0.9;
+              const maxH = p.getHeight() * 0.9;
+              const scale = Math.min(maxW / embeddedWm.width, maxH / embeddedWm.height);
+              const w = embeddedWm.width * scale;
+              const h = embeddedWm.height * scale;
+              p.drawImage(embeddedWm, { x: (p.getWidth() - w) / 2, y: (p.getHeight() - h) / 2, width: w, height: h });
+            });
+          }
           addDownloadCard(out, new Blob([await pdfDoc.save()], { type: 'application/pdf' }), `updated_${files[0].name}`, 'Updated PDF ready');
         }
 
