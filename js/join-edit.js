@@ -207,77 +207,41 @@ function applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, testHitFn)
 
 function applyHairSetBrushStrokes(targetCanvas) {
   if (!hairStrokes.length) return targetCanvas;
-  const w = targetCanvas.width;
-  const h = targetCanvas.height;
+  const w = targetCanvas.width, h = targetCanvas.height;
   const ctx = targetCanvas.getContext('2d');
-  const snapshot = ctx.getImageData(0, 0, w, h);
-  const copy = snapshot.data;
+  const copy = ctx.getImageData(0, 0, w, h).data;
 
   for (const stroke of hairStrokes) {
-    if (!stroke.points || !stroke.points.length) continue;
+    const points = stroke.points || [];
+    if (!points.length) continue;
     const shape = stroke.shape || 'freehand';
     const effect = stroke.effect || 'tuck';
-    const rad = Math.max(12, Math.round(stroke.radiusNorm * Math.min(w, h)));
-
-    if (shape === 'circle') {
-      const p0 = stroke.points[0];
-      const p1 = stroke.points[stroke.points.length - 1];
-      const cx = Math.round(p0.x * w);
-      const cy = Math.round(p0.y * h);
-      const dragRad = Math.max(rad, Math.round(Math.hypot((p1.x - p0.x) * w, (p1.y - p0.y) * h)));
-
-      const x0 = Math.max(0, cx - dragRad);
-      const y0 = Math.max(0, cy - dragRad);
-      const bw = Math.min(w - x0, dragRad * 2);
-      const bh = Math.min(h - y0, dragRad * 2);
-      if (bw > 2 && bh > 2) {
-        applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, (gx, gy) => {
-          const dist = Math.hypot(gx - cx, gy - cy);
-          return dist <= dragRad ? Math.max(0.25, Math.pow(1 - dist / (dragRad * 1.05), 0.9)) : 0;
-        });
+    // Brush size is a fixed diameter in screen pixels. Zoom is only a loupe;
+    // it must never enlarge the actual retouch area.
+    const rad = Math.max(2, Math.round((stroke.radiusNorm || 0.005) * Math.min(w, h)));
+    const densePoints = [points[0]];
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i];
+      const distPx = Math.hypot((b.x - a.x) * w, (b.y - a.y) * h);
+      const steps = Math.max(1, Math.ceil(distPx / Math.max(1, rad * 0.3)));
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        densePoints.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
       }
-    } else if (shape === 'rect') {
-      const p0 = stroke.points[0];
-      const p1 = stroke.points[stroke.points.length - 1];
-      const rx0 = Math.min(p0.x, p1.x) * w;
-      const ry0 = Math.min(p0.y, p1.y) * h;
-      const rx1 = Math.max(p0.x, p1.x) * w;
-      const ry1 = Math.max(p0.y, p1.y) * h;
+    }
 
-      const x0 = Math.max(0, Math.floor(rx0));
-      const y0 = Math.max(0, Math.floor(ry0));
-      const bw = Math.min(w - x0, Math.max(rad, Math.ceil(rx1 - rx0)));
-      const bh = Math.min(h - y0, Math.max(rad, Math.ceil(ry1 - ry0)));
-      if (bw > 2 && bh > 2) {
-        applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, () => 0.95);
-      }
-    } else {
-      const densePoints = [stroke.points[0]];
-      for (let i = 1; i < stroke.points.length; i++) {
-        const a = stroke.points[i - 1];
-        const b = stroke.points[i];
-        const distPx = Math.hypot((b.x - a.x) * w, (b.y - a.y) * h);
-        const steps = Math.max(1, Math.ceil(distPx / Math.max(3, rad * 0.3)));
-        for (let s = 1; s <= steps; s++) {
-          const t = s / steps;
-          densePoints.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-        }
-      }
-
-      for (const pt of densePoints) {
-        const cx = Math.round(pt.x * w);
-        const cy = Math.round(pt.y * h);
-        const x0 = Math.max(0, cx - rad);
-        const y0 = Math.max(0, cy - rad);
-        const bw = Math.min(w - x0, rad * 2);
-        const bh = Math.min(h - y0, rad * 2);
-        if (bw > 2 && bh > 2) {
-          applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, (gx, gy) => {
-            const dist = Math.hypot(gx - cx, gy - cy);
-            return dist <= rad ? Math.max(0.25, Math.pow(1 - dist / (rad * 1.05), 0.9)) : 0;
-          });
-        }
-      }
+    for (const pt of densePoints) {
+      const cx = Math.round(pt.x * w), cy = Math.round(pt.y * h);
+      const x0 = Math.max(0, cx - rad), y0 = Math.max(0, cy - rad);
+      const x1 = Math.min(w, cx + rad + 1), y1 = Math.min(h, cy + rad + 1);
+      const bw = x1 - x0, bh = y1 - y0;
+      if (bw < 1 || bh < 1) continue;
+      applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, (gx, gy) => {
+        const dx = Math.abs(gx - cx), dy = Math.abs(gy - cy);
+        const dist = shape === 'rect' ? Math.max(dx, dy) : Math.hypot(dx, dy);
+        if (dist > rad) return 0;
+        return Math.max(0.12, Math.pow(1 - dist / (rad * 1.05), 0.9));
+      });
     }
   }
   return targetCanvas;
@@ -306,10 +270,15 @@ liveEditCanvas.onmousedown = (e) => {
   }
   isBrushingHair = true;
   const brushPx = parseFloat(document.getElementById('hairBrushSize')?.value) || 24;
+  const canvasRect = liveEditCanvas.getBoundingClientRect();
+  const scaleX = liveEditCanvas.width / Math.max(1, canvasRect.width);
+  const scaleY = liveEditCanvas.height / Math.max(1, canvasRect.height);
+  const radiusCanvas = (brushPx / 2) * Math.max(scaleX, scaleY);
   currentHairStroke = {
     shape: getSelectedBrushShape(),
     effect: getSelectedBrushEffect(),
-    radiusNorm: brushPx / Math.max(1, Math.min(liveEditCanvas.width, liveEditCanvas.height)),
+    brushSizePx: brushPx,
+    radiusNorm: radiusCanvas / Math.max(1, Math.min(liveEditCanvas.width, liveEditCanvas.height)),
     points: [{ x: nx, y: ny }]
   };
   hairStrokes.push(currentHairStroke);
@@ -744,32 +713,31 @@ async function renderLiveEditPreview() {
 
     if (hairBrushChecked && currentHairStroke && currentHairStroke.points.length) {
       const shape = currentHairStroke.shape || 'freehand';
-      const p0 = currentHairStroke.points[0];
-      const p1 = currentHairStroke.points[currentHairStroke.points.length - 1];
-      const rad = Math.max(12, Math.round(currentHairStroke.radiusNorm * Math.min(pw, ph)));
+      const pts = currentHairStroke.points;
+      const p1 = pts[pts.length - 1];
+      const cx = p1.x * pw, cy = p1.y * ph;
+      const rad = Math.max(1, Math.round(currentHairStroke.radiusNorm * Math.min(pw, ph)));
       lctx.save();
       lctx.strokeStyle = '#f59e0b';
       lctx.lineWidth = 2;
       lctx.setLineDash([5, 3]);
       if (shape === 'circle') {
-        const cx = p0.x * pw, cy = p0.y * ph;
-        const r = Math.max(rad, Math.hypot((p1.x - p0.x) * pw, (p1.y - p0.y) * ph));
         lctx.beginPath();
-        lctx.arc(cx, cy, r, 0, Math.PI * 2);
+        lctx.arc(cx, cy, rad, 0, Math.PI * 2);
         lctx.stroke();
       } else if (shape === 'rect') {
-        const x = Math.min(p0.x, p1.x) * pw;
-        const y = Math.min(p0.y, p1.y) * ph;
-        const wBox = Math.max(rad, Math.abs(p1.x - p0.x) * pw);
-        const hBox = Math.max(rad, Math.abs(p1.y - p0.y) * ph);
-        lctx.strokeRect(x, y, wBox, hBox);
+        lctx.strokeRect(cx - rad, cy - rad, rad * 2, rad * 2);
       } else {
         lctx.beginPath();
-        currentHairStroke.points.forEach((pt, idx) => {
+        pts.forEach((pt, idx) => {
           const pxPt = pt.x * pw, pyPt = pt.y * ph;
           if (idx === 0) lctx.moveTo(pxPt, pyPt);
           else lctx.lineTo(pxPt, pyPt);
         });
+        lctx.setLineDash([]);
+        lctx.lineWidth = Math.max(1, rad * 2);
+        lctx.lineCap = 'round';
+        lctx.lineJoin = 'round';
         lctx.stroke();
       }
       lctx.restore();
