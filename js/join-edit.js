@@ -390,7 +390,7 @@ document.getElementById('hairResetBtn').onclick = () => {
 
 document.getElementById('hairBrushToggle').onchange = () => {
   const active = document.getElementById('hairBrushToggle').checked;
-  if (!active) isBrushingHair = false;
+  if (!active) { isBrushingHair = false; hideHairBrushMagnifier(); }
   liveEditCanvas.style.cursor = active ? 'cell' : 'default';
   updatePsBgControls();
   renderLiveEditPreview();
@@ -417,6 +417,7 @@ if (document.getElementById('hairBrushSize')) {
     const val = document.getElementById('hairBrushSize').value;
     const lbl = document.getElementById('hairBrushSizeVal');
     if (lbl) lbl.textContent = `${val}px`;
+    drawHairBrushMagnifier(lastMagnifierPos);
   };
 }
 
@@ -448,7 +449,7 @@ function updatePsBgControls() {
     if (hintEl) hintEl.textContent = 'Hair Set Brush Active: Drag over top/side hairs to smooth, darken or trim stray strands.';
     document.getElementById('livePreviewCaption').textContent = 'Live Digital Studio Preview: Hair Brush & Digital Studio Retouch';
   } else {
-    if (hintEl) hintEl.textContent = 'Tip: Enable "Hair Set & Stray Hair Brush" or "Zoom Photo for Hair Brush" above to edit hair.';
+    if (hintEl) hintEl.textContent = 'Tip: Enable Hair Set Brush to retouch. Brush Magnifier helps inspect the exact area.';
     document.getElementById('livePreviewCaption').textContent = enabled
       ? 'Live Digital Studio Preview (AI Background Removed)'
       : 'Live Digital Studio Preview (Left: Digital Retouched • Right: Original)';
