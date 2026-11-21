@@ -59,8 +59,9 @@
       if (document.getElementById('ppBorder').checked) {
         const bCtx = finalPhotoCanvas.getContext('2d');
         bCtx.strokeStyle = '#94a3b8';
-        bCtx.lineWidth = Math.max(3, Math.round(finalPhotoCanvas.width * 0.008));
-        bCtx.strokeRect(2, 2, finalPhotoCanvas.width - 4, finalPhotoCanvas.height - 4);
+        bCtx.lineWidth = Math.max(1, Math.round(finalPhotoCanvas.width * 0.002));
+        const inset = bCtx.lineWidth / 2 + 1;
+        bCtx.strokeRect(inset, inset, finalPhotoCanvas.width - inset * 2, finalPhotoCanvas.height - inset * 2);
       }
 
       const sheetMode = document.getElementById('ppSheet').value;
