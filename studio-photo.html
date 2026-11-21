@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auto Studio Photo - DocX Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+<style>
+.studio-upload{border:2px dashed #94a3b8;border-radius:12px;padding:24px;text-align:center;background:#f8fafc}
+.studio-preview{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin-top:20px}
+.studio-preview figure{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;text-align:center}
+.studio-preview img{display:block;max-width:100%;max-height:430px;object-fit:contain;margin:10px auto;border-radius:5px;background:#fff}
+.studio-note{font-size:.88rem;color:#475569;line-height:1.55;margin:10px 0 16px}
+.studio-controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:16px 0}
+.studio-controls label{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+@media(max-width:600px){.panel{padding:14px}.studio-upload{padding:16px}}
+</style></head><body>
+<header class="navbar"><div class="nav-inner">
+<div class="brand"><div class="brand-top"><span class="brand-badge">PRO</span><span>DOCX STUDIO</span></div><span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span></div>
+<nav class="menu">
+<a href="index.html" class="menu-btn">Image Resizer</a><a href="passport.html" class="menu-btn">Passport Photo</a><a href="studio-photo.html" class="menu-btn active">Auto Studio Photo</a><a href="watermark.html" class="menu-btn">Watermark Remover</a><a href="pdf-tools.html" class="menu-btn">PDF Tools &amp; Security</a><a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a><a href="pdf-form.html" class="menu-btn">PDF Form Filler</a><a href="join-edit.html" class="menu-btn">Join, Edit &amp; Create</a>
+</nav></div></header>
+<main class="container"><section class="panel active">
+<h1>Auto Studio Photo – White Background &amp; HD</h1>
+<p class="studio-note">Upload an ordinary portrait photo. The tool separates the person from the background, places the photo on a clean white studio background, keeps the original face and clothing, and exports a larger high-resolution image. Results depend on the input photo and segmentation quality.</p>
+<div class="studio-upload"><strong>Select or drop your original photo</strong><p style="margin:8px 0;color:#64748b">JPG, PNG or WEBP</p><input type="file" id="studioFile" accept="image/jpeg,image/png,image/webp"></div>
+<div class="studio-controls">
+<label>Photo Frame: <select id="studioFrame"><option value="reference" selected>Reference Style (1232 × 1277)</option><option value="square">Square (1200 × 1200)</option><option value="portrait">Portrait (1050 × 1350)</option><option value="original">Keep Original Ratio</option></select></label>
+<label>Output Quality: <select id="studioScale"><option value="1">HD – 1×</option><option value="2" selected>High Resolution – 2×</option><option value="3">Extra Large – 3×</option></select></label>
+<label><input type="checkbox" id="studioWhiteBg" checked> AI White Background</label><label><input type="checkbox" id="studioEnhance" checked> Light &amp; Sharpness Enhancement</label>
+</div>
+<div class="controls-row"><button type="button" class="btn-green" id="studioCreate">Create HD Studio Photo</button></div>
+<div id="studioStatus" class="status-note hidden" role="status"></div><div class="studio-preview" id="studioPreview"></div>
+</section></main>
+<script src="js/shared.js"></script><script src="js/studio-photo.js"></script>
+</body></html>
