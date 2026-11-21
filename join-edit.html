@@ -8,59 +8,22 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Acme&family=Alfa+Slab+One&family=Amatic+SC:wght@700&family=Anton&family=Architects+Daughter&family=Arvo:wght@400;700&family=Baloo+2:wght@400;700&family=Baloo+Bhai+2:wght@400;700&family=Baloo+Bhaina+2:wght@400;700&family=Baloo+Da+2:wght@400;700&family=Baloo+Paaji+2:wght@400;700&family=Baloo+Tamma+2:wght@400;700&family=Baloo+Tammudu+2:wght@400;700&family=Baloo+Thambi+2:wght@400;700&family=Bangers&family=Bebas+Neue&family=Bitter:wght@400;700&family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Comfortaa:wght@400;700&family=Cookie&family=Courgette&family=Creepster&family=Crimson+Text:wght@400;700&family=Dancing+Script:wght@400;700&family=DM+Sans:wght@400;700&family=DM+Serif+Display&family=EB+Garamond:wght@400;700&family=Exo+2:wght@400;700&family=Fira+Code:wght@400;700&family=Fredoka:wght@400;700&family=Gloria+Hallelujah&family=Great+Vibes&family=Hind:wght@400;700&family=Hind+Siliguri:wght@400;700&family=Hind+Vadodara:wght@400;700&family=Indie+Flower&family=Inconsolata:wght@400;700&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Josefin+Sans:wght@400;700&family=Kalam:wght@400;700&family=Kaushan+Script:wght@400;700&family=Khand:wght@400;700&family=Laila:wght@400;700&family=Lato:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Lobster&family=Lora:wght@400;700&family=Merriweather:wght@400;700&family=Modak&family=Montserrat:wght@400;700&family=Mukta:wght@400;700&family=Mukta+Mahee:wght@400;700&family=Mukta+Malayalam:wght@400;700&family=Mukta+Vaani:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Noto+Serif:wght@400;700&family=Noto+Serif+Devanagari:wght@400;700&family=Noto+Serif+Gurmukhi:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;700&family=Outfit:wght@400;700&family=Pacifico&family=Patrick+Hand&family=Permanent+Marker&family=Playfair+Display:wght@400;700&family=Plus+Jakarta+Sans:wght@400;700&family=Poppins:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Serif:wght@400;700&family=Quicksand:wght@400;700&family=Rajdhani:wght@400;700&family=Raleway:wght@400;700&family=Righteous&family=Roboto:wght@400;700&family=Roboto+Mono:wght@400;700&family=Roboto+Slab:wght@400;700&family=Rokkitt:wght@400;700&family=Rozha+One&family=Rubik:wght@400;700&family=Sacramento&family=Satisfy&family=Shadows+Into+Light&family=Source+Code+Pro:wght@400;700&family=Space+Grotesk:wght@400;700&family=Teko:wght@400;700&family=Tiro+Devanagari+Hindi&family=Tiro+Gurmukhi&family=Ubuntu:wght@400;700&family=Varela+Round:wght@400;700&family=Work+Sans:wght@400;700&family=Yatra+One&family=Zeyada&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
-  <style>
-    #liveEditCanvas,
-    #sigCanvas {
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-      cursor: crosshair;
-      max-width: 100%;
-      display: block;
-      margin: 0 auto;
-    }
-    .canvas-tool-hint {
-      font-size: 0.84rem;
-      font-weight: 600;
-      color: #0f766e;
-      margin: 6px 0 10px;
-      text-align: center;
-    }
-    .near-photo-zoom-bar {
-      background: #f0f9ff;
-      border: 1px solid #bae6fd;
-      border-radius: 10px;
-      padding: 8px 10px;
-      margin: 8px 0;
-    }
-  </style>
 </head>
 <body>
-  <header class="navbar">
-    <div class="nav-inner">
-      <div class="brand">
-        <div class="brand-top">
-          <span class="brand-badge">PRO</span>
-          <span>DOCX STUDIO</span>
-        </div>
-        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
-      </div>
-      <nav class="menu">
-        <a href="index.html" class="menu-btn">Image Resizer</a>
-        <a href="passport.html" class="menu-btn">Passport Photo</a>
-        <a href="studio-photo.html" class="menu-btn">Auto Studio Photo</a>
-        <a href="watermark.html" class="menu-btn">Watermark Remover</a>
-        <a href="pdf-tools.html" class="menu-btn">PDF Tools &amp; Security</a>
-        <a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a>
-        <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
-        <a href="join-edit.html" class="menu-btn active">Join, Edit &amp; Create</a>
-      </nav>
-    </div>
-  </header>
-
-  <main class="container">
-    <section id="tab-edit-join" class="panel active">
+  <header class="navbar"><div class="nav-inner">
+    <div class="brand"><div class="brand-top"><span class="brand-badge">PRO</span><span>DOCX STUDIO</span></div><span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span></div>
+    <nav class="menu"><a href="index.html" class="menu-btn">Image Resizer</a>
+      <a href="passport.html" class="menu-btn">Passport Photo</a>
+      <a href="studio-photo.html" class="menu-btn">Auto Studio Photo</a>
+      <a href="watermark.html" class="menu-btn">Watermark Remover</a>
+      <a href="pdf-tools.html" class="menu-btn">PDF Tools &amp; Security</a>
+      <a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a>
+      <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
+      <a href="join-edit.html" class="menu-btn active">Join, Edit &amp; Create</a></nav>
+  </div></header>
+  <main class="container"><section id="tab-edit-join" class="panel active">
       <h1>Join Images, Photo Effects &amp; Create Tools</h1>
       <div class="tool-selector">
         <select id="editToolSelect">
@@ -70,6 +33,7 @@
           </optgroup>
           <optgroup label="CHANGE PHOTO">
             <option value="ps_auto_retouch" selected>Photoshop Auto Retouch, Hair Set &amp; Digital Studio</option>
+            <option value="zoom_area">Zoom Selected Area (Crop &amp; Magnify)</option>
             <option value="name_date">Add Name and Date on Photo (Transparent / Strip)</option>
             <option value="add_logo_photo">Add Logo on Photo (Transparent / Custom Opacity)</option>
             <option value="photo_frame">Photo Frame &amp; Border (50 Pro Frames + Upload)</option>
@@ -99,7 +63,17 @@
         <label id="edColorLbl">Color: <input type="color" id="editColor" value="#ffffff"></label>
       </div>
 
-      <!-- PHOTOSHOP AUTO RETOUCH & DIGITAL STUDIO + HAIR SET TOOL + ZOOM NEAR PHOTO + OPTIONAL BG REMOVER -->
+      <!-- ZOOM SELECTED AREA CONTROLS -->
+      <div id="zoomAreaWrap" class="inputs-row hidden">
+        <label>Zoom Scale:
+          <input type="range" id="zoomScaleRange" min="1.5" max="5" step="0.25" value="2.5">
+          <input type="number" id="zoomScaleNum" min="1.5" max="5" step="0.25" value="2.5" style="width:68px;">x
+        </label>
+        <label><input type="checkbox" id="zoomSharpToggle" checked> HD Detail Sharpen</label>
+        <button type="button" class="chip" id="zoomResetBoxBtn">Reset Selection</button>
+      </div>
+
+      <!-- PHOTOSHOP AUTO RETOUCH & DIGITAL STUDIO + HAIR SET TOOL + OPTIONAL BG REMOVER -->
       <div id="psRetouchWrap" class="hidden">
         <div class="inputs-row">
           <label>Digital Look Preset:
@@ -132,7 +106,6 @@
           <label><input type="checkbox" id="psAutoWb" checked> Auto White Balance</label>
           <label>Before / After Split (%):
             <input type="range" id="psSplitRange" min="0" max="100" value="100">
-            <span id="psSplitVal" style="font-weight:700;min-width:38px;">100%</span>
           </label>
         </div>
 
@@ -140,7 +113,7 @@
         <div class="hair-box-highlight">
           <div class="inputs-row" style="margin-bottom:0;">
             <label style="background:#fff;border-color:#f59e0b;font-weight:700;color:#78350f;">
-              <input type="checkbox" id="hairBrushToggle" checked> Hair Set &amp; Stray Hair Brush (Drag on Photo)
+              <input type="checkbox" id="hairBrushToggle"> Hair Set &amp; Stray Hair Brush (Drag on Photo)
             </label>
             <label style="background:#fff;">Brush Action:
               <select id="hairBrushMode">
@@ -149,45 +122,12 @@
                 <option value="erase_stray">Clean / Trim Stray Outer Hairs</option>
               </select>
             </label>
-            <label style="background:#fff;">Brush Shape:
-              <select id="hairBrushShape">
-                <option value="freehand" selected>Freehand Brush</option>
-                <option value="circle">Circle Area</option>
-                <option value="rect">Rectangle Area</option>
-              </select>
-            </label>
             <label style="background:#fff;">Brush Size:
               <input type="range" id="hairBrushSize" min="8" max="65" value="24" style="width:85px;">
-              <span id="hairBrushSizeVal" style="font-weight:700;min-width:34px;">24px</span>
             </label>
             <button type="button" class="chip" id="hairUndoBtn">Undo Stroke</button>
             <button type="button" class="chip" id="hairResetBtn">Reset Hair</button>
           </div>
-          <div class="inputs-row" style="margin-top:8px;margin-bottom:0;">
-            <label style="background:#fff;border-color:#8b5cf6;font-weight:700;color:#5b21b6;">Hairstyle Redesign:
-              <select id="hairstyleRedesignSelect">
-                <option value="none" selected>Original Hair</option>
-                <option value="rounded_golai">Rounded Studio Golai + Neat Ends</option>
-                <option value="neat_tuck">Neat Side Tuck</option>
-                <option value="lower_gather">Lower Hair Gather (Bikhra Pan Fix)</option>
-                <option value="soft_volume">Soft Crown Volume</option>
-              </select>
-            </label>
-            <small style="color:#64748b;align-self:center;">Local shape adjustment; not generative hair replacement.</small>
-          </div>
-        </div>
-
-        <!-- ZOOM NEAR PHOTO FOR EASY HAIR BRUSHING -->
-        <div class="inputs-row near-photo-zoom-bar">
-          <label style="background:#fff;border-color:#0284c7;font-weight:700;color:#0369a1;">
-            <input type="checkbox" id="psZoomSelectMode"> Zoom Photo for Hair Brush
-          </label>
-          <label style="background:#fff;">Zoom Scale:
-            <input type="range" id="psZoomScaleRange" min="1" max="5" step="0.1" value="2" style="width:85px;">
-            <input type="number" id="psZoomScaleNum" min="1" max="5" step="0.1" value="2" style="width:62px;">x
-          </label>
-          <label style="background:#fff;"><input type="checkbox" id="psZoomSharpToggle" checked> HD Detail Sharpen</label>
-          <button type="button" class="chip" id="psZoomResetBoxBtn">Reset Zoom</button>
         </div>
 
         <!-- OPTIONAL AI BACKGROUND REMOVAL & COLOR FIT -->
@@ -196,10 +136,6 @@
             <label style="background:#fff;border-color:#14b8a6;font-weight:700;color:#115e59;">
               <input type="checkbox" id="psRemoveBgToggle"> Optional: AI Remove Background
             </label>
-            <label style="background:#fff;border-color:#f59e0b;font-weight:700;color:#92400e;">
-              <input type="checkbox" id="psAutoHairFitToggle"> Auto Hair Fit (Clean Flyaways)
-            </label>
-            <small id="psAutoHairFitStatus" class="hidden" style="font-weight:700;align-self:center;max-width:100%;"></small>
             <div id="psBgColorControls" class="hidden" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <label style="background:#fff;">Background Fill:
                 <select id="psBgStyleSelect">
@@ -214,11 +150,11 @@
               <label id="psCustomColorLbl" class="hidden" style="background:#fff;">Pick Color:
                 <input type="color" id="psBgCustomColor" value="#2563eb">
               </label>
-              <button type="button" class="chip quick-bg-btn" data-bg-style="transparent">None (Transparent)</button>
-              <button type="button" class="chip quick-bg-btn" data-bg-style="solid_custom" data-bg-color="#2563eb">Blue</button>
-              <button type="button" class="chip quick-bg-btn" data-bg-style="solid_custom" data-bg-color="#dc2626">Red</button>
-              <button type="button" class="chip quick-bg-btn" data-bg-style="solid_custom" data-bg-color="#334155">Grey</button>
-              <button type="button" class="chip quick-bg-btn" data-bg-style="solid_custom" data-bg-color="#ffffff">White</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('transparent')">None (Transparent)</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('solid_custom', '#2563eb')">Blue</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('solid_custom', '#dc2626')">Red</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('solid_custom', '#334155')">Grey</button>
+              <button type="button" class="chip" onclick="setQuickStudioBg('solid_custom', '#ffffff')">White</button>
             </div>
           </div>
         </div>
@@ -298,9 +234,9 @@
         <div class="inputs-row">
           <label>Upload Custom Frame (PNG): <input type="file" id="customFrameFile" accept="image/*"></label>
           <label>Frame Thickness (%): <input type="number" id="frameThickness" value="6" min="2" max="20"></label>
-          <span id="selectedFrameBadge" style="font-size:.82rem;font-weight:700;color:#059669;">Selected Frame: 01</span>
+          <span id="selectedFrameBadge" style="font-size:.82rem;font-weight:700;color:#059669;">Selected: 01. Royal Gold</span>
         </div>
-        <p style="text-align:center;font-size:.84rem;color:#475569;margin-bottom:6px;">50 Ready-Made Pro Frames — Click a visual frame preview to select:</p>
+        <p style="text-align:center;font-size:.84rem;color:#475569;margin-bottom:6px;">50 Ready-Made Pro Frames (Click any frame to select):</p>
         <div class="frame-gallery" id="frameGallery"></div>
       </div>
 
@@ -322,8 +258,7 @@
 
       <!-- LIVE PREVIEW CANVAS FOR PS RETOUCH, HAIR SET, ZOOM AREA, CONTRAST/BRIGHTNESS & LOGO -->
       <div id="liveEditPreviewWrap" class="canvas-box hidden">
-        <p id="livePreviewCaption" style="font-size:.84rem;color:#0f766e;font-weight:700;margin-bottom:4px;">Live Digital Studio Preview (Left: Digital Retouched • Right: Original):</p>
-        <p id="canvasToolHint" class="canvas-tool-hint">Hair Set Brush Active: Drag directly on top/side hairs to smooth, tuck &amp; clean stray hair.</p>
+        <p id="livePreviewCaption" style="font-size:.84rem;color:#0f766e;font-weight:700;margin-bottom:6px;">Live Digital Studio Preview (Left: Digital Retouched • Right: Original):</p>
         <canvas id="liveEditCanvas" class="live-preview"></canvas>
       </div>
 
@@ -332,10 +267,8 @@
       </div>
       <div id="editStatus" class="status-note hidden"></div>
       <div class="output-area" id="editOutput"></div>
-    </section>
-  </main>
-
-  <script src="js/shared.js?v=6"></script>
-  <script src="js/join-edit.js?v=11"></script>
+    </section></main>
+  <script src="js/source-shared.js?v=1"></script>
+  <script src="js/join-edit.js?v=4"></script>
 </body>
 </html>

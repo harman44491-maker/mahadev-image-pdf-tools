@@ -151,8 +151,13 @@
           const np = outPdf.addPage([emb.width, emb.height]);
           np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
         }
-        const bytes = pass ? await outPdf.save({ userPassword: pass, ownerPassword: pass }) : await outPdf.save();
-        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF (${(bytes.length / 1024).toFixed(1)} KB)`);
+        const bytes = await outPdf.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Not password encrypted' : ''}`);
+        if (pass) {
+          const status = document.getElementById('ffStatus');
+          status.textContent = 'PDF saved. The current PDF writer cannot apply output password encryption.';
+          status.classList.remove('hidden');
+        }
         return;
       }
 
@@ -168,6 +173,11 @@
       if (document.getElementById('ffFlatten').checked) {
         try { ffLoadedDoc.getForm().flatten(); } catch (e) {}
       }
-      const bytes = pass ? await ffLoadedDoc.save({ userPassword: pass, ownerPassword: pass }) : await ffLoadedDoc.save();
-      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF Form (${(bytes.length / 1024).toFixed(1)} KB)`);
+      const bytes = await ffLoadedDoc.save();
+      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'filled_form.pdf', `Filled PDF Form (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Not password encrypted' : ''}`);
+      if (pass) {
+        const status = document.getElementById('ffStatus');
+        status.textContent = 'PDF saved. The current PDF writer cannot apply output password encryption.';
+        status.classList.remove('hidden');
+      }
     };

@@ -1,1589 +1,941 @@
 // ================= 7. JOIN, CHANGE PHOTO, DIGITAL STUDIO + HAIR SET + ZOOM AREA + BG REMOVER + 50 FRAMES =================
-const sigCanvas = document.getElementById('sigCanvas');
-const sigCtx = sigCanvas.getContext('2d');
-let drawingSig = false;
-sigCanvas.onmousedown = e => { drawingSig = true; sigCtx.beginPath(); sigCtx.moveTo(e.offsetX, e.offsetY); };
-sigCanvas.onmousemove = e => { if (!drawingSig) return; sigCtx.lineWidth = 2.5; sigCtx.strokeStyle = '#0f172a'; sigCtx.lineTo(e.offsetX, e.offsetY); sigCtx.stroke(); };
-window.addEventListener('mouseup', () => drawingSig = false);
-document.getElementById('clearSigBtn').onclick = () => sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+    const sigCanvas = document.getElementById('sigCanvas');
+    const sigCtx = sigCanvas.getContext('2d');
+    let drawingSig = false;
+    sigCanvas.onmousedown = e => { drawingSig = true; sigCtx.beginPath(); sigCtx.moveTo(e.offsetX, e.offsetY); };
+    sigCanvas.onmousemove = e => { if (!drawingSig) return; sigCtx.lineWidth = 2.5; sigCtx.strokeStyle = '#0f172a'; sigCtx.lineTo(e.offsetX, e.offsetY); sigCtx.stroke(); };
+    window.addEventListener('mouseup', () => drawingSig = false);
+    document.getElementById('clearSigBtn').onclick = () => sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
 
-let cachedMainImg = null;
-let cachedLogoImg = null;
-let cachedTransparentCutout = null;
-let cachedCutoutKey = '';
-let cachedAutoHairFitImage = null;
-let isRunningAutoHairFit = false;
-let cachedHairstyleSource = null;
-let cachedHairstyleMode = 'none';
-let cachedHairstyleResult = null;
+    let cachedMainImg = null;
+    let cachedLogoImg = null;
+    let cachedTransparentCutout = null;
 
-// Selected Area Zoom state (normalized 0..1)
-let zoomSelectionNorm = null;
-let isSelectingZoom = false;
-let zoomDragStart = null;
+    // Selected Area Zoom state (normalized 0..1)
+    let zoomSelectionNorm = null;
+    let isSelectingZoom = false;
+    let zoomDragStart = null;
 
-// Hair Set Brush Strokes (stored normalized 0..1 relative to active view)
-let hairStrokes = [];
-let isBrushingHair = false;
-let currentHairStroke = null;
-let lastHairPos = null;
+    // Hair Set Brush Strokes (stored normalized 0..1)
+    let hairStrokes = [];
+    let isBrushingHair = false;
+    let currentHairStroke = null;
+    let lastHairPos = null;
 
-function invalidateHairAndBgCache() {
-  cachedAutoHairFitImage = null;
-  cachedTransparentCutout = null;
-  cachedCutoutKey = '';
-  cachedHairstyleSource = null;
-  cachedHairstyleMode = 'none';
-  cachedHairstyleResult = null;
-}
+    function applyHairSetBrushStrokes(targetCanvas) {
+      if (!hairStrokes.length) return targetCanvas;
+      const w = targetCanvas.width;
+      const h = targetCanvas.height;
+      const ctx = targetCanvas.getContext('2d');
 
-function getSafeCanvasPos(canvas, e) {
-  const rect = canvas.getBoundingClientRect();
-  const clientX = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
-  const clientY = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
-  const scaleX = canvas.width / Math.max(1, rect.width);
-  const scaleY = canvas.height / Math.max(1, rect.height);
-  return {
-    x: Math.max(0, Math.min(canvas.width, (clientX - rect.left) * scaleX)),
-    y: Math.max(0, Math.min(canvas.height, (clientY - rect.top) * scaleY))
-  };
-}
+      for (const stroke of hairStrokes) {
+        const rad = Math.max(4, Math.round(stroke.radiusNorm * Math.min(w, h)));
+        for (let i = 0; i < stroke.points.length; i++) {
+          const pt = stroke.points[i];
+          const cx = Math.round(pt.x * w);
+          const cy = Math.round(pt.y * h);
+          const prev = i > 0 ? stroke.points[i - 1] : pt;
+          const dx = (pt.x - prev.x) * w;
+          const dy = (pt.y - prev.y) * h;
 
-function getSelectedBrushShape() {
-  const shapeEl = document.getElementById('hairBrushShape');
-  return (shapeEl && shapeEl.value) ? shapeEl.value : 'freehand';
-}
+          const x0 = Math.max(1, cx - rad);
+          const y0 = Math.max(1, cy - rad);
+          const bw = Math.min(w - x0 - 1, rad * 2);
+          const bh = Math.min(h - y0 - 1, rad * 2);
+          if (bw <= 2 || bh <= 2) continue;
 
-function getSelectedBrushEffect() {
-  const modeVal = document.getElementById('hairBrushMode')?.value || 'tuck_smooth';
-  if (modeVal.includes('darken')) return 'darken';
-  if (modeVal.includes('erase') || modeVal.includes('trim')) return 'trim';
-  return 'tuck';
-}
+          const imgData = ctx.getImageData(x0, y0, bw, bh);
+          const d = imgData.data;
+          const copy = new Uint8ClampedArray(d);
 
-/*
- * Auto Hair Fit: cleans flyaway hair strands along head/hair contour
- * using SelfieSegmentation + edge/alpha refinement so stray hair pixels
- * are cleanly tucked/trimmed without erasing main hair volume.
- */
-let autoHairFitMessage = '';
+          for (let py = 0; py < bh; py++) {
+            for (let px = 0; px < bw; px++) {
+              const dist = Math.hypot((x0 + px) - cx, (y0 + py) - cy);
+              if (dist > rad) continue;
+              const falloff = Math.pow(1 - dist / rad, 1.4);
+              const idx = (py * bw + px) * 4;
 
-function setAutoHairFitStatus(message, isError = false) {
-  autoHairFitMessage = message;
-  const el = document.getElementById('psAutoHairFitStatus');
-  if (el) {
-    el.textContent = message;
-    el.style.color = isError ? '#b91c1c' : '#0f766e';
-    el.classList.remove('hidden');
-  }
-}
+              if (stroke.mode === 'erase_stray') {
+                if (copy[idx + 3] > 0) {
+                  d[idx + 3] = Math.max(0, Math.round(copy[idx + 3] * (1 - falloff * 0.92)));
+                }
+              } else if (stroke.mode === 'darken_shine') {
+                const lum = 0.299 * copy[idx] + 0.587 * copy[idx + 1] + 0.114 * copy[idx + 2];
+                if (lum < 165) {
+                  const factor = 1 - falloff * 0.34;
+                  d[idx] = Math.max(12, Math.round(copy[idx] * factor));
+                  d[idx + 1] = Math.max(10, Math.round(copy[idx + 1] * factor));
+                  d[idx + 2] = Math.max(10, Math.round(copy[idx + 2] * factor));
+                }
+              } else {
+                const shiftX = Math.round(dx * 0.38 * falloff);
+                const shiftY = Math.round(dy * 0.38 * falloff);
+                const sx = Math.min(bw - 1, Math.max(0, px - shiftX));
+                const sy = Math.min(bh - 1, Math.max(0, py - shiftY));
+                const sIdx = (sy * bw + sx) * 4;
 
-async function runAutoHairFit(img) {
-  if (typeof SelfieSegmentation === 'undefined') {
-    throw new Error('AI hair cleanup model did not load. Check your internet connection and refresh the page.');
-  }
+                const nx = Math.min(bw - 1, Math.max(0, sx + (dx >= 0 ? -1 : 1)));
+                const ny = Math.min(bh - 1, Math.max(0, sy + (dy >= 0 ? -1 : 1)));
+                const nIdx = (ny * bw + nx) * 4;
 
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let segmenter = null;
-    const finish = (error, canvas) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeoutId);
-      try { segmenter?.close(); } catch (_) {}
-      if (error) reject(error);
-      else resolve(canvas);
-    };
-    const timeoutId = setTimeout(() => {
-      finish(new Error('AI hair cleanup timed out. Please retry with a smaller photo.'));
-    }, 30000);
-
-    try {
-      segmenter = new SelfieSegmentation({
-        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
-      });
-      segmenter.setOptions({ modelSelection: 1 });
-      segmenter.onResults(results => {
-        try {
-          const w = img.naturalWidth || img.width;
-          const h = img.naturalHeight || img.height;
-          if (!results?.segmentationMask || !w || !h) {
-            throw new Error('AI did not return a usable person mask.');
-          }
-
-          const maskCanvas = document.createElement('canvas');
-          maskCanvas.width = w;
-          maskCanvas.height = h;
-          const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-          maskCtx.drawImage(results.segmentationMask, 0, 0, w, h);
-          const mask = maskCtx.getImageData(0, 0, w, h).data;
-
-          const output = document.createElement('canvas');
-          output.width = w;
-          output.height = h;
-          const outCtx = output.getContext('2d', { willReadFrequently: true });
-          outCtx.drawImage(img, 0, 0, w, h);
-          const frame = outCtx.getImageData(0, 0, w, h);
-          const pixels = frame.data;
-
-          const left = Math.floor(w * 0.08);
-          const right = Math.ceil(w * 0.92);
-          const topLimit = Math.floor(h * 0.65);
-          const rawTop = new Int32Array(w);
-          rawTop.fill(-1);
-
-          // Detect outer hair / head boundary where segmentation confidence starts
-          for (let x = left; x < right; x++) {
-            for (let y = 0; y < topLimit; y++) {
-              if (mask[(y * w + x) * 4] >= 48) {
-                rawTop[x] = y;
-                break;
+                const blend = falloff * 0.68;
+                for (let ch = 0; ch < 4; ch++) {
+                  const smoothed = copy[sIdx + ch] * 0.65 + copy[nIdx + ch] * 0.35;
+                  d[idx + ch] = Math.round(copy[idx + ch] * (1 - blend) + smoothed * blend);
+                }
               }
             }
           }
-
-          // Median-filter contour to get smooth main hair silhouette
-          const radius = Math.max(6, Math.min(36, Math.round(w * 0.02)));
-          const fittedTop = new Int32Array(w);
-          fittedTop.fill(-1);
-          for (let x = left; x < right; x++) {
-            if (rawTop[x] < 0) continue;
-            const values = [];
-            for (let xx = Math.max(left, x - radius); xx <= Math.min(right - 1, x + radius); xx++) {
-              if (rawTop[xx] >= 0) values.push(rawTop[xx]);
-            }
-            if (values.length >= Math.max(4, Math.round(radius * 0.6))) {
-              values.sort((a, b) => a - b);
-              fittedTop[x] = values[Math.floor(values.length / 2)];
-            }
-          }
-
-          let changedPixels = 0;
-          const minLift = 1;
-          const maxLift = Math.max(8, Math.round(h * 0.045));
-
-          for (let x = left; x < right; x++) {
-            const actualY = rawTop[x];
-            const smoothY = fittedTop[x];
-            if (actualY < 0 || smoothY < 0) continue;
-            const lift = smoothY - actualY;
-            if (lift < minLift || lift > maxLift) continue;
-
-            // Sample slightly below fittedTop so stray hair blends into solid hair/background cleanly
-            const anchorY = Math.min(h - 1, smoothY + Math.max(2, Math.round(h * 0.005)));
-            const anchorIdx = (anchorY * w + x) * 4;
-            const targetR = pixels[anchorIdx];
-            const targetG = pixels[anchorIdx + 1];
-            const targetB = pixels[anchorIdx + 2];
-
-            for (let y = actualY; y <= smoothY + 2; y++) {
-              if (y < 0 || y >= h) continue;
-              const idx = (y * w + x) * 4;
-              const maskVal = mask[idx];
-              if (maskVal < 12) continue;
-
-              const distFromTop = (y - actualY) / Math.max(1, lift + 2);
-              const strength = Math.min(0.95, Math.max(0.45, (1 - maskVal / 255) * 0.7 + (1 - distFromTop) * 0.45));
-
-              pixels[idx] = Math.round(pixels[idx] * (1 - strength) + targetR * strength);
-              pixels[idx + 1] = Math.round(pixels[idx + 1] * (1 - strength) + targetG * strength);
-              pixels[idx + 2] = Math.round(pixels[idx + 2] * (1 - strength) + targetB * strength);
-
-              // Also tighten low-confidence outer fringe pixels
-              if (maskVal < 110 && pixels[idx + 3] > 0) {
-                pixels[idx + 3] = Math.round(pixels[idx + 3] * Math.max(0.15, maskVal / 140));
-              }
-              changedPixels++;
-            }
-          }
-
-          if (changedPixels === 0) {
-            output.autoHairFitChangedPixels = 0;
-            setAutoHairFitStatus('AI scan complete: no stray flyaway pixels needed trimming.');
-          } else {
-            outCtx.putImageData(frame, 0, 0);
-            output.autoHairFitChangedPixels = changedPixels;
-            setAutoHairFitStatus(`Auto Hair Fit applied: cleaned ${changedPixels.toLocaleString()} edge pixels.`);
-          }
-          finish(null, output);
-        } catch (error) {
-          finish(error);
+          ctx.putImageData(imgData, x0, y0);
         }
-      });
-      segmenter.send({ image: img }).catch(error => finish(error));
-    } catch (error) {
-      finish(error);
+      }
+      return targetCanvas;
     }
-  });
-}
 
+    function buildZoomedSelectionCanvas(srcImg, selNorm, zoomFactor, sharpen) {
+      const box = selNorm || { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
+      const sx = Math.max(0, Math.min(srcImg.width - 1, Math.round(box.x * srcImg.width)));
+      const sy = Math.max(0, Math.min(srcImg.height - 1, Math.round(box.y * srcImg.height)));
+      const sw = Math.max(10, Math.min(srcImg.width - sx, Math.round(box.w * srcImg.width)));
+      const sh = Math.max(10, Math.min(srcImg.height - sy, Math.round(box.h * srcImg.height)));
 
-// ================= HAIRSTYLE REDESIGN (LOCAL GEOMETRIC HAIR SHAPING) =================
-let hairstyleRedesignMode = 'none';
+      const outW = Math.min(3600, Math.max(120, Math.round(sw * zoomFactor)));
+      const outH = Math.min(3600, Math.max(120, Math.round(sh * zoomFactor)));
 
-function getSelectedHairstyleMode() {
-  const el = document.getElementById('hairstyleRedesignSelect');
-  hairstyleRedesignMode = (el && el.value) ? el.value : 'none';
-  return hairstyleRedesignMode;
-}
+      const c = document.createElement('canvas');
+      c.width = outW;
+      c.height = outH;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(srcImg, sx, sy, sw, sh, 0, 0, outW, outH);
 
-async function applyHairstyleRedesign(img, styleMode = 'rounded_golai') {
-  if (!img || styleMode === 'none') return img;
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
-  if (!w || !h) return img;
+      if (sharpen && outW * outH < 2500000) {
+        const imgData = ctx.getImageData(0, 0, outW, outH);
+        const d = imgData.data;
+        const copy = new Uint8ClampedArray(d);
+        const amt = 0.35;
+        for (let y = 1; y < outH - 1; y++) {
+          for (let x = 1; x < outW - 1; x++) {
+            const idx = (y * outW + x) * 4;
+            for (let ch = 0; ch < 3; ch++) {
+              const center = copy[idx + ch] * 5;
+              const neighbors = copy[((y - 1) * outW + x) * 4 + ch]
+                              + copy[((y + 1) * outW + x) * 4 + ch]
+                              + copy[(y * outW + (x - 1)) * 4 + ch]
+                              + copy[(y * outW + (x + 1)) * 4 + ch];
+              d[idx + ch] = Math.min(255, Math.max(0, Math.round(copy[idx + ch] * (1 - amt) + (center - neighbors) * amt)));
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+      return c;
+    }
 
-  const srcCanvas = document.createElement('canvas');
-  srcCanvas.width = w; srcCanvas.height = h;
-  const sCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
-  sCtx.drawImage(img, 0, 0, w, h);
-  const srcData = sCtx.getImageData(0, 0, w, h).data;
+    const liveEditCanvas = document.getElementById('liveEditCanvas');
+    liveEditCanvas.onmousedown = (e) => {
+      const tool = document.getElementById('editToolSelect').value;
+      if (!cachedMainImg) return;
 
-  let maskData = null;
-  if (typeof SelfieSegmentation !== 'undefined') {
-    let segmenter = null;
-    try {
-      const maskResult = await new Promise(resolve => {
-        let done = false;
-        const finish = value => {
-          if (done) return;
-          done = true;
-          clearTimeout(timer);
-          try { segmenter?.close(); } catch (_) {}
-          resolve(value);
+      if (tool === 'zoom_area') {
+        const pos = getCanvasMousePos(liveEditCanvas, e);
+        zoomDragStart = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
+        isSelectingZoom = true;
+        zoomSelectionNorm = { x: zoomDragStart.x, y: zoomDragStart.y, w: 0.01, h: 0.01 };
+        renderLiveEditPreview();
+        return;
+      }
+
+      if (tool === 'ps_auto_retouch' && document.getElementById('hairBrushToggle').checked) {
+        isBrushingHair = true;
+        const pos = getCanvasMousePos(liveEditCanvas, e);
+        const normPt = { x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height };
+        const brushPx = parseFloat(document.getElementById('hairBrushSize').value) || 24;
+        currentHairStroke = {
+          mode: document.getElementById('hairBrushMode').value,
+          radiusNorm: brushPx / Math.min(liveEditCanvas.width, liveEditCanvas.height),
+          points: [normPt]
         };
-        const timer = setTimeout(() => finish(null), 8000);
-        try {
-          segmenter = new SelfieSegmentation({
-            locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
-          });
-          segmenter.setOptions({ modelSelection: 1 });
-          segmenter.onResults(results => {
-            try {
-              if (!results?.segmentationMask) return finish(null);
-              const mc = document.createElement('canvas');
-              mc.width = w; mc.height = h;
-              const mctx = mc.getContext('2d', { willReadFrequently: true });
-              mctx.drawImage(results.segmentationMask, 0, 0, w, h);
-              finish(mctx.getImageData(0, 0, w, h).data);
-            } catch (_) { finish(null); }
-          });
-          Promise.resolve(segmenter.send({ image: img })).catch(() => finish(null));
-        } catch (_) { finish(null); }
-      });
-      maskData = maskResult;
-    } catch (_) {
-      maskData = null;
-    } finally {
-      try { segmenter?.close(); } catch (_) {}
-    }
-  }
-
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = w; outCanvas.height = h;
-  const oCtx = outCanvas.getContext('2d', { willReadFrequently: true });
-  const outImg = oCtx.createImageData(w, h);
-  const dst = outImg.data;
-  const cx = w * 0.5;
-  const maxHeadHalfW = w * 0.34;
-
-  const sampleBilinear = (fx, fy, outPx) => {
-    if (fx < 0 || fx >= w - 1 || fy < 0 || fy >= h - 1) {
-      outPx[0] = 255; outPx[1] = 255; outPx[2] = 255; outPx[3] = 0;
-      return;
-    }
-    const x0 = Math.floor(fx), y0 = Math.floor(fy);
-    const x1 = x0 + 1, y1 = y0 + 1;
-    const wx = fx - x0, wy = fy - y0;
-    const i00 = (y0 * w + x0) * 4, i10 = (y0 * w + x1) * 4;
-    const i01 = (y1 * w + x0) * 4, i11 = (y1 * w + x1) * 4;
-    for (let ch = 0; ch < 4; ch++) {
-      const top = srcData[i00 + ch] * (1 - wx) + srcData[i10 + ch] * wx;
-      const bot = srcData[i01 + ch] * (1 - wx) + srcData[i11 + ch] * wx;
-      outPx[ch] = Math.round(top * (1 - wy) + bot * wy);
-    }
-  };
-
-  const px = [0, 0, 0, 255];
-  for (let y = 0; y < h; y++) {
-    const ny = y / Math.max(1, h);
-    for (let x = 0; x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const dx = x - cx;
-      const absDx = Math.abs(dx);
-      const normX = Math.min(1, absDx / Math.max(1, maxHeadHalfW));
-      const maskValue = maskData ? maskData[idx] : 200;
-      const upperSide = ny >= 0.03 && ny <= 0.54 && absDx <= maxHeadHalfW * 1.25;
-      const lowerEnds = ny >= 0.42 && ny <= 0.85 && absDx >= w * 0.14 && absDx <= w * 0.48;
-      const hairWeight = (upperSide || lowerEnds)
-        ? Math.min(1, Math.max(0.25, maskValue / 180)) : 0;
-      let sx = x, sy = y;
-
-      if (hairWeight > 0) {
-        if (styleMode === 'rounded_golai') {
-          if (upperSide) {
-            sx = x + (normX * normX) * (w * 0.022) * (dx > 0 ? 1 : -1) * hairWeight;
-            sy = y - (1 - normX * normX) * (h * 0.022) * hairWeight;
-          }
-          if (lowerEnds) {
-            sx = x + Math.sin(((ny - 0.42) / 0.43) * Math.PI) * (w * 0.045) * (dx > 0 ? 1 : -1) * hairWeight;
-          }
-        } else if (styleMode === 'neat_tuck') {
-          sx = x + (w * 0.025) * (dx > 0 ? 1 : -1) * hairWeight
-            + (lowerEnds ? (w * 0.035) * (dx > 0 ? 1 : -1) * hairWeight : 0);
-        } else if (styleMode === 'lower_gather' && lowerEnds) {
-          sx = x + Math.sin(((ny - 0.42) / 0.43) * Math.PI) * (w * 0.06) * (dx > 0 ? 1 : -1) * hairWeight;
-        } else if (styleMode === 'soft_volume' && upperSide) {
-          sx = x + (normX * (1 - normX * 0.5)) * (w * 0.015) * (dx > 0 ? 1 : -1) * hairWeight;
-          sy = y - (1 - normX * normX) * (h * 0.03) * hairWeight;
-        }
+        hairStrokes.push(currentHairStroke);
+        lastHairPos = pos;
+        renderLiveEditPreview();
       }
-      sampleBilinear(sx, sy, px);
-      dst[idx] = px[0]; dst[idx + 1] = px[1];
-      dst[idx + 2] = px[2]; dst[idx + 3] = px[3];
-    }
-  }
-  oCtx.putImageData(outImg, 0, 0);
-  return outCanvas;
-}
-
-async function getPreparedHairstyleSource(source) {
-  const mode = getSelectedHairstyleMode();
-  if (mode === 'none') return source;
-  if (cachedHairstyleSource === source && cachedHairstyleMode === mode && cachedHairstyleResult) {
-    return cachedHairstyleResult;
-  }
-  cachedHairstyleSource = source;
-  cachedHairstyleMode = mode;
-  cachedHairstyleResult = await applyHairstyleRedesign(source, mode);
-  return cachedHairstyleResult;
-}
-
-async function getPreparedHairSource(baseImg) {
-  const autoHairFit = Boolean(document.getElementById('psAutoHairFitToggle')?.checked);
-  if (!autoHairFit) return baseImg;
-
-  if (cachedAutoHairFitImage) return cachedAutoHairFitImage;
-  if (isRunningAutoHairFit) return baseImg;
-
-  isRunningAutoHairFit = true;
-  const st = document.getElementById('editStatus');
-  try {
-    if (st) {
-      st.textContent = 'AI Auto Hair Fit: Scanning and cleaning flyaway hair edges...';
-      st.classList.remove('hidden');
-    }
-    cachedAutoHairFitImage = await runAutoHairFit(baseImg);
-    cachedTransparentCutout = null;
-    cachedCutoutKey = '';
-    return cachedAutoHairFitImage;
-  } catch (error) {
-    setAutoHairFitStatus(error.message || 'AI hair cleanup failed.', true);
-    cachedAutoHairFitImage = null;
-    return baseImg;
-  } finally {
-    isRunningAutoHairFit = false;
-    if (st) st.classList.add('hidden');
-  }
-}
-
-async function getPreparedCutoutSource(subjectSource, useAutoHairFit) {
-  const key = `${useAutoHairFit ? 'hairfit' : 'raw'}_${getSelectedHairstyleMode()}_${subjectSource.width || subjectSource.naturalWidth}x${subjectSource.height || subjectSource.naturalHeight}`;
-  if (cachedTransparentCutout && cachedCutoutKey === key) {
-    return cachedTransparentCutout;
-  }
-  const st = document.getElementById('editStatus');
-  if (st) {
-    st.textContent = 'AI Removing Background for Live Preview...';
-    st.classList.remove('hidden');
-  }
-  try {
-    cachedTransparentCutout = await runSelfieSegmentation(subjectSource, 'transparent');
-    cachedCutoutKey = key;
-    return cachedTransparentCutout;
-  } finally {
-    if (st) st.classList.add('hidden');
-  }
-}
-
-// ONLY zoom when "Zoom Photo for Hair Brush" checkbox is explicitly checked
-function getEffectiveZoomRect() {
-  const zoomEnabled = Boolean(document.getElementById('psZoomSelectMode')?.checked);
-  if (!zoomEnabled) {
-    return null;
-  }
-
-  const zoomScale = Math.max(1, Math.min(5, parseFloat(document.getElementById('psZoomScaleNum')?.value) || 2));
-  if (zoomSelectionNorm && zoomSelectionNorm.w >= 0.02 && zoomSelectionNorm.h >= 0.02) {
-    return zoomSelectionNorm;
-  }
-  if (zoomScale <= 1.02) {
-    return null;
-  }
-
-  const vw = Math.min(1, 1 / zoomScale);
-  const vh = Math.min(1, 1 / zoomScale);
-  const cx = 0.5;
-  const cy = 0.28;
-
-  const x = Math.max(0, Math.min(1 - vw, cx - vw / 2));
-  const y = Math.max(0, Math.min(1 - vh, cy - vh / 2));
-  return { x, y, w: vw, h: vh };
-}
-
-function getActiveWorkingSource(baseSource) {
-  const rectNorm = getEffectiveZoomRect();
-  if (!rectNorm) return baseSource;
-
-  const sw = baseSource.width || baseSource.videoWidth;
-  const sh = baseSource.height || baseSource.videoHeight;
-  if (!sw || !sh) return baseSource;
-
-  const sx = Math.max(0, Math.min(sw - 1, Math.round(rectNorm.x * sw)));
-  const sy = Math.max(0, Math.min(sh - 1, Math.round(rectNorm.y * sh)));
-  const cw = Math.max(10, Math.min(sw - sx, Math.round(rectNorm.w * sw)));
-  const ch = Math.max(10, Math.min(sh - sy, Math.round(rectNorm.h * sh)));
-
-  const zoomScale = Math.max(1, parseFloat(document.getElementById('psZoomScaleNum')?.value) || 2);
-  const outW = Math.min(3600, Math.max(160, Math.round(cw * Math.max(1, zoomScale * 0.85))));
-  const outH = Math.min(3600, Math.max(160, Math.round(ch * Math.max(1, zoomScale * 0.85))));
-
-  const cropC = document.createElement('canvas');
-  cropC.width = outW;
-  cropC.height = outH;
-  const cctx = cropC.getContext('2d');
-  cctx.imageSmoothingEnabled = true;
-  cctx.imageSmoothingQuality = 'high';
-  cctx.drawImage(baseSource, sx, sy, cw, ch, 0, 0, outW, outH);
-
-  if (document.getElementById('psZoomSharpToggle')?.checked && outW * outH < 2500000) {
-    const imgData = cctx.getImageData(0, 0, outW, outH);
-    const d = imgData.data;
-    const copy = new Uint8ClampedArray(d);
-    const amt = 0.25;
-    for (let y = 1; y < outH - 1; y++) {
-      for (let x = 1; x < outW - 1; x++) {
-        const idx = (y * outW + x) * 4;
-        if (copy[idx + 3] < 10) continue;
-        for (let chIdx = 0; chIdx < 3; chIdx++) {
-          const center = copy[idx + chIdx] * 5;
-          const neighbors = copy[((y - 1) * outW + x) * 4 + chIdx]
-                          + copy[((y + 1) * outW + x) * 4 + chIdx]
-                          + copy[(y * outW + (x - 1)) * 4 + chIdx]
-                          + copy[(y * outW + (x + 1)) * 4 + chIdx];
-          d[idx + chIdx] = Math.min(255, Math.max(0, Math.round(copy[idx + chIdx] * (1 - amt) + (center - neighbors) * amt)));
-        }
-      }
-    }
-    cctx.putImageData(imgData, 0, 0);
-  }
-  return cropC;
-}
-
-function getBgFillStyle(ctx, w, h) {
-  const bgStyle = document.getElementById('psBgStyleSelect')?.value || 'transparent';
-  if (bgStyle === 'transparent') return null;
-  if (bgStyle === 'studio_gradient') {
-    const g = ctx.createRadialGradient(w / 2, h * 0.4, w * 0.05, w / 2, h / 2, Math.max(w, h) * 0.8);
-    g.addColorStop(0, '#475569');
-    g.addColorStop(1, '#0f172a');
-    return g;
-  }
-  if (bgStyle === 'passport_blue') return '#3b82f6';
-  if (bgStyle === 'studio_slate') return '#334155';
-  if (bgStyle === 'pure_white') return '#ffffff';
-  return document.getElementById('psBgCustomColor')?.value || '#2563eb';
-}
-
-function applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, testHitFn) {
-  const imgData = ctx.createImageData(bw, bh);
-  const d = imgData.data;
-  const hasBg = Boolean(document.getElementById('psRemoveBgToggle')?.checked && document.getElementById('psBgStyleSelect')?.value !== 'transparent');
-
-  for (let py = 0; py < bh; py++) {
-    for (let px = 0; px < bw; px++) {
-      const srcIdx = ((y0 + py) * w + (x0 + px)) * 4;
-      const dstIdx = (py * bw + px) * 4;
-      d[dstIdx] = copy[srcIdx];
-      d[dstIdx + 1] = copy[srcIdx + 1];
-      d[dstIdx + 2] = copy[srcIdx + 2];
-      d[dstIdx + 3] = copy[srcIdx + 3];
-    }
-  }
-
-  for (let py = 0; py < bh; py++) {
-    for (let px = 0; px < bw; px++) {
-      const gx = x0 + px;
-      const gy = y0 + py;
-      const strength = testHitFn(gx, gy);
-      if (strength <= 0) continue;
-
-      const idx = (py * bw + px) * 4;
-      const baseIdx = (gy * w + gx) * 4;
-
-      if (effect === 'trim') {
-        if (hasBg) {
-          const blend = Math.min(1, strength * 0.92);
-          d[idx] = Math.round(copy[baseIdx] * (1 - blend) + 38 * blend);
-          d[idx + 1] = Math.round(copy[baseIdx + 1] * (1 - blend) + 52 * blend);
-          d[idx + 2] = Math.round(copy[baseIdx + 2] * (1 - blend) + 74 * blend);
-          d[idx + 3] = Math.max(0, Math.round(copy[baseIdx + 3] * (1 - strength * 0.85)));
-        } else if (copy[baseIdx + 3] > 0) {
-          d[idx + 3] = Math.max(0, Math.round(copy[baseIdx + 3] * (1 - strength * 0.95)));
-        }
-      } else if (effect === 'darken') {
-        const lum = 0.299 * copy[baseIdx] + 0.587 * copy[baseIdx + 1] + 0.114 * copy[baseIdx + 2];
-        if (lum < 235) {
-          const factor = 1 - strength * 0.52;
-          d[idx] = Math.max(6, Math.round(copy[baseIdx] * factor));
-          d[idx + 1] = Math.max(6, Math.round(copy[baseIdx + 1] * factor));
-          d[idx + 2] = Math.max(6, Math.round(copy[baseIdx + 2] * factor));
-        }
-      } else {
-        const lx = Math.max(0, gx - 2);
-        const rx = Math.min(w - 1, gx + 2);
-        const ty = Math.max(0, gy - 2);
-        const by = Math.min(h - 1, gy + 2);
-        const sy = Math.min(h - 1, gy + Math.max(2, Math.round(strength * 3)));
-
-        const blend = Math.min(1, strength * 0.92);
-        for (let ch = 0; ch < 3; ch++) {
-          const avg = (
-            copy[(ty * w + gx) * 4 + ch] +
-            copy[(by * w + gx) * 4 + ch] +
-            copy[(gy * w + lx) * 4 + ch] +
-            copy[(gy * w + rx) * 4 + ch] +
-            copy[(sy * w + gx) * 4 + ch] * 3
-          ) / 7;
-          d[idx + ch] = Math.round(copy[baseIdx + ch] * (1 - blend) + avg * blend);
-        }
-      }
-    }
-  }
-  ctx.putImageData(imgData, x0, y0);
-}
-
-function applyHairSetBrushStrokes(targetCanvas) {
-  if (!hairStrokes.length) return targetCanvas;
-  const w = targetCanvas.width, h = targetCanvas.height;
-  const ctx = targetCanvas.getContext('2d');
-  const copy = ctx.getImageData(0, 0, w, h).data;
-
-  for (const stroke of hairStrokes) {
-    const points = stroke.points || [];
-    if (!points.length) continue;
-    const shape = stroke.shape || 'freehand';
-    const effect = stroke.effect || 'tuck';
-    const rad = Math.max(2, Math.round((stroke.radiusNorm || 0.005) * Math.min(w, h)));
-    const densePoints = [points[0]];
-    for (let i = 1; i < points.length; i++) {
-      const a = points[i - 1], b = points[i];
-      const distPx = Math.hypot((b.x - a.x) * w, (b.y - a.y) * h);
-      const steps = Math.max(1, Math.ceil(distPx / Math.max(1, rad * 0.3)));
-      for (let s = 1; s <= steps; s++) {
-        const t = s / steps;
-        densePoints.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-      }
-    }
-
-    for (const pt of densePoints) {
-      const cx = Math.round(pt.x * w), cy = Math.round(pt.y * h);
-      const x0 = Math.max(0, cx - rad), y0 = Math.max(0, cy - rad);
-      const x1 = Math.min(w, cx + rad + 1), y1 = Math.min(h, cy + rad + 1);
-      const bw = x1 - x0, bh = y1 - y0;
-      if (bw < 1 || bh < 1) continue;
-      applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, (gx, gy) => {
-        const dx = Math.abs(gx - cx), dy = Math.abs(gy - cy);
-        const dist = shape === 'rect' ? Math.max(dx, dy) : Math.hypot(dx, dy);
-        if (dist > rad) return 0;
-        return Math.max(0.12, Math.pow(1 - dist / (rad * 1.05), 0.9));
-      });
-    }
-  }
-  return targetCanvas;
-}
-
-const liveEditCanvas = document.getElementById('liveEditCanvas');
-liveEditCanvas.onmousedown = (e) => {
-  const tool = document.getElementById('editToolSelect').value;
-  if (!cachedMainImg || tool !== 'ps_auto_retouch') return;
-
-  const pos = getSafeCanvasPos(liveEditCanvas, e);
-  const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
-  const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
-
-  if ((e.shiftKey || e.altKey) && document.getElementById('psZoomSelectMode')?.checked) {
-    zoomDragStart = { x: nx, y: ny };
-    isSelectingZoom = true;
-    zoomSelectionNorm = { x: nx, y: ny, w: 0.04, h: 0.04 };
-    renderLiveEditPreview();
-    return;
-  }
-
-  if (document.getElementById('hairBrushToggle')) {
-    document.getElementById('hairBrushToggle').checked = true;
-  }
-  isBrushingHair = true;
-  const brushPx = parseFloat(document.getElementById('hairBrushSize')?.value) || 24;
-  const canvasRect = liveEditCanvas.getBoundingClientRect();
-  const scaleX = liveEditCanvas.width / Math.max(1, canvasRect.width);
-  const scaleY = liveEditCanvas.height / Math.max(1, canvasRect.height);
-  const radiusCanvas = (brushPx / 2) * Math.max(scaleX, scaleY);
-  currentHairStroke = {
-    shape: getSelectedBrushShape(),
-    effect: getSelectedBrushEffect(),
-    brushSizePx: brushPx,
-    radiusNorm: radiusCanvas / Math.max(1, Math.min(liveEditCanvas.width, liveEditCanvas.height)),
-    points: [{ x: nx, y: ny }]
-  };
-  hairStrokes.push(currentHairStroke);
-  lastHairPos = pos;
-  renderLiveEditPreview();
-};
-
-liveEditCanvas.onmousemove = (e) => {
-  const pos = getSafeCanvasPos(liveEditCanvas, e);
-  const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
-  const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
-
-  if (isSelectingZoom && zoomDragStart) {
-    zoomSelectionNorm = {
-      x: Math.min(zoomDragStart.x, nx),
-      y: Math.min(zoomDragStart.y, ny),
-      w: Math.max(0.04, Math.abs(nx - zoomDragStart.x)),
-      h: Math.max(0.04, Math.abs(ny - zoomDragStart.y))
     };
-    renderLiveEditPreview();
-    return;
-  }
 
-  if (isBrushingHair && currentHairStroke) {
-    if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 1.5) return;
-    currentHairStroke.points.push({ x: nx, y: ny });
-    lastHairPos = pos;
-    renderLiveEditPreview();
-  }
-};
+    liveEditCanvas.onmousemove = (e) => {
+      const tool = document.getElementById('editToolSelect').value;
+      if (tool === 'zoom_area' && isSelectingZoom && zoomDragStart) {
+        const pos = getCanvasMousePos(liveEditCanvas, e);
+        const curX = Math.max(0, Math.min(1, pos.x / liveEditCanvas.width));
+        const curY = Math.max(0, Math.min(1, pos.y / liveEditCanvas.height));
+        zoomSelectionNorm = {
+          x: Math.min(zoomDragStart.x, curX),
+          y: Math.min(zoomDragStart.y, curY),
+          w: Math.max(0.02, Math.abs(curX - zoomDragStart.x)),
+          h: Math.max(0.02, Math.abs(curY - zoomDragStart.y))
+        };
+        renderLiveEditPreview();
+        return;
+      }
 
-window.addEventListener('mouseup', () => {
-  isBrushingHair = false;
-  currentHairStroke = null;
-  lastHairPos = null;
-  isSelectingZoom = false;
-  zoomDragStart = null;
-});
+      if (isBrushingHair && currentHairStroke) {
+        const pos = getCanvasMousePos(liveEditCanvas, e);
+        if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 3) return;
+        currentHairStroke.points.push({ x: pos.x / liveEditCanvas.width, y: pos.y / liveEditCanvas.height });
+        lastHairPos = pos;
+        renderLiveEditPreview();
+      }
+    };
 
-document.querySelectorAll('.quick-bg-btn').forEach(btn => {
-  btn.onclick = () => {
-    setQuickStudioBg(btn.dataset.bgStyle, btn.dataset.bgColor);
-  };
-});
+    window.addEventListener('mouseup', () => {
+      isBrushingHair = false;
+      currentHairStroke = null;
+      lastHairPos = null;
+      isSelectingZoom = false;
+      zoomDragStart = null;
+    });
 
-document.getElementById('psZoomSelectMode').onchange = () => {
-  if (!document.getElementById('psZoomSelectMode').checked) {
-    zoomSelectionNorm = null;
-  } else if (document.getElementById('hairBrushToggle')) {
-    document.getElementById('hairBrushToggle').checked = true;
-  }
-  updatePsBgControls();
-  renderLiveEditPreview();
-};
+    document.getElementById('zoomResetBoxBtn').onclick = () => {
+      zoomSelectionNorm = null;
+      renderLiveEditPreview();
+    };
 
-document.getElementById('psZoomResetBoxBtn').onclick = () => {
-  zoomSelectionNorm = null;
-  if (document.getElementById('psZoomSelectMode')) document.getElementById('psZoomSelectMode').checked = false;
-  if (document.getElementById('psZoomScaleRange')) document.getElementById('psZoomScaleRange').value = 1;
-  if (document.getElementById('psZoomScaleNum')) document.getElementById('psZoomScaleNum').value = 1;
-  updatePsBgControls();
-  renderLiveEditPreview();
-};
+    document.getElementById('hairUndoBtn').onclick = () => {
+      if (hairStrokes.length) {
+        hairStrokes.pop();
+        renderLiveEditPreview();
+      }
+    };
+    document.getElementById('hairResetBtn').onclick = () => {
+      hairStrokes = [];
+      renderLiveEditPreview();
+    };
 
-document.getElementById('hairUndoBtn').onclick = () => {
-  if (hairStrokes.length) {
-    hairStrokes.pop();
-    renderLiveEditPreview();
-  }
-};
-document.getElementById('hairResetBtn').onclick = () => {
-  hairStrokes = [];
-  renderLiveEditPreview();
-};
+    document.getElementById('hairBrushToggle').onchange = () => {
+      const active = document.getElementById('hairBrushToggle').checked;
+      liveEditCanvas.style.cursor = active ? 'cell' : 'default';
+      updatePsBgControls();
+    };
 
-document.getElementById('hairBrushToggle').onchange = () => {
-  const active = document.getElementById('hairBrushToggle').checked;
-  if (!active) isBrushingHair = false;
-  liveEditCanvas.style.cursor = active ? 'cell' : 'default';
-  updatePsBgControls();
-  renderLiveEditPreview();
-};
-
-document.getElementById('hairBrushMode').onchange = () => {
-  if (hairStrokes.length) {
-    hairStrokes[hairStrokes.length - 1].effect = getSelectedBrushEffect();
-    renderLiveEditPreview();
-  }
-};
-
-if (document.getElementById('hairBrushShape')) {
-  document.getElementById('hairBrushShape').onchange = () => {
-    if (hairStrokes.length) {
-      hairStrokes[hairStrokes.length - 1].shape = getSelectedBrushShape();
+    function setQuickStudioBg(style, hexCol) {
+      document.getElementById('psRemoveBgToggle').checked = true;
+      document.getElementById('psBgStyleSelect').value = style;
+      if (hexCol) document.getElementById('psBgCustomColor').value = hexCol;
+      updatePsBgControls();
       renderLiveEditPreview();
     }
-  };
-}
 
-if (document.getElementById('hairBrushSize')) {
-  document.getElementById('hairBrushSize').oninput = () => {
-    const val = document.getElementById('hairBrushSize').value;
-    const lbl = document.getElementById('hairBrushSizeVal');
-    if (lbl) lbl.textContent = `${val}px`;
-  };
-}
-
-function setQuickStudioBg(style, hexCol) {
-  document.getElementById('psRemoveBgToggle').checked = true;
-  document.getElementById('psBgStyleSelect').value = style;
-  if (hexCol) document.getElementById('psBgCustomColor').value = hexCol;
-  updatePsBgControls();
-  renderLiveEditPreview();
-}
-
-function updatePsBgControls() {
-  const enabled = document.getElementById('psRemoveBgToggle').checked;
-  const hairActive = document.getElementById('hairBrushToggle').checked;
-  const zoomActive = document.getElementById('psZoomSelectMode')?.checked;
-  const bgStyle = document.getElementById('psBgStyleSelect').value;
-  document.getElementById('psBgColorControls').classList.toggle('hidden', !enabled);
-  document.getElementById('psCustomColorLbl').classList.toggle('hidden', !(enabled && bgStyle === 'solid_custom'));
-
-  const splitEl = document.getElementById('psSplitRange');
-  const splitLbl = document.getElementById('psSplitVal');
-  if (splitEl && splitLbl) splitLbl.textContent = `${splitEl.value}%`;
-
-  const hintEl = document.getElementById('canvasToolHint');
-  if (zoomActive) {
-    if (hintEl) hintEl.textContent = 'Zoomed Hair Brush Mode: Drag directly on zoomed hair to smooth/trim. Hold Shift+Drag to pick custom crop area.';
-    document.getElementById('livePreviewCaption').textContent = 'Zoomed Hair Brush Preview: Drag on hair to set/trim stray strands';
-  } else if (hairActive) {
-    if (hintEl) hintEl.textContent = 'Hair Set Brush Active: Drag over top/side hairs to smooth, darken or trim stray strands.';
-    document.getElementById('livePreviewCaption').textContent = 'Live Digital Studio Preview: Hair Brush & Digital Studio Retouch';
-  } else {
-    if (hintEl) hintEl.textContent = 'Tip: Drag over hair to retouch or enable "Zoom Photo for Hair Brush" to zoom in.';
-    document.getElementById('livePreviewCaption').textContent = enabled
-      ? 'Live Digital Studio Preview (AI Background Removed)'
-      : 'Live Digital Studio Preview (Left: Digital Retouched • Right: Original)';
-  }
-}
-
-document.getElementById('psRemoveBgToggle').onchange = () => {
-  updatePsBgControls();
-  renderLiveEditPreview();
-};
-document.getElementById('psAutoHairFitToggle').onchange = async () => {
-  invalidateHairAndBgCache();
-  if (document.getElementById('psAutoHairFitToggle').checked) {
-    setAutoHairFitStatus('Scanning hair outline with AI...');
-  } else {
-    setAutoHairFitStatus('Auto Hair Fit turned off.');
-  }
-  updatePsBgControls();
-  await renderLiveEditPreview();
-};
-document.getElementById('psBgStyleSelect').onchange = () => {
-  updatePsBgControls();
-  renderLiveEditPreview();
-};
-document.getElementById('psBgCustomColor').oninput = renderLiveEditPreview;
-
-function applyPhotoshopDigitalRetouch(sourceDrawable, targetW, targetH) {
-  const depthPct = (parseFloat(document.getElementById('psDepthNum').value) || 0) / 100;
-  const tonePct = (parseFloat(document.getElementById('psToneNum').value) || 0) / 100;
-  const smoothPct = (parseFloat(document.getElementById('psSmoothNum').value) || 0) / 100;
-  const sharpPct = (parseFloat(document.getElementById('psSharpNum').value) || 0) / 100;
-  const autoWb = document.getElementById('psAutoWb').checked;
-
-  const c = document.createElement('canvas');
-  c.width = targetW; c.height = targetH;
-  const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(sourceDrawable, 0, 0, targetW, targetH);
-
-  if (smoothPct > 0.02) {
-    const blurC = document.createElement('canvas');
-    blurC.width = targetW; blurC.height = targetH;
-    const bCtx = blurC.getContext('2d');
-    const blurRad = Math.max(2, Math.round(Math.min(targetW, targetH) * 0.007 * smoothPct));
-    bCtx.filter = `blur(${blurRad}px)`;
-    bCtx.drawImage(c, 0, 0);
-    bCtx.filter = 'none';
-
-    const baseData = ctx.getImageData(0, 0, targetW, targetH);
-    const blurData = bCtx.getImageData(0, 0, targetW, targetH);
-    const bd = baseData.data, sd = blurData.data;
-
-    for (let i = 0; i < bd.length; i += 4) {
-      if (bd[i + 3] < 10) continue;
-      const r = bd[i], g = bd[i + 1], b = bd[i + 2];
-      const diff = (Math.abs(r - sd[i]) + Math.abs(g - sd[i + 1]) + Math.abs(b - sd[i + 2])) / 3;
-      if (diff < 32) {
-        const isSkin = (r > 65 && g > 35 && b > 18 && r > g && r > b && (r - g) > 8);
-        const blend = smoothPct * (isSkin ? 0.72 : 0.30) * (1 - diff / 32);
-        bd[i] = Math.round(r * (1 - blend) + sd[i] * blend);
-        bd[i + 1] = Math.round(g * (1 - blend) + sd[i + 1] * blend);
-        bd[i + 2] = Math.round(b * (1 - blend) + sd[i + 2] * blend);
+    function updatePsBgControls() {
+      const enabled = document.getElementById('psRemoveBgToggle').checked;
+      const hairActive = document.getElementById('hairBrushToggle').checked;
+      const bgStyle = document.getElementById('psBgStyleSelect').value;
+      document.getElementById('psBgColorControls').classList.toggle('hidden', !enabled);
+      document.getElementById('psCustomColorLbl').classList.toggle('hidden', !(enabled && bgStyle === 'solid_custom'));
+      if (hairActive) {
+        document.getElementById('livePreviewCaption').textContent = 'Hair Set Brush Active: Drag mouse over top/side hairs to smooth, tuck & neat!';
+      } else {
+        document.getElementById('livePreviewCaption').textContent = enabled
+          ? 'Live Digital Studio Preview (AI Background Removed • Checkerboard = Transparent):'
+          : 'Live Digital Studio Preview (Left: Digital Retouched • Right: Original):';
       }
     }
-    ctx.putImageData(baseData, 0, 0);
-  }
 
-  const imgData = ctx.getImageData(0, 0, targetW, targetH);
-  const d = imgData.data;
+    document.getElementById('psRemoveBgToggle').onchange = () => {
+      updatePsBgControls();
+      renderLiveEditPreview();
+    };
+    document.getElementById('psBgStyleSelect').onchange = () => {
+      updatePsBgControls();
+      renderLiveEditPreview();
+    };
+    document.getElementById('psBgCustomColor').oninput = renderLiveEditPreview;
 
-  let scaleR = 1, scaleG = 1, scaleB = 1;
-  if (autoWb) {
-    let sumR = 0, sumG = 0, sumB = 0, count = 0;
-    const step = Math.max(4, Math.floor((d.length / 4) / 25000) * 4);
-    for (let i = 0; i < d.length; i += step) {
-      if (d[i + 3] < 128) continue;
-      sumR += d[i]; sumG += d[i + 1]; sumB += d[i + 2]; count++;
-    }
-    if (count > 0) {
-      const avgR = sumR / count, avgG = sumG / count, avgB = sumB / count;
-      const avgGray = (avgR + avgG + avgB) / 3;
-      scaleR = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgR)) - 1) * 0.45));
-      scaleG = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgG)) - 1) * 0.45));
-      scaleB = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgB)) - 1) * 0.45));
-    }
-  }
+    // Digital DSLR Studio Retouch Engine
+    function applyPhotoshopDigitalRetouch(sourceDrawable, targetW, targetH) {
+      const depthPct = (parseFloat(document.getElementById('psDepthNum').value) || 0) / 100;
+      const tonePct = (parseFloat(document.getElementById('psToneNum').value) || 0) / 100;
+      const smoothPct = (parseFloat(document.getElementById('psSmoothNum').value) || 0) / 100;
+      const sharpPct = (parseFloat(document.getElementById('psSharpNum').value) || 0) / 100;
+      const autoWb = document.getElementById('psAutoWb').checked;
 
-  const contrastFactor = 1 + depthPct * 0.34;
+      const c = document.createElement('canvas');
+      c.width = targetW; c.height = targetH;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(sourceDrawable, 0, 0, targetW, targetH);
 
-  for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] < 5) continue;
-    let r = d[i] * scaleR;
-    let g = d[i + 1] * scaleG;
-    let b = d[i + 2] * scaleB;
+      if (smoothPct > 0.02) {
+        const blurC = document.createElement('canvas');
+        blurC.width = targetW; blurC.height = targetH;
+        const bCtx = blurC.getContext('2d');
+        const blurRad = Math.max(2, Math.round(Math.min(targetW, targetH) * 0.007 * smoothPct));
+        bCtx.filter = `blur(${blurRad}px)`;
+        bCtx.drawImage(c, 0, 0);
+        bCtx.filter = 'none';
 
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        const baseData = ctx.getImageData(0, 0, targetW, targetH);
+        const blurData = bCtx.getImageData(0, 0, targetW, targetH);
+        const bd = baseData.data, sd = blurData.data;
 
-    if (tonePct > 0.01 && lum < 0.48) {
-      const shadowLift = Math.pow((0.48 - lum) / 0.48, 1.5) * tonePct * 24;
-      r += shadowLift;
-      g += shadowLift;
-      b += shadowLift;
-    }
+        for (let i = 0; i < bd.length; i += 4) {
+          if (bd[i + 3] < 10) continue;
+          const r = bd[i], g = bd[i + 1], b = bd[i + 2];
+          const diff = (Math.abs(r - sd[i]) + Math.abs(g - sd[i + 1]) + Math.abs(b - sd[i + 2])) / 3;
+          if (diff < 32) {
+            const isSkin = (r > 65 && g > 35 && b > 18 && r > g && r > b && (r - g) > 8);
+            const blend = smoothPct * (isSkin ? 0.72 : 0.30) * (1 - diff / 32);
+            bd[i] = Math.round(r * (1 - blend) + sd[i] * blend);
+            bd[i + 1] = Math.round(g * (1 - blend) + sd[i + 1] * blend);
+            bd[i + 2] = Math.round(b * (1 - blend) + sd[i + 2] * blend);
+          }
+        }
+        ctx.putImageData(baseData, 0, 0);
+      }
 
-    r = (r - 128) * contrastFactor + 128;
-    g = (g - 128) * contrastFactor + 128;
-    b = (b - 128) * contrastFactor + 128;
+      const imgData = ctx.getImageData(0, 0, targetW, targetH);
+      const d = imgData.data;
 
-    const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
-    const sat = maxC > 0 ? (maxC - minC) / maxC : 0;
-    const vibAmt = (depthPct * 0.24 + sharpPct * 0.12) * (1 - sat * 0.7);
-    const avg = (r + g + b) / 3;
-    r += (r - avg) * vibAmt;
-    g += (g - avg) * vibAmt;
-    b += (b - avg) * vibAmt;
-
-    d[i] = Math.min(255, Math.max(0, Math.round(r)));
-    d[i + 1] = Math.min(255, Math.max(0, Math.round(g)));
-    d[i + 2] = Math.min(255, Math.max(0, Math.round(b)));
-  }
-  ctx.putImageData(imgData, 0, 0);
-
-  if (sharpPct > 0.02) {
-    const sData = ctx.getImageData(0, 0, targetW, targetH);
-    const sd = sData.data;
-    const copy = new Uint8ClampedArray(sd);
-    const amt = sharpPct * 0.54;
-    for (let y = 1; y < targetH - 1; y++) {
-      for (let x = 1; x < targetW - 1; x++) {
-        const idx = (y * targetW + x) * 4;
-        if (copy[idx + 3] < 20) continue;
-        for (let ch = 0; ch < 3; ch++) {
-          const center = copy[idx + ch] * 5;
-          const neighbors = copy[((y - 1) * targetW + x) * 4 + ch]
-                          + copy[((y + 1) * targetW + x) * 4 + ch]
-                          + copy[(y * targetW + (x - 1)) * 4 + ch]
-                          + copy[(y * targetW + (x + 1)) * 4 + ch];
-          const sharpVal = center - neighbors;
-          sd[idx + ch] = Math.min(255, Math.max(0, Math.round(copy[idx + ch] * (1 - amt) + sharpVal * amt)));
+      let scaleR = 1, scaleG = 1, scaleB = 1;
+      if (autoWb) {
+        let sumR = 0, sumG = 0, sumB = 0, count = 0;
+        const step = Math.max(4, Math.floor((d.length / 4) / 25000) * 4);
+        for (let i = 0; i < d.length; i += step) {
+          if (d[i + 3] < 128) continue;
+          sumR += d[i]; sumG += d[i + 1]; sumB += d[i + 2]; count++;
+        }
+        if (count > 0) {
+          const avgR = sumR / count, avgG = sumG / count, avgB = sumB / count;
+          const avgGray = (avgR + avgG + avgB) / 3;
+          scaleR = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgR)) - 1) * 0.45));
+          scaleG = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgG)) - 1) * 0.45));
+          scaleB = Math.min(1.16, Math.max(0.86, 1 + ((avgGray / Math.max(1, avgB)) - 1) * 0.45));
         }
       }
-    }
-    ctx.putImageData(sData, 0, 0);
-  }
 
-  return applyHairSetBrushStrokes(c);
-}
+      const contrastFactor = 1 + depthPct * 0.34;
 
-function compositeBackgroundBehindSubject(subjectCanvas) {
-  const bgStyle = document.getElementById('psBgStyleSelect').value;
-  if (bgStyle === 'transparent') return subjectCanvas;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 5) continue;
+        let r = d[i] * scaleR;
+        let g = d[i + 1] * scaleG;
+        let b = d[i + 2] * scaleB;
 
-  const outC = document.createElement('canvas');
-  outC.width = subjectCanvas.width;
-  outC.height = subjectCanvas.height;
-  const ctx = outC.getContext('2d');
-  ctx.fillStyle = getBgFillStyle(ctx, outC.width, outC.height);
-  ctx.fillRect(0, 0, outC.width, outC.height);
-  ctx.drawImage(subjectCanvas, 0, 0);
-  return outC;
-}
+        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
-document.getElementById('psPresetSelect').onchange = (e) => {
-  const p = e.target.value;
-  const presets = {
-    digital_crisp: { dp: 65, tn: 35, sm: 45, sh: 75, wb: true },
-    studio_natural: { dp: 48, tn: 42, sm: 50, sh: 60, wb: true },
-    passport_clean: { dp: 52, tn: 48, sm: 45, sh: 70, wb: true },
-    deep_vibrant: { dp: 82, tn: 28, sm: 35, sh: 85, wb: true },
-    soft_retouch: { dp: 45, tn: 40, sm: 80, sh: 55, wb: true }
-  };
-  const cfg = presets[p] || presets.digital_crisp;
-  document.getElementById('psDepthRange').value = cfg.dp; document.getElementById('psDepthNum').value = cfg.dp;
-  document.getElementById('psToneRange').value = cfg.tn; document.getElementById('psToneNum').value = cfg.tn;
-  document.getElementById('psSmoothRange').value = cfg.sm; document.getElementById('psSmoothNum').value = cfg.sm;
-  document.getElementById('psSharpRange').value = cfg.sh; document.getElementById('psSharpNum').value = cfg.sh;
-  document.getElementById('psAutoWb').checked = cfg.wb;
-  renderLiveEditPreview();
-};
+        if (tonePct > 0.01 && lum < 0.48) {
+          const shadowLift = Math.pow((0.48 - lum) / 0.48, 1.5) * tonePct * 24;
+          r += shadowLift;
+          g += shadowLift;
+          b += shadowLift;
+        }
 
-function prepareLogoSource(logoImg, removeWhiteBg) {
-  const c = document.createElement('canvas');
-  c.width = logoImg.width; c.height = logoImg.height;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(logoImg, 0, 0);
-  if (removeWhiteBg) {
-    const imgData = ctx.getImageData(0, 0, c.width, c.height);
-    const d = imgData.data;
-    for (let i = 0; i < d.length; i += 4) {
-      if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) {
-        d[i + 3] = 0;
+        r = (r - 128) * contrastFactor + 128;
+        g = (g - 128) * contrastFactor + 128;
+        b = (b - 128) * contrastFactor + 128;
+
+        const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+        const sat = maxC > 0 ? (maxC - minC) / maxC : 0;
+        const vibAmt = (depthPct * 0.24 + sharpPct * 0.12) * (1 - sat * 0.7);
+        const avg = (r + g + b) / 3;
+        r += (r - avg) * vibAmt;
+        g += (g - avg) * vibAmt;
+        b += (b - avg) * vibAmt;
+
+        d[i] = Math.min(255, Math.max(0, Math.round(r)));
+        d[i + 1] = Math.min(255, Math.max(0, Math.round(g)));
+        d[i + 2] = Math.min(255, Math.max(0, Math.round(b)));
       }
-    }
-    ctx.putImageData(imgData, 0, 0);
-  }
-  return c;
-}
+      ctx.putImageData(imgData, 0, 0);
 
-function drawLogoOverlayOnCanvas(ctx, cw, ch, logoImg) {
-  if (!logoImg) return;
-  const opacity = (parseFloat(document.getElementById('logoOpacityNum').value) || 65) / 100;
-  const sizePct = (parseFloat(document.getElementById('logoSizeNum').value) || 25) / 100;
-  const posMode = document.getElementById('logoPosition').value;
-  const margin = parseInt(document.getElementById('logoMargin').value) || 20;
-  const removeWhite = document.getElementById('logoRemoveWhiteBg').checked;
-
-  const cleanLogo = prepareLogoSource(logoImg, removeWhite);
-  const lw = Math.max(16, Math.round(cw * sizePct));
-  const lh = Math.max(16, Math.round((cleanLogo.height / cleanLogo.width) * lw));
-
-  ctx.save();
-  ctx.globalAlpha = Math.min(1, Math.max(0.05, opacity));
-
-  if (posMode === 'tiled') {
-    ctx.translate(cw / 2, ch / 2);
-    ctx.rotate(-Math.PI / 6);
-    const stepX = lw + margin * 2.5;
-    const stepY = lh + margin * 2.5;
-    for (let y = -ch; y < ch; y += stepY) {
-      for (let x = -cw; x < cw; x += stepX) {
-        ctx.drawImage(cleanLogo, x, y, lw, lh);
+      if (sharpPct > 0.02) {
+        const sData = ctx.getImageData(0, 0, targetW, targetH);
+        const sd = sData.data;
+        const copy = new Uint8ClampedArray(sd);
+        const amt = sharpPct * 0.54;
+        for (let y = 1; y < targetH - 1; y++) {
+          for (let x = 1; x < targetW - 1; x++) {
+            const idx = (y * targetW + x) * 4;
+            if (copy[idx + 3] < 20) continue;
+            for (let ch = 0; ch < 3; ch++) {
+              const center = copy[idx + ch] * 5;
+              const neighbors = copy[((y - 1) * targetW + x) * 4 + ch]
+                              + copy[((y + 1) * targetW + x) * 4 + ch]
+                              + copy[(y * targetW + (x - 1)) * 4 + ch]
+                              + copy[(y * targetW + (x + 1)) * 4 + ch];
+              const sharpVal = center - neighbors;
+              sd[idx + ch] = Math.min(255, Math.max(0, Math.round(copy[idx + ch] * (1 - amt) + sharpVal * amt)));
+            }
+          }
+        }
+        ctx.putImageData(sData, 0, 0);
       }
-    }
-  } else {
-    let lx = cw - lw - margin;
-    let ly = ch - lh - margin;
-    if (posMode === 'bottom-left') { lx = margin; ly = ch - lh - margin; }
-    else if (posMode === 'top-right') { lx = cw - lw - margin; ly = margin; }
-    else if (posMode === 'top-left') { lx = margin; ly = margin; }
-    else if (posMode === 'center') { lx = (cw - lw) / 2; ly = (ch - lh) / 2; }
-    ctx.drawImage(cleanLogo, lx, ly, lw, lh);
-  }
-  ctx.restore();
-}
 
-async function renderLiveEditPreview() {
-  const tool = document.getElementById('editToolSelect').value;
-  const wrap = document.getElementById('liveEditPreviewWrap');
-  if (!cachedMainImg || !['ps_auto_retouch', 'img_contrast', 'add_logo_photo', 'photo_frame'].includes(tool)) {
-    wrap.classList.add('hidden');
-    return;
-  }
-  wrap.classList.remove('hidden');
-  updatePsBgControls();
-
-  const maxDim = 540;
-  const sc = Math.min(1, maxDim / Math.max(cachedMainImg.width, cachedMainImg.height));
-  const pw = Math.round(cachedMainImg.width * sc);
-  const ph = Math.round(cachedMainImg.height * sc);
-  liveEditCanvas.width = pw;
-  liveEditCanvas.height = ph;
-  const lctx = liveEditCanvas.getContext('2d');
-  lctx.clearRect(0, 0, pw, ph);
-
-  if (tool === 'ps_auto_retouch') {
-    const zoomModeChecked = Boolean(document.getElementById('psZoomSelectMode')?.checked);
-    const hairBrushChecked = Boolean(document.getElementById('hairBrushToggle')?.checked);
-    liveEditCanvas.style.cursor = hairBrushChecked ? 'cell' : 'default';
-
-    const removeBg = document.getElementById('psRemoveBgToggle').checked;
-    const autoHairFit = document.getElementById('psAutoHairFitToggle').checked;
-
-    let baseSrc = await getPreparedHairSource(cachedMainImg);
-    baseSrc = await getPreparedHairstyleSource(baseSrc);
-    if (removeBg) {
-      baseSrc = await getPreparedCutoutSource(baseSrc, autoHairFit);
+      return applyHairSetBrushStrokes(c);
     }
 
-    const workingSrc = getActiveWorkingSource(baseSrc);
-    const enhanced = applyPhotoshopDigitalRetouch(workingSrc, pw, ph);
-    const finalEnhanced = removeBg ? compositeBackgroundBehindSubject(enhanced) : enhanced;
+    function compositeBackgroundBehindSubject(subjectCanvas) {
+      const bgStyle = document.getElementById('psBgStyleSelect').value;
+      if (bgStyle === 'transparent') return subjectCanvas;
 
-    if (removeBg || autoHairFit || zoomModeChecked || hairStrokes.length > 0) {
-      lctx.drawImage(finalEnhanced, 0, 0, pw, ph);
-    } else {
-      const splitPct = (parseFloat(document.getElementById('psSplitRange').value) ?? 100) / 100;
-      const splitX = Math.round(pw * splitPct);
-      lctx.drawImage(workingSrc, 0, 0, pw, ph);
-      if (splitX > 0) {
-        lctx.drawImage(finalEnhanced, 0, 0, splitX, ph, 0, 0, splitX, ph);
-      }
-      if (splitX > 2 && splitX < pw - 2) {
-        lctx.strokeStyle = '#ffffff';
-        lctx.lineWidth = 2;
-        lctx.beginPath(); lctx.moveTo(splitX, 0); lctx.lineTo(splitX, ph); lctx.stroke();
-      }
-    }
+      const outC = document.createElement('canvas');
+      outC.width = subjectCanvas.width;
+      outC.height = subjectCanvas.height;
+      const ctx = outC.getContext('2d');
 
-    if (zoomSelectionNorm && isSelectingZoom) {
-      const rx = zoomSelectionNorm.x * pw;
-      const ry = zoomSelectionNorm.y * ph;
-      const rw = zoomSelectionNorm.w * pw;
-      const rh = zoomSelectionNorm.h * ph;
-      lctx.save();
-      lctx.strokeStyle = '#0284c7';
-      lctx.lineWidth = 2.5;
-      lctx.setLineDash([6, 4]);
-      lctx.strokeRect(rx, ry, rw, rh);
-      lctx.restore();
-    }
-
-    if (hairBrushChecked && currentHairStroke && currentHairStroke.points.length) {
-      const shape = currentHairStroke.shape || 'freehand';
-      const pts = currentHairStroke.points;
-      const p1 = pts[pts.length - 1];
-      const cx = p1.x * pw, cy = p1.y * ph;
-      const rad = Math.max(1, Math.round(currentHairStroke.radiusNorm * Math.min(pw, ph)));
-      lctx.save();
-      lctx.strokeStyle = '#f59e0b';
-      lctx.lineWidth = 2;
-      lctx.setLineDash([5, 3]);
-      if (shape === 'circle') {
-        lctx.beginPath();
-        lctx.arc(cx, cy, rad, 0, Math.PI * 2);
-        lctx.stroke();
-      } else if (shape === 'rect') {
-        lctx.strokeRect(cx - rad, cy - rad, rad * 2, rad * 2);
+      if (bgStyle === 'studio_gradient') {
+        const g = ctx.createRadialGradient(outC.width / 2, outC.height * 0.4, outC.width * 0.05, outC.width / 2, outC.height / 2, Math.max(outC.width, outC.height) * 0.8);
+        g.addColorStop(0, '#475569');
+        g.addColorStop(1, '#0f172a');
+        ctx.fillStyle = g;
+      } else if (bgStyle === 'passport_blue') {
+        ctx.fillStyle = '#3b82f6';
+      } else if (bgStyle === 'studio_slate') {
+        ctx.fillStyle = '#334155';
+      } else if (bgStyle === 'pure_white') {
+        ctx.fillStyle = '#ffffff';
       } else {
-        lctx.beginPath();
-        pts.forEach((pt, idx) => {
-          const pxPt = pt.x * pw, pyPt = pt.y * ph;
-          if (idx === 0) lctx.moveTo(pxPt, pyPt);
-          else lctx.lineTo(pxPt, pyPt);
-        });
-        lctx.setLineDash([]);
-        lctx.lineWidth = Math.max(1, rad * 2);
-        lctx.lineCap = 'round';
-        lctx.lineJoin = 'round';
-        lctx.stroke();
+        ctx.fillStyle = document.getElementById('psBgCustomColor').value || '#2563eb';
       }
-      lctx.restore();
+      ctx.fillRect(0, 0, outC.width, outC.height);
+      ctx.drawImage(subjectCanvas, 0, 0);
+      return outC;
     }
-  } else if (tool === 'img_contrast') {
-    liveEditCanvas.style.cursor = 'default';
-    const cVal = Math.max(10, parseFloat(document.getElementById('cbContrastNum').value) || 100);
-    const bVal = Math.max(10, parseFloat(document.getElementById('cbBrightnessNum').value) || 100);
-    lctx.filter = `contrast(${cVal}%) brightness(${bVal}%)`;
-    lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
-    lctx.filter = 'none';
-  } else if (tool === 'add_logo_photo') {
-    liveEditCanvas.style.cursor = 'default';
-    lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
-    drawLogoOverlayOnCanvas(lctx, pw, ph, cachedLogoImg);
-  } else if (tool === 'photo_frame') {
-    liveEditCanvas.style.cursor = 'default';
-    const source = joinEditCanvas(pw, ph);
-    source.getContext('2d').drawImage(cachedMainImg, 0, 0, pw, ph);
-    const framed = joinEditFrameCanvas(source, joinEditSelectedFrame, joinEditCustomFrame);
-    lctx.drawImage(framed, 0, 0, pw, ph);
-    const caption = document.getElementById('livePreviewCaption');
-    if (caption) caption.textContent = 'Live Photo Frame Preview: Selected frame is shown on your photo.';
-    const hint = document.getElementById('canvasToolHint');
-    if (hint) hint.textContent = 'Choose another frame or upload a custom transparent PNG frame to update this live preview.';
-  }
-}
 
-document.getElementById('editFiles').onchange = async (e) => {
-  const f = e.target.files[0];
-  invalidateHairAndBgCache();
-  setAutoHairFitStatus('');
-  hairStrokes = [];
-  zoomSelectionNorm = null;
-  if (!f) { cachedMainImg = null; renderLiveEditPreview(); return; }
-  cachedMainImg = await loadImg(URL.createObjectURL(f));
-  renderLiveEditPreview();
-};
-
-document.getElementById('hairstyleRedesignSelect')?.addEventListener('change', async () => {
-  invalidateHairAndBgCache();
-  await renderLiveEditPreview();
-});
-
-// Export the full-resolution Photoshop Auto Retouch result, including the
-// selected hairstyle shape adjustment and optional background replacement.
-document.getElementById('editRunBtn')?.addEventListener('click', async () => {
-  const tool = document.getElementById('editToolSelect')?.value;
-  if (tool !== 'ps_auto_retouch') return;
-  const status = document.getElementById('editStatus');
-  const output = document.getElementById('editOutput');
-  if (!cachedMainImg) {
-    if (status) { status.textContent = 'Please select a photo first.'; status.classList.remove('hidden'); }
-    return;
-  }
-  const btn = document.getElementById('editRunBtn');
-  btn.disabled = true;
-  btn.textContent = 'Processing Photo...';
-  if (status) { status.textContent = 'Applying retouch and hairstyle settings...'; status.classList.remove('hidden'); }
-  try {
-    let source = await getPreparedHairSource(cachedMainImg);
-    source = await getPreparedHairstyleSource(source);
-    const removeBg = Boolean(document.getElementById('psRemoveBgToggle')?.checked);
-    if (removeBg) source = await getPreparedCutoutSource(source, Boolean(document.getElementById('psAutoHairFitToggle')?.checked));
-
-    const workSource = getActiveWorkingSource(source);
-    const outW = workSource.width || workSource.naturalWidth;
-    const outH = workSource.height || workSource.naturalHeight;
-    const enhanced = applyPhotoshopDigitalRetouch(workSource, outW, outH);
-    const finalCanvas = removeBg ? compositeBackgroundBehindSubject(enhanced) : enhanced;
-    const blob = await new Promise((resolve, reject) => {
-      finalCanvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create the output image.')), 'image/png');
-    });
-    if (output) output.innerHTML = '';
-    await joinEditDownload(finalCanvas, 'mahadev-studio-hairstyle-retouch.png', 'image/png');
-    if (status) status.textContent = 'Done! Review the edited photo preview, then click Download.';
-  } catch (error) {
-    if (status) status.textContent = error?.message || 'Photo processing failed. Please try again.';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Apply & Download';
-  }
-});
-
-
-
-// ================= JOIN / EDIT / CREATE TOOL PANEL RESTORE =================
-function updateJoinEditToolPanel() {
-  const tool = document.getElementById('editToolSelect')?.value || 'ps_auto_retouch';
-  const show = (id, visible) => {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('hidden', !visible);
-  };
-  const setLabel = (id, visible) => show(id, visible);
-  const isPs = tool === 'ps_auto_retouch';
-  const isLogo = tool === 'add_logo_photo';
-  const isContrast = tool === 'img_contrast';
-  const isNameDate = tool === 'name_date';
-  const isFrame = tool === 'photo_frame';
-  const isHandwriting = tool === 'text_handwriting';
-  const isSignature = tool === 'sig_maker';
-  const isImageTool = !isHandwriting && !isSignature && tool !== 'latex_img';
-
-  // Main photo / text controls.
-  setLabel('edImgFileLbl', isImageTool);
-  setLabel('edText1Lbl', ['name_date','add_text_img','watermark_img','text_handwriting','latex_img'].includes(tool));
-  setLabel('edText2Lbl', isNameDate);
-  setLabel('edFontLbl', ['name_date','add_text_img','watermark_img','text_handwriting'].includes(tool));
-  setLabel('edBoldLbl', ['name_date','add_text_img','watermark_img','text_handwriting'].includes(tool));
-  setLabel('edColorLbl', ['name_date','add_text_img','watermark_img','text_handwriting'].includes(tool));
-
-  // Restore each tool's dedicated controls.
-  show('psRetouchWrap', isPs);
-  show('logoOptionsWrap', isLogo);
-  show('cbControlsWrap', isContrast);
-  show('ndOptionsWrap', isNameDate);
-  show('frameOptionsWrap', isFrame);
-  show('edNumWrap', ['rotate','blur_image','add_border'].includes(tool));
-  show('hwTextWrap', isHandwriting);
-  show('sigPadWrap', isSignature);
-  show('liveEditPreviewWrap', isFrame || isPs || isContrast || isLogo);
-
-  const runBtn = document.getElementById('editRunBtn');
-  if (runBtn) {
-    const labels = {
-      ps_auto_retouch: 'Apply & Download',
-      merge_photo_sig: 'Merge Photo & Signature',
-      join_images: 'Join Images & Download',
-      name_date: 'Add Name / Date & Download',
-      add_logo_photo: 'Add Logo & Download',
-      photo_frame: 'Apply Photo Frame',
-      add_border: 'Add Border & Download',
-      blur_image: 'Apply Blur & Download',
-      img_contrast: 'Apply Contrast / Brightness',
-      rotate: 'Rotate & Download',
-      add_text_img: 'Add Text & Download',
-      watermark_img: 'Add Watermark & Download',
-      flip: 'Flip & Download',
-      blur_bg: 'Blur Background',
-      sig_maker: 'Download Signature',
-      text_handwriting: 'Create Handwriting Page',
-      latex_img: 'Create Formula Image'
+    document.getElementById('psPresetSelect').onchange = (e) => {
+      const p = e.target.value;
+      const presets = {
+        digital_crisp: { dp: 65, tn: 35, sm: 45, sh: 75, wb: true },
+        studio_natural: { dp: 48, tn: 42, sm: 50, sh: 60, wb: true },
+        passport_clean: { dp: 52, tn: 48, sm: 45, sh: 70, wb: true },
+        deep_vibrant: { dp: 82, tn: 28, sm: 35, sh: 85, wb: true },
+        soft_retouch: { dp: 45, tn: 40, sm: 80, sh: 55, wb: true }
+      };
+      const cfg = presets[p] || presets.digital_crisp;
+      document.getElementById('psDepthRange').value = cfg.dp; document.getElementById('psDepthNum').value = cfg.dp;
+      document.getElementById('psToneRange').value = cfg.tn; document.getElementById('psToneNum').value = cfg.tn;
+      document.getElementById('psSmoothRange').value = cfg.sm; document.getElementById('psSmoothNum').value = cfg.sm;
+      document.getElementById('psSharpRange').value = cfg.sh; document.getElementById('psSharpNum').value = cfg.sh;
+      document.getElementById('psAutoWb').checked = cfg.wb;
+      renderLiveEditPreview();
     };
-    runBtn.textContent = labels[tool] || 'Apply & Download';
-  }
-  const status = document.getElementById('editStatus');
-  if (status) {
-    status.textContent = '';
-    status.classList.add('hidden');
-  }
-  if (cachedMainImg && ['ps_auto_retouch','img_contrast','add_logo_photo','photo_frame'].includes(tool)) {
-    renderLiveEditPreview();
-  }
-}
 
-const joinEditToolSelect = document.getElementById('editToolSelect');
-if (joinEditToolSelect) {
-  joinEditToolSelect.addEventListener('change', updateJoinEditToolPanel);
-  updateJoinEditToolPanel();
-}
+    function prepareLogoSource(logoImg, removeWhiteBg) {
+      const c = document.createElement('canvas');
+      c.width = logoImg.width; c.height = logoImg.height;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(logoImg, 0, 0);
+      if (removeWhiteBg) {
+        const imgData = ctx.getImageData(0, 0, c.width, c.height);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) {
+            d[i + 3] = 0;
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
+      return c;
+    }
 
+    function drawLogoOverlayOnCanvas(ctx, cw, ch, logoImg) {
+      if (!logoImg) return;
+      const opacity = (parseFloat(document.getElementById('logoOpacityNum').value) || 65) / 100;
+      const sizePct = (parseFloat(document.getElementById('logoSizeNum').value) || 25) / 100;
+      const posMode = document.getElementById('logoPosition').value;
+      const margin = parseInt(document.getElementById('logoMargin').value) || 20;
+      const removeWhite = document.getElementById('logoRemoveWhiteBg').checked;
 
-// ================= JOIN_EDIT_FULL_TOOL_DISPATCH_V1 =================
-// Complete client-side processing for the non-Photoshop options.
-let joinEditSelectedFrame = 0;
-let joinEditCustomFrame = null;
+      const cleanLogo = prepareLogoSource(logoImg, removeWhite);
+      const lw = Math.max(16, Math.round(cw * sizePct));
+      const lh = Math.max(16, Math.round((cleanLogo.height / cleanLogo.width) * lw));
 
-function joinEditCanvas(w, h) {
-  const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(w));
-  c.height = Math.max(1, Math.round(h));
-  return c;
-}
-function joinEditDownload(canvas, filename = 'mahadev-edited-image.png', type = 'image/png') {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(blob => {
-      if (!blob) return reject(new Error('Could not export the edited image.'));
-      const output = document.getElementById('editOutput');
-      if (!output) return reject(new Error('Output preview area is missing.'));
-      const card = document.createElement('div');
-      card.className = 'output-card output-card-with-preview';
-      card.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:12px;margin:10px 0;border:1px solid #dbe3ef;border-radius:10px;background:#fff;max-width:100%;box-sizing:border-box;';
-      const title = document.createElement('div');
-      title.textContent = filename;
-      title.style.cssText = 'font-size:14px;color:#334155;overflow-wrap:anywhere;';
-      const url = URL.createObjectURL(blob);
-      const image = document.createElement('img');
-      image.src = url;
-      image.alt = 'Edited image preview';
-      image.loading = 'lazy';
-      image.style.cssText = 'display:block;max-width:min(100%,420px);max-height:520px;width:auto;height:auto;object-fit:contain;margin:0 auto;border:1px solid #e2e8f0;border-radius:6px;background:#fff;';
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.textContent = 'Download';
-      link.className = 'btn-green';
-      link.style.cssText = 'display:inline-block;text-decoration:none;padding:9px 16px;border-radius:7px;color:#fff;background:#059669;font-weight:700;';
-      card.append(title, image, link);
-      output.appendChild(card);
-      resolve();
-    }, type);
-  });
-}
-function joinEditFont() {
-  const selected = document.getElementById('editFontFamily')?.value;
-  return selected || 'Noto Sans, Arial, sans-serif';
-}
-function joinEditDrawText(ctx, text, x, y, maxWidth, size, align = 'center') {
-  if (!text) return;
-  const bold = document.getElementById('editBoldToggle')?.checked;
-  ctx.save();
-  ctx.font = (bold ? '700 ' : '400 ') + size + 'px "' + joinEditFont().replace(/["']/g, '') + '", sans-serif';
-  ctx.textAlign = align;
-  ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = Math.max(2, size * 0.12);
-  ctx.strokeStyle = 'rgba(0,0,0,.58)';
-  ctx.fillStyle = document.getElementById('editColor')?.value || '#ffffff';
-  ctx.strokeText(text, x, y, maxWidth);
-  ctx.fillText(text, x, y, maxWidth);
-  ctx.restore();
-}
-async function joinEditLoadSelectedImages() {
-  const files = Array.from(document.getElementById('editFiles')?.files || []);
-  if (!files.length) throw new Error('Please select the required photo file(s) first.');
-  const images = [];
-  for (const file of files) {
-    if (!file.type.startsWith('image/')) continue;
-    const url = URL.createObjectURL(file);
-    try { images.push(await loadImg(url)); }
-    finally { URL.revokeObjectURL(url); }
-  }
-  if (!images.length) throw new Error('No valid image file was selected.');
-  return images;
-}
-function joinEditCanvasFromImage(img) {
-  const c = joinEditCanvas(img.naturalWidth || img.width, img.naturalHeight || img.height);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return c;
-}
-function drawProFrame(ctx, w, h, idx, thickPct) {
-  const t = Math.max(2, Math.round(Math.min(w, h) * (thickPct / 100)));
-  const palette = [
-    ['#b45309', '#fbbf24', '#fef3c7'], ['#475569', '#cbd5e1', '#f8fafc'],
-    ['#9d174d', '#f472b6', '#fce7f3'], ['#0284c7', '#22d3ee', '#cffafe'],
-    ['#9333ea', '#e879f9', '#fae8ff'], ['#09090b', '#27272a', '#a1a1aa'],
-    ['#d6d3d1', '#fafaf9', '#78716c'], ['#a16207', '#fde047', '#fef9c3'],
-    ['#065f46', '#10b981', '#d1fae5'], ['#1e40af', '#3b82f6', '#dbeafe'],
-    ['#991b1b', '#ef4444', '#fee2e2'], ['#5b21b6', '#8b5cf6', '#ede9fe'],
-    ['#c2410c', '#fb923c', '#ffedd5'], ['#0f766e', '#2dd4bf', '#ccfbf1']
-  ];
-  const [c1,c2,c3]=palette[idx%palette.length];
-  const styleType=idx%5;
-  ctx.save();
-  if(styleType===0){
-    const g=ctx.createLinearGradient(0,0,w,h);
-    g.addColorStop(0,c1);g.addColorStop(.5,c2);g.addColorStop(1,c1);
-    ctx.strokeStyle=g;ctx.lineWidth=t*2;ctx.strokeRect(0,0,w,h);
-    ctx.strokeStyle=c3;ctx.lineWidth=Math.max(1.5,t*.22);
-    ctx.strokeRect(t*.75,t*.75,w-t*1.5,h-t*1.5);
-  } else if(styleType===1){
-    ctx.strokeStyle=c1;ctx.lineWidth=t*1.9;ctx.strokeRect(0,0,w,h);
-    ctx.strokeStyle=c2;ctx.lineWidth=Math.max(2,t*.35);
-    ctx.strokeRect(t*1.1,t*1.1,w-t*2.2,h-t*2.2);
-  } else if(styleType===2){
-    ctx.strokeStyle=c2;ctx.lineWidth=t*1.3;ctx.strokeRect(0,0,w,h);
-    const cs=t*2.5;ctx.fillStyle=c1;
-    [[0,0],[w-cs,0],[0,h-cs],[w-cs,h-cs]].forEach(([x,y])=>ctx.fillRect(x,y,cs,cs));
-    ctx.strokeStyle=c3;ctx.lineWidth=2;
-    [[2,2],[w-cs+2,2],[2,h-cs+2],[w-cs+2,h-cs+2]].forEach(([x,y])=>ctx.strokeRect(x,y,cs-4,cs-4));
-  } else if(styleType===3){
-    ctx.strokeStyle=c3;ctx.lineWidth=t*2.1;ctx.strokeRect(0,0,w,h);
-    ctx.fillStyle=c3;ctx.fillRect(0,h-t*3.1,w,t*3.1);
-    ctx.strokeStyle=c1;ctx.lineWidth=2;ctx.strokeRect(2,2,w-4,h-4);
-  } else {
-    ctx.strokeStyle=c1;ctx.lineWidth=t*1.5;ctx.strokeRect(t*.4,t*.4,w-t*.8,h-t*.8);
-    ctx.setLineDash([t*1.2,t*.6]);ctx.strokeStyle=c2;ctx.lineWidth=Math.max(2,t*.35);
-    ctx.strokeRect(t*1.2,t*1.2,w-t*2.4,h-t*2.4);ctx.setLineDash([]);
-  }
-  ctx.restore();
-}
-function joinEditFrameCanvas(source, frameIndex, customFrame) {
-  const c=joinEditCanvas(source.width,source.height),ctx=c.getContext('2d');
-  ctx.drawImage(source,0,0);
-  if(customFrame){ctx.drawImage(customFrame,0,0,c.width,c.height);return c;}
-  const thickness=Math.max(2,Math.min(20,Number(document.getElementById('frameThickness')?.value)||6));
-  drawProFrame(ctx,c.width,c.height,frameIndex,thickness);
-  return c;
-}
-function joinEditInitFrameGallery() {
-  const gallery=document.getElementById('frameGallery');
-  if(!gallery||gallery.dataset.ready==='1') return;
-  gallery.dataset.ready='1';
-  gallery.style.display='grid';
-  gallery.style.gridTemplateColumns='repeat(auto-fill,minmax(76px,1fr))';
-  gallery.style.gap='9px';
-  gallery.style.padding='12px';
-  gallery.style.maxHeight='300px';
-  gallery.style.overflowY='auto';
-  for(let i=0;i<50;i++){
-    const b=document.createElement('button');
-    b.type='button';
-    b.className='frame-thumb'+(i===joinEditSelectedFrame?' selected':'');
-    b.title='Select frame '+String(i+1).padStart(2,'0');
-    b.setAttribute('aria-label','Select frame '+(i+1));
-    b.style.cssText='display:flex;align-items:center;justify-content:center;min-height:92px;padding:7px;background:#fff;border:2px solid #cbd5e1;border-radius:10px;cursor:pointer;transition:.15s;';
-    const c=document.createElement('canvas');c.width=58;c.height=68;c.style.cssText='width:58px;height:68px;display:block;background:#e2e8f0;border-radius:3px;';
-    const ctx=c.getContext('2d');
-    ctx.fillStyle='#e2e8f0';ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle='#cbd5e1';ctx.fillRect(10,12,38,44);
-    ctx.fillStyle='#94a3b8';ctx.beginPath();ctx.arc(29,26,8,0,Math.PI*2);ctx.fill();
-    ctx.fillRect(17,36,24,15);
-    drawProFrame(ctx,c.width,c.height,i,9);
-    b.appendChild(c);
-    b.addEventListener('click',()=>{
-      joinEditSelectedFrame=i;
-      gallery.querySelectorAll('button').forEach((el,n)=>{
-        el.classList.toggle('selected',n===i);
-        el.style.borderColor=n===i?'#0d9488':'#cbd5e1';
-        el.style.boxShadow=n===i?'0 0 0 2px rgba(13,148,136,.2)':'none';
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, Math.max(0.05, opacity));
+
+      if (posMode === 'tiled') {
+        ctx.translate(cw / 2, ch / 2);
+        ctx.rotate(-Math.PI / 6);
+        const stepX = lw + margin * 2.5;
+        const stepY = lh + margin * 2.5;
+        for (let y = -ch; y < ch; y += stepY) {
+          for (let x = -cw; x < cw; x += stepX) {
+            ctx.drawImage(cleanLogo, x, y, lw, lh);
+          }
+        }
+      } else {
+        let lx = cw - lw - margin;
+        let ly = ch - lh - margin;
+        if (posMode === 'bottom-left') { lx = margin; ly = ch - lh - margin; }
+        else if (posMode === 'top-right') { lx = cw - lw - margin; ly = margin; }
+        else if (posMode === 'top-left') { lx = margin; ly = margin; }
+        else if (posMode === 'center') { lx = (cw - lw) / 2; ly = (ch - lh) / 2; }
+        ctx.drawImage(cleanLogo, lx, ly, lw, lh);
+      }
+      ctx.restore();
+    }
+
+    async function renderLiveEditPreview() {
+      const tool = document.getElementById('editToolSelect').value;
+      const wrap = document.getElementById('liveEditPreviewWrap');
+      if (!cachedMainImg || !['ps_auto_retouch', 'zoom_area', 'img_contrast', 'add_logo_photo'].includes(tool)) {
+        wrap.classList.add('hidden');
+        return;
+      }
+      wrap.classList.remove('hidden');
+      const maxDim = 540;
+      const sc = Math.min(1, maxDim / Math.max(cachedMainImg.width, cachedMainImg.height));
+      const pw = Math.round(cachedMainImg.width * sc);
+      const ph = Math.round(cachedMainImg.height * sc);
+      liveEditCanvas.width = pw;
+      liveEditCanvas.height = ph;
+      const lctx = liveEditCanvas.getContext('2d');
+      lctx.clearRect(0, 0, pw, ph);
+
+      if (tool === 'zoom_area') {
+        liveEditCanvas.style.cursor = 'crosshair';
+        document.getElementById('livePreviewCaption').textContent = 'Drag mouse over the area you want to zoom, then click Apply & Download:';
+        lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
+        if (zoomSelectionNorm) {
+          const rx = zoomSelectionNorm.x * pw;
+          const ry = zoomSelectionNorm.y * ph;
+          const rw = zoomSelectionNorm.w * pw;
+          const rh = zoomSelectionNorm.h * ph;
+          lctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+          lctx.fillRect(0, 0, pw, ry);
+          lctx.fillRect(0, ry + rh, pw, ph - (ry + rh));
+          lctx.fillRect(0, ry, rx, rh);
+          lctx.fillRect(rx + rw, ry, pw - (rx + rw), rh);
+          lctx.strokeStyle = '#10b981';
+          lctx.lineWidth = 2.5;
+          lctx.strokeRect(rx, ry, rw, rh);
+        }
+      } else if (tool === 'ps_auto_retouch') {
+        liveEditCanvas.style.cursor = document.getElementById('hairBrushToggle').checked ? 'cell' : 'default';
+        const removeBg = document.getElementById('psRemoveBgToggle').checked;
+        if (removeBg) {
+          if (!cachedTransparentCutout) {
+            const st = document.getElementById('editStatus');
+            st.textContent = 'AI Removing Background for Live Preview...';
+            st.classList.remove('hidden');
+            cachedTransparentCutout = await runSelfieSegmentation(cachedMainImg, 'transparent');
+            st.classList.add('hidden');
+          }
+          const enhancedSubject = applyPhotoshopDigitalRetouch(cachedTransparentCutout, pw, ph);
+          const finalPreview = compositeBackgroundBehindSubject(enhancedSubject);
+          lctx.drawImage(finalPreview, 0, 0, pw, ph);
+        } else {
+          const enhanced = applyPhotoshopDigitalRetouch(cachedMainImg, pw, ph);
+          const splitPct = (parseFloat(document.getElementById('psSplitRange').value) ?? 100) / 100;
+          const splitX = Math.round(pw * splitPct);
+          lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
+          if (splitX > 0) {
+            lctx.drawImage(enhanced, 0, 0, splitX, ph, 0, 0, splitX, ph);
+          }
+          if (splitX > 2 && splitX < pw - 2) {
+            lctx.strokeStyle = '#ffffff';
+            lctx.lineWidth = 2;
+            lctx.beginPath(); lctx.moveTo(splitX, 0); lctx.lineTo(splitX, ph); lctx.stroke();
+          }
+        }
+      } else if (tool === 'img_contrast') {
+        liveEditCanvas.style.cursor = 'default';
+        const cVal = Math.max(10, parseFloat(document.getElementById('cbContrastNum').value) || 100);
+        const bVal = Math.max(10, parseFloat(document.getElementById('cbBrightnessNum').value) || 100);
+        lctx.filter = `contrast(${cVal}%) brightness(${bVal}%)`;
+        lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
+        lctx.filter = 'none';
+      } else if (tool === 'add_logo_photo') {
+        liveEditCanvas.style.cursor = 'default';
+        lctx.drawImage(cachedMainImg, 0, 0, pw, ph);
+        drawLogoOverlayOnCanvas(lctx, pw, ph, cachedLogoImg);
+      }
+    }
+
+    document.getElementById('editFiles').onchange = async (e) => {
+      const f = e.target.files[0];
+      cachedTransparentCutout = null;
+      hairStrokes = [];
+      zoomSelectionNorm = null;
+      if (!f) { cachedMainImg = null; renderLiveEditPreview(); return; }
+      cachedMainImg = await loadImg(URL.createObjectURL(f));
+      renderLiveEditPreview();
+    };
+
+    document.getElementById('logoOverlayFile').onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) { cachedLogoImg = null; renderLiveEditPreview(); return; }
+      cachedLogoImg = await loadImg(URL.createObjectURL(f));
+      renderLiveEditPreview();
+    };
+
+    function bindRangeAndNum(rangeId, numId, onChangeCb) {
+      const r = document.getElementById(rangeId), n = document.getElementById(numId);
+      r.oninput = () => { n.value = r.value; if (onChangeCb) onChangeCb(); };
+      n.oninput = () => { r.value = n.value; if (onChangeCb) onChangeCb(); };
+    }
+    bindRangeAndNum('psDepthRange', 'psDepthNum', renderLiveEditPreview);
+    bindRangeAndNum('psToneRange', 'psToneNum', renderLiveEditPreview);
+    bindRangeAndNum('psSmoothRange', 'psSmoothNum', renderLiveEditPreview);
+    bindRangeAndNum('psSharpRange', 'psSharpNum', renderLiveEditPreview);
+    bindRangeAndNum('cbContrastRange', 'cbContrastNum', renderLiveEditPreview);
+    bindRangeAndNum('cbBrightnessRange', 'cbBrightnessNum', renderLiveEditPreview);
+    bindRangeAndNum('logoOpacityRange', 'logoOpacityNum', renderLiveEditPreview);
+    bindRangeAndNum('logoSizeRange', 'logoSizeNum', renderLiveEditPreview);
+    bindRangeAndNum('zoomScaleRange', 'zoomScaleNum', renderLiveEditPreview);
+    document.getElementById('zoomSharpToggle').onchange = renderLiveEditPreview;
+
+    document.getElementById('psAutoWb').onchange = renderLiveEditPreview;
+    document.getElementById('psSplitRange').oninput = renderLiveEditPreview;
+    document.getElementById('logoPosition').onchange = renderLiveEditPreview;
+    document.getElementById('logoMargin').oninput = renderLiveEditPreview;
+    document.getElementById('logoRemoveWhiteBg').onchange = renderLiveEditPreview;
+
+    document.getElementById('cbResetBtn').onclick = () => {
+      document.getElementById('cbContrastRange').value = 100; document.getElementById('cbContrastNum').value = 100;
+      document.getElementById('cbBrightnessRange').value = 100; document.getElementById('cbBrightnessNum').value = 100;
+      renderLiveEditPreview();
+    };
+
+    // 50 Ready-Made Pro Frames
+    const PRO_FRAME_NAMES = [
+      'Royal Gold', 'Silver Shine', 'Rose Gold', 'Neon Cyan', 'Neon Magenta',
+      'Obsidian Pro', 'Ivory Mat', 'Champagne Gold', 'Emerald Luxe', 'Sapphire Pro',
+      'Crimson Royal', 'Violet Glow', 'Sunset Amber', 'Mint Studio', 'Polaroid Classic',
+      'Polaroid Dark', 'Double Gold', 'Double Navy', 'Triple Frame', 'Corner Gold',
+      'Corner Silver', 'Corner Red', 'Corner Blue', 'Corner Emerald', 'Corner Purple',
+      'Vintage Parchment', 'Art Deco Gold', 'Minimalist Slate', 'Film Strip', 'Cinema Frame',
+      'Wedding Gold', 'Wedding Rose', 'Award Bronze', 'Award Platinum', 'Modern Teal',
+      'Coral Border', 'Cobalt Grid', 'Indigo Frame', 'Lime Pop', 'Peach Soft',
+      'Steel Metallic', 'Copper Gloss', 'Midnight Gold', 'Ruby Luxe', 'Aqua Frame',
+      'Lavender Soft', 'Mustard Bold', 'Charcoal Mat', 'Pearl White', 'Pro Studio Edge'
+    ];
+    let selectedFrameIndex = 0;
+
+    function drawProFrame(ctx, w, h, idx, thickPct) {
+      const t = Math.max(5, Math.round(Math.min(w, h) * (thickPct / 100)));
+      const palette = [
+        ['#b45309', '#fbbf24', '#fef3c7'], ['#475569', '#cbd5e1', '#f8fafc'],
+        ['#9d174d', '#f472b6', '#fce7f3'], ['#0284c7', '#22d3ee', '#cffafe'],
+        ['#9333ea', '#e879f9', '#fae8ff'], ['#09090b', '#27272a', '#a1a1aa'],
+        ['#d6d3d1', '#fafaf9', '#78716c'], ['#a16207', '#fde047', '#fef9c3'],
+        ['#065f46', '#10b981', '#d1fae5'], ['#1e40af', '#3b82f6', '#dbeafe'],
+        ['#991b1b', '#ef4444', '#fee2e2'], ['#5b21b6', '#8b5cf6', '#ede9fe'],
+        ['#c2410c', '#fb923c', '#ffedd5'], ['#0f766e', '#2dd4bf', '#ccfbf1']
+      ];
+      const [c1, c2, c3] = palette[idx % palette.length];
+      ctx.save();
+      const styleType = idx % 5;
+
+      if (styleType === 0) {
+        const g = ctx.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, c1); g.addColorStop(0.5, c2); g.addColorStop(1, c1);
+        ctx.strokeStyle = g; ctx.lineWidth = t * 2; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = c3; ctx.lineWidth = Math.max(1.5, t * 0.22);
+        ctx.strokeRect(t * 0.75, t * 0.75, w - t * 1.5, h - t * 1.5);
+      } else if (styleType === 1) {
+        ctx.strokeStyle = c1; ctx.lineWidth = t * 1.9; ctx.strokeRect(0, 0, w, h);
+        ctx.strokeStyle = c2; ctx.lineWidth = Math.max(2, t * 0.35);
+        ctx.strokeRect(t * 1.1, t * 1.1, w - t * 2.2, h - t * 2.2);
+      } else if (styleType === 2) {
+        ctx.strokeStyle = c2; ctx.lineWidth = t * 1.3; ctx.strokeRect(0, 0, w, h);
+        const cs = t * 2.5;
+        ctx.fillStyle = c1;
+        [[0, 0], [w - cs, 0], [0, h - cs], [w - cs, h - cs]].forEach(([cx, cy]) => ctx.fillRect(cx, cy, cs, cs));
+        ctx.strokeStyle = c3; ctx.lineWidth = 2;
+        [[2, 2], [w - cs + 2, 2], [2, h - cs + 2], [w - cs + 2, h - cs + 2]].forEach(([cx, cy]) => ctx.strokeRect(cx, cy, cs - 4, cs - 4));
+      } else if (styleType === 3) {
+        ctx.strokeStyle = c3; ctx.lineWidth = t * 2.1; ctx.strokeRect(0, 0, w, h);
+        ctx.fillStyle = c3; ctx.fillRect(0, h - t * 3.1, w, t * 3.1);
+        ctx.strokeStyle = c1; ctx.lineWidth = 2; ctx.strokeRect(2, 2, w - 4, h - 4);
+      } else {
+        ctx.strokeStyle = c1; ctx.lineWidth = t * 1.5; ctx.strokeRect(t * 0.4, t * 0.4, w - t * 0.8, h - t * 0.8);
+        ctx.setLineDash([t * 1.2, t * 0.6]);
+        ctx.strokeStyle = c2; ctx.lineWidth = Math.max(2, t * 0.35);
+        ctx.strokeRect(t * 1.2, t * 1.2, w - t * 2.4, h - t * 2.4);
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+
+    function init50FrameGallery() {
+      const gal = document.getElementById('frameGallery');
+      gal.innerHTML = '';
+      PRO_FRAME_NAMES.forEach((name, idx) => {
+        const item = document.createElement('div');
+        item.className = 'frame-thumb' + (idx === selectedFrameIndex ? ' selected' : '');
+        const c = document.createElement('canvas'); c.width = 58; c.height = 68;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#e2e8f0'; ctx.fillRect(8, 10, 42, 48);
+        drawProFrame(ctx, 58, 68, idx, 9);
+        const lbl = document.createElement('span');
+        lbl.textContent = `${String(idx + 1).padStart(2, '0')}. ${name}`;
+        lbl.title = `${String(idx + 1).padStart(2, '0')}. ${name}`;
+        item.appendChild(c); item.appendChild(lbl);
+        item.onclick = () => {
+          selectedFrameIndex = idx;
+          document.getElementById('customFrameFile').value = '';
+          document.querySelectorAll('.frame-thumb').forEach(el => el.classList.remove('selected'));
+          item.classList.add('selected');
+          document.getElementById('selectedFrameBadge').textContent = `Selected: ${String(idx + 1).padStart(2, '0')}. ${name}`;
+        };
+        gal.appendChild(item);
       });
-      const badge=document.getElementById('selectedFrameBadge');
-      if(badge) badge.textContent='Selected Frame: '+String(i+1).padStart(2,'0');
-      if(cachedMainImg&&document.getElementById('editToolSelect')?.value==='photo_frame') renderLiveEditPreview();
-      const status=document.getElementById('editStatus');
-      if(status){status.textContent='Live preview updated: Frame '+String(i+1).padStart(2,'0');status.classList.remove('hidden');}
-    });
-    gallery.appendChild(b);
-  }
-  gallery.querySelector('button')?.click();
-}
-document.getElementById('customFrameFile')?.addEventListener('change', async e=>{
-  const file=e.target.files?.[0]; if(!file){joinEditCustomFrame=null;return;}
-  try {
-    const url=URL.createObjectURL(file);
-    try { joinEditCustomFrame=await loadImg(url); } finally { URL.revokeObjectURL(url); }
-    if (cachedMainImg && document.getElementById('editToolSelect')?.value === 'photo_frame') renderLiveEditPreview();
-    const s=document.getElementById('editStatus');
-    if(s){s.textContent='Custom frame loaded. Live preview updated.';s.classList.remove('hidden');}
-  }
-  catch(err){ joinEditCustomFrame=null; const s=document.getElementById('editStatus'); if(s){s.textContent=err.message;s.classList.remove('hidden');} }
-});
-joinEditInitFrameGallery();
+    }
+    init50FrameGallery();
 
-async function joinEditBlurBackground(img) {
-  if (typeof SelfieSegmentation === 'undefined') throw new Error('Portrait segmentation model is not loaded. Refresh the page with internet access and retry.');
-  return new Promise((resolve,reject)=>{
-    let model,done=false;
-    const finish=(err,val)=>{if(done)return;done=true;clearTimeout(timer);try{model?.close();}catch(_){};err?reject(err):resolve(val);};
-    const timer=setTimeout(()=>finish(new Error('Background blur timed out. Try a smaller photo.')),30000);
-    try {
-      model=new SelfieSegmentation({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`});
-      model.setOptions({modelSelection:1});
-      model.onResults(results=>{
-        try {
-          if(!results?.segmentationMask) throw new Error('Could not detect the person in this photo.');
-          const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
-          const base=joinEditCanvas(w,h),ctx=base.getContext('2d');
-          ctx.filter='blur(12px)';ctx.drawImage(img,0,0,w,h);ctx.filter='none';
-          const maskCanvas=joinEditCanvas(w,h),mctx=maskCanvas.getContext('2d',{willReadFrequently:true});
-          mctx.drawImage(results.segmentationMask,0,0,w,h);
-          const maskData=mctx.getImageData(0,0,w,h).data;
-          const fg=joinEditCanvas(w,h),fctx=fg.getContext('2d',{willReadFrequently:true});
-          fctx.drawImage(img,0,0,w,h);
-          const fgData=fctx.getImageData(0,0,w,h),fd=fgData.data;
-          for(let p=0,i=0;p<w*h;p++,i+=4) fd[i+3]=Math.round(fd[i+3]*(maskData[i]/255));
-          fctx.putImageData(fgData,0,0);
-          ctx.drawImage(fg,0,0);
-          finish(null,base);
-        } catch(err){finish(err);}
-      });
-      model.send({image:img}).catch(err=>finish(err));
-    } catch(err){finish(err);}
-  });
-}
-async function joinEditProcessTool(tool) {
-  const files=Array.from(document.getElementById('editFiles')?.files||[]);
-  const text1=document.getElementById('editText1')?.value?.trim()||'';
-  const text2=document.getElementById('editText2')?.value?.trim()||'';
-  const num=Math.max(0,Number(document.getElementById('editNum1')?.value)||10);
-  if (tool==='sig_maker') {
-    const c=joinEditCanvasFromImage(sigCanvas);
-    await joinEditDownload(c,'mahadev-digital-signature.png'); return 'Signature downloaded as PNG.';
-  }
-  if (tool==='text_handwriting') {
-    const value=document.getElementById('hwLongText')?.value?.trim()||text1;
-    if(!value) throw new Error('Please enter the text for the handwriting page.');
-    const c=joinEditCanvas(1240,1754),ctx=c.getContext('2d');
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
-    ctx.strokeStyle='#dbeafe';ctx.lineWidth=2;
-    for(let y=130;y<c.height-70;y+=54){ctx.beginPath();ctx.moveTo(75,y);ctx.lineTo(c.width-70,y);ctx.stroke();}
-    ctx.fillStyle='#1e3a8a';ctx.font='30px '+joinEditFont();
-    const words=value.split(/\s+/);let line='',y=120;
-    for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>c.width-170&&line){ctx.fillText(line,85,y);line=word;y+=54;}else line=test;}
-    if(line)ctx.fillText(line,85,y);
-    await joinEditDownload(c,'mahadev-handwriting-page.png');return 'Handwriting-style page created. You can print this A4 image.';
-  }
-  if (tool==='latex_img') {
-    if(!text1) throw new Error('Enter a formula or expression first.');
-    const c=joinEditCanvas(1600,600),ctx=c.getContext('2d');
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
-    ctx.fillStyle='#111827';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.font='48px Georgia, serif';ctx.fillText(text1,800,300,1450);
-    await joinEditDownload(c,'mahadev-formula.png');return 'Formula text exported as an image (plain text rendering; LaTeX commands are not typeset).';
-  }
+    function updateEditToolUI() {
+      const v = document.getElementById('editToolSelect').value;
+      document.getElementById('sigPadWrap').classList.toggle('hidden', v !== 'sig_maker');
+      document.getElementById('hwTextWrap').classList.toggle('hidden', v !== 'text_handwriting');
+      document.getElementById('edImgFileLbl').classList.toggle('hidden', ['sig_maker', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('psRetouchWrap').classList.toggle('hidden', v !== 'ps_auto_retouch');
+      document.getElementById('zoomAreaWrap').classList.toggle('hidden', v !== 'zoom_area');
+      document.getElementById('ndOptionsWrap').classList.toggle('hidden', v !== 'name_date');
+      document.getElementById('logoOptionsWrap').classList.toggle('hidden', v !== 'add_logo_photo');
+      document.getElementById('frameOptionsWrap').classList.toggle('hidden', v !== 'photo_frame');
+      document.getElementById('cbControlsWrap').classList.toggle('hidden', v !== 'img_contrast');
+      document.getElementById('edText1Lbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('edText2Lbl').classList.toggle('hidden', v !== 'name_date');
+      document.getElementById('edFontLbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('edBoldLbl').classList.toggle('hidden', !['name_date', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('edColorLbl').classList.toggle('hidden', !['name_date', 'add_border', 'add_text_img', 'watermark_img', 'text_handwriting', 'latex_img'].includes(v));
+      document.getElementById('edNumWrap').classList.toggle('hidden', !['add_border', 'blur_image', 'rotate', 'blur_bg'].includes(v));
+      if (v === 'name_date' && document.getElementById('editColor').value === '#1e293b') {
+        document.getElementById('editColor').value = '#ffffff';
+      }
+      updatePsBgControls();
+      renderLiveEditPreview();
+    }
+    document.getElementById('editToolSelect').onchange = updateEditToolUI;
+    updateEditToolUI();
 
-  const imgs=await joinEditLoadSelectedImages();
-  if(tool==='join_images'||tool==='merge_photo_sig'){
-    if(imgs.length<2) throw new Error('Please select at least two image files.');
-    const vertical=tool==='merge_photo_sig';
-    const targetW=vertical?Math.max(...imgs.map(i=>i.naturalWidth||i.width)):imgs.reduce((n,i)=>n+Math.round((i.naturalWidth||i.width)*Math.max(...imgs.map(x=>x.naturalHeight||x.height))/(i.naturalHeight||i.height)),0);
-    const targetH=vertical?imgs.reduce((n,i)=>n+Math.round((i.naturalHeight||i.height)*Math.max(...imgs.map(x=>x.naturalWidth||x.width))/(i.naturalWidth||i.width)),0):Math.max(...imgs.map(i=>i.naturalHeight||i.height));
-    const c=joinEditCanvas(targetW,targetH),ctx=c.getContext('2d');let offset=0;
-    imgs.forEach(img=>{const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;if(vertical){const dw=targetW,dh=ih*targetW/iw;ctx.drawImage(img,0,offset,dw,dh);offset+=dh;}else{const dh=targetH,dw=iw*targetH/ih;ctx.drawImage(img,offset,0,dw,dh);offset+=dw;}});
-    await joinEditDownload(c,vertical?'mahadev-photo-signature-merge.png':'mahadev-joined-images.png');
-    return vertical?'Photo and signature images merged vertically.':'Images joined horizontally.';
-  }
+    document.getElementById('editRunBtn').onclick = async () => {
+      const tool = document.getElementById('editToolSelect').value;
+      const out = document.getElementById('editOutput');
+      const status = document.getElementById('editStatus');
+      out.innerHTML = ''; status.classList.add('hidden');
+      const files = Array.from(document.getElementById('editFiles').files);
+      const t1 = document.getElementById('editText1').value;
+      const t2 = document.getElementById('editText2').value;
+      const n1 = parseFloat(document.getElementById('editNum1').value) || 10;
+      const col = document.getElementById('editColor').value;
+      const chosenFont = document.getElementById('editFontFamily').value;
+      const isBold = document.getElementById('editBoldToggle').checked;
 
-  if(tool==='blur_bg'){
-    const c=await joinEditBlurBackground(imgs[0]);await joinEditDownload(c,'mahadev-background-blur.png');return 'Portrait background blur applied.';
-  }
-  const source=joinEditCanvasFromImage(imgs[0]);
-  let c=joinEditCanvas(source.width,source.height),ctx=c.getContext('2d');
-  ctx.drawImage(source,0,0);
-  if(tool==='add_logo_photo'){
-    const logoFile=document.getElementById('logoOverlayFile')?.files?.[0];
-    if(!logoFile) throw new Error('Please upload a logo image.');
-    const url=URL.createObjectURL(logoFile);const logo=await loadImg(url);URL.revokeObjectURL(url);
-    drawLogoOverlayOnCanvas(ctx,c.width,c.height,logo);
-  } else if(tool==='name_date'){
-    const size=Math.max(16,c.width*(Number(document.getElementById('ndFontSizePct')?.value)||5)/100);
-    const pos=document.getElementById('ndPosition')?.value||'bottom';
-    const vertical=document.getElementById('ndOrientation')?.value==='vertical';
-    const strip=document.getElementById('ndBgStyle')?.value||'transparent_outline';
-    ctx.save();
-    if(strip==='white_strip'){ctx.fillStyle='#fff';ctx.fillRect(0,c.height-size*2.5,c.width,size*2.5);}
-    else if(strip==='transparent_glass'){ctx.fillStyle='rgba(255,255,255,.48)';ctx.fillRect(0,c.height-size*2.5,c.width,size*2.5);}
-    const x=pos==='left'?size:c.width/2,y=pos==='top'?size*1.5:pos==='center'?c.height/2:c.height-size*1.5;
-    if(vertical){ctx.translate(pos==='right'?c.width-size:c.width/2,y);ctx.rotate(-Math.PI/2);joinEditDrawText(ctx,text1+'  '+text2,0,0,c.height-size*2,size,'center');}
-    else joinEditDrawText(ctx,[text1,text2].filter(Boolean).join('  '),pos==='left'?size:c.width/2,y,c.width-size*2,size,pos==='left'?'left':'center');
-    ctx.restore();
-  } else if(tool==='add_text_img'||tool==='watermark_img'){
-    if(!text1) throw new Error('Please enter the text first.');
-    const size=Math.max(18,c.width*(tool==='watermark_img'?.055:.06));
-    if(tool==='watermark_img'){
-      ctx.save();ctx.globalAlpha=.28;ctx.translate(c.width/2,c.height/2);ctx.rotate(-Math.PI/6);
-      joinEditDrawText(ctx,text1,0,0,c.width*.9,size,'center');ctx.restore();
-    } else joinEditDrawText(ctx,text1,c.width/2,c.height/2,c.width*.9,size,'center');
-  } else if(tool==='photo_frame'){
-    c=joinEditFrameCanvas(source,joinEditSelectedFrame,joinEditCustomFrame);
-  } else if(tool==='add_border'){
-    const border=Math.max(1,Math.min(200,num));ctx.strokeStyle=document.getElementById('editColor')?.value||'#fff';ctx.lineWidth=border;ctx.strokeRect(border/2,border/2,c.width-border,c.height-border);
-  } else if(tool==='blur_image'){
-    const blur=Math.max(0,Math.min(30,num));ctx.filter='blur('+blur+'px)';ctx.drawImage(source,0,0);ctx.filter='none';
-  } else if(tool==='img_contrast'){
-    const contrast=Math.max(20,Math.min(250,Number(document.getElementById('cbContrastNum')?.value)||110));
-    const bright=Math.max(20,Math.min(250,Number(document.getElementById('cbBrightnessNum')?.value)||105));
-    ctx.filter='contrast('+contrast+'%) brightness('+bright+'%)';ctx.drawImage(source,0,0);ctx.filter='none';
-  } else if(tool==='rotate'){
-    const angle=(num||90)*Math.PI/180,sw=source.width,sh=source.height;
-    const swap=Math.abs(Math.round(num/90))%2===1;
-    c=joinEditCanvas(swap?sh:sw,swap?sw:sh);ctx=c.getContext('2d');ctx.translate(c.width/2,c.height/2);ctx.rotate(angle);ctx.drawImage(source,-sw/2,-sh/2);
-  } else if(tool==='flip'){
-    ctx.translate(c.width,0);ctx.scale(-1,1);ctx.drawImage(source,0,0);
-  } else {
-    throw new Error('This tool is not yet supported: '+tool);
-  }
-  await joinEditDownload(c,'mahadev-'+tool.replace(/[^a-z0-9]+/gi,'-')+'.png');
-  return 'Done! Your edited image has been downloaded.';
-}
+      if (tool === 'sig_maker') {
+        addDownloadCard(out, await toBlob(sigCanvas, 'image/png', 1), 'signature.png', 'Digital Signature PNG');
+        return;
+      }
 
-document.getElementById('editRunBtn')?.addEventListener('click', async()=>{
-  const tool=document.getElementById('editToolSelect')?.value;
-  if(!tool||tool==='ps_auto_retouch') return; // Photoshop has its own full-resolution handler above.
-  const btn=document.getElementById('editRunBtn'),status=document.getElementById('editStatus');
-  if(btn){btn.disabled=true;btn.textContent='Processing...';}
-  if(status){status.textContent='Processing '+tool.replace(/_/g,' ')+'...';status.classList.remove('hidden');}
-  try {
-    const message=await joinEditProcessTool(tool);
-    if(status)status.textContent=message;
-  } catch(error) {
-    if(status){status.textContent=error?.message||'Processing failed. Please check the selected files and try again.';status.classList.remove('hidden');}
-  } finally {
-    if(btn){btn.disabled=false;const label=document.getElementById('editToolSelect')?.selectedOptions?.[0]?.textContent||'Apply & Download';btn.textContent=label.length>26?'Apply & Download':label;}
-  }
-});
+      if (tool === 'text_handwriting') {
+        const text = document.getElementById('hwLongText').value || t1 || 'ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ • नमस्ते • Hello';
+        const c = document.createElement('canvas'); c.width = 900; c.height = 1200;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fffdf7'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1;
+        for (let y = 110; y < 1150; y += 38) { ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(840, y); ctx.stroke(); }
+        ctx.strokeStyle = '#f87171'; ctx.beginPath(); ctx.moveTo(110, 0); ctx.lineTo(110, 1200); ctx.stroke();
+        ctx.fillStyle = col; ctx.font = buildCanvasFontStr(isBold, 26, chosenFont);
+        const words = text.split(/\s+/);
+        let line = '', y = 104;
+        for (const w of words) {
+          const test = line + w + ' ';
+          if (ctx.measureText(test).width > 700) { ctx.fillText(line, 125, y); line = w + ' '; y += 38; }
+          else line = test;
+        }
+        ctx.fillText(line, 125, y);
+        addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.95), 'handwriting_page.jpg', 'Handwriting Page Created');
+        return;
+      }
 
-// ================= JOIN_EDIT_FRAME_LIVE_PREVIEW_V1 =================
+      if (tool === 'latex_img') {
+        const expr = t1 || 'E = mc²  |  x = (-b ± √(b² - 4ac)) / 2a';
+        const c = document.createElement('canvas'); c.width = 900; c.height = 240;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.fillStyle = col; ctx.font = buildCanvasFontStr(isBold, 34, chosenFont);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(expr, c.width / 2, c.height / 2);
+        addDownloadCard(out, await toBlob(c, 'image/png', 1), 'formula_image.png', 'Formula / LaTeX Image');
+        return;
+      }
+
+      if (!files.length) return alert('Please select image file(s).');
+      const imgs = await Promise.all(files.map(f => loadImg(URL.createObjectURL(f))));
+
+      if (tool === 'join_images' || tool === 'merge_photo_sig') {
+        const c = document.createElement('canvas');
+        if (tool === 'merge_photo_sig') {
+          c.width = Math.max(...imgs.map(i => i.width)); c.height = imgs.reduce((acc, i) => acc + i.height, 0);
+        } else {
+          c.width = imgs.reduce((acc, i) => acc + i.width, 0); c.height = Math.max(...imgs.map(i => i.height));
+        }
+        const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        let pos = 0;
+        for (const im of imgs) {
+          if (tool === 'merge_photo_sig') { ctx.drawImage(im, 0, pos); pos += im.height; }
+          else { ctx.drawImage(im, pos, 0); pos += im.width; }
+        }
+        addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.94), `${tool}.jpg`, `${c.width}×${c.height}px`);
+        return;
+      }
+
+      const im = imgs[0];
+
+      if (tool === 'zoom_area') {
+        const zoomFactor = parseFloat(document.getElementById('zoomScaleNum').value) || 2.5;
+        const sharpen = document.getElementById('zoomSharpToggle').checked;
+        const zoomedC = buildZoomedSelectionCanvas(im, zoomSelectionNorm, zoomFactor, sharpen);
+        addDownloadCard(out, await toBlob(zoomedC, 'image/jpeg', 0.97), `zoomed_${zoomFactor}x_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `Zoomed ${zoomFactor}x (${zoomedC.width}×${zoomedC.height}px)`);
+        return;
+      }
+
+      if (tool === 'ps_auto_retouch') {
+        const removeBg = document.getElementById('psRemoveBgToggle').checked;
+        const bgStyle = document.getElementById('psBgStyleSelect').value;
+        status.textContent = removeBg
+          ? 'Removing Background & Applying Digital Studio Retouch...'
+          : 'Applying Photoshop Digital Studio Look...';
+        status.classList.remove('hidden');
+
+        if (removeBg) {
+          const cutout = cachedTransparentCutout || await runSelfieSegmentation(im, 'transparent');
+          cachedTransparentCutout = cutout;
+          const enhancedSubject = applyPhotoshopDigitalRetouch(cutout, im.width, im.height);
+          const finalCanvas = compositeBackgroundBehindSubject(enhancedSubject);
+          status.classList.add('hidden');
+
+          if (bgStyle === 'transparent') {
+            addDownloadCard(out, await toBlob(finalCanvas, 'image/png', 1.0), `digital_nobg_${files[0].name.replace(/\.[^/.]+$/, '')}.png`, `Transparent PNG • No Background (${im.width}×${im.height}px)`);
+          } else {
+            addDownloadCard(out, await toBlob(finalCanvas, 'image/jpeg', 0.97), `digital_studio_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `Digital Studio + Custom BG (${im.width}×${im.height}px)`);
+          }
+        } else {
+          const retouchedCanvas = applyPhotoshopDigitalRetouch(im, im.width, im.height);
+          status.classList.add('hidden');
+          addDownloadCard(out, await toBlob(retouchedCanvas, 'image/jpeg', 0.97), `ps_digital_${files[0].name.replace(/\.[^/.]+$/, '')}.jpg`, `Digital Studio Retouched (${im.width}×${im.height}px)`);
+        }
+        return;
+      }
+
+      if (tool === 'blur_bg') {
+        status.textContent = 'Applying AI Portrait Background Blur...'; status.classList.remove('hidden');
+        const blurred = await runSelfieSegmentation(im, 'blur_bg', Math.max(4, n1));
+        status.classList.add('hidden');
+        addDownloadCard(out, await toBlob(blurred, 'image/jpeg', 0.94), 'blur_background.jpg', 'Background Blurred');
+        return;
+      }
+
+      const c = document.createElement('canvas');
+      const ctx = c.getContext('2d');
+      const rad = (n1 * Math.PI) / 180;
+      if (tool === 'rotate') {
+        c.width = Math.abs(im.width * Math.cos(rad)) + Math.abs(im.height * Math.sin(rad));
+        c.height = Math.abs(im.width * Math.sin(rad)) + Math.abs(im.height * Math.cos(rad));
+        ctx.translate(c.width / 2, c.height / 2); ctx.rotate(rad); ctx.drawImage(im, -im.width / 2, -im.height / 2);
+      } else {
+        c.width = im.width; c.height = im.height;
+        if (tool === 'flip') { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
+        if (tool === 'blur_image') ctx.filter = `blur(${Math.max(1, n1)}px)`;
+        if (tool === 'img_contrast') {
+          const cVal = Math.max(10, parseFloat(document.getElementById('cbContrastNum').value) || 100);
+          const bVal = Math.max(10, parseFloat(document.getElementById('cbBrightnessNum').value) || 100);
+          ctx.filter = `contrast(${cVal}%) brightness(${bVal}%)`;
+        }
+        ctx.drawImage(im, 0, 0, c.width, c.height);
+        ctx.filter = 'none';
+
+        if (tool === 'add_logo_photo') {
+          const logoF = document.getElementById('logoOverlayFile').files[0];
+          if (!logoF && !cachedLogoImg) return alert('Please upload a Logo image first.');
+          const logoImg = cachedLogoImg || await loadImg(URL.createObjectURL(logoF));
+          drawLogoOverlayOnCanvas(ctx, c.width, c.height, logoImg);
+        }
+
+        if (tool === 'add_border') {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = Math.max(4, n1 || 12);
+          ctx.strokeRect(0, 0, c.width, c.height);
+        }
+
+        if (tool === 'photo_frame') {
+          const customF = document.getElementById('customFrameFile').files[0];
+          const thickPct = parseFloat(document.getElementById('frameThickness').value) || 6;
+          if (customF) {
+            const frameImg = await loadImg(URL.createObjectURL(customF));
+            ctx.drawImage(frameImg, 0, 0, c.width, c.height);
+          } else {
+            drawProFrame(ctx, c.width, c.height, selectedFrameIndex, thickPct);
+          }
+        }
+
+        if (tool === 'name_date') {
+          const styleMode = document.getElementById('ndBgStyle').value;
+          const posMode = document.getElementById('ndPosition').value;
+          const orient = document.getElementById('ndOrientation').value;
+          const sizePct = parseFloat(document.getElementById('ndFontSizePct').value) || 5;
+          const labelStr = `${t1 || 'Name'}${t2 ? '  |  ' + t2 : ''}`;
+          const fs = Math.max(16, Math.round(Math.min(c.width, c.height) * (sizePct / 100)));
+
+          ctx.save();
+          ctx.font = buildCanvasFontStr(isBold, fs, chosenFont);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          const pad = Math.round(fs * 0.85);
+          let cx = c.width / 2, cy = c.height - pad * 1.4;
+          if (posMode === 'top') { cx = c.width / 2; cy = pad * 1.4; }
+          else if (posMode === 'center') { cx = c.width / 2; cy = c.height / 2; }
+          else if (posMode === 'left') { cx = pad * 1.5; cy = c.height / 2; }
+          else if (posMode === 'right') { cx = c.width - pad * 1.5; cy = c.height / 2; }
+
+          if (styleMode === 'white_strip') {
+            const bh = Math.round(fs * 2.1);
+            ctx.fillStyle = '#ffffff';
+            if (posMode === 'top') ctx.fillRect(0, 0, c.width, bh);
+            else if (posMode === 'left') ctx.fillRect(0, 0, bh, c.height);
+            else if (posMode === 'right') ctx.fillRect(c.width - bh, 0, bh, c.height);
+            else ctx.fillRect(0, c.height - bh, c.width, bh);
+          } else if (styleMode === 'transparent_glass') {
+            const bh = Math.round(fs * 2.0);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
+            if (posMode === 'top') ctx.fillRect(0, 0, c.width, bh);
+            else if (posMode === 'center') ctx.fillRect(0, c.height / 2 - bh / 2, c.width, bh);
+            else if (posMode === 'left') ctx.fillRect(0, 0, bh, c.height);
+            else if (posMode === 'right') ctx.fillRect(c.width - bh, 0, bh, c.height);
+            else ctx.fillRect(0, c.height - bh, c.width, bh);
+          }
+
+          ctx.translate(cx, cy);
+          if (orient === 'vertical') ctx.rotate(-Math.PI / 2);
+
+          if (styleMode === 'transparent_outline') {
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = Math.max(3, Math.round(fs * 0.16));
+            ctx.strokeStyle = (col.toLowerCase() === '#000000') ? 'rgba(255,255,255,0.88)' : 'rgba(0,0,0,0.88)';
+            ctx.strokeText(labelStr, 0, 0);
+          }
+          ctx.fillStyle = col;
+          ctx.fillText(labelStr, 0, 0);
+          ctx.restore();
+        }
+
+        if (tool === 'add_text_img') {
+          const fs = Math.max(24, Math.round(c.width * 0.05));
+          ctx.fillStyle = col;
+          ctx.font = buildCanvasFontStr(isBold, fs, chosenFont);
+          ctx.textAlign = 'center';
+          ctx.fillText(t1 || 'Sample Text', c.width / 2, c.height * 0.88);
+        }
+        if (tool === 'watermark_img') {
+          ctx.save(); ctx.translate(c.width / 2, c.height / 2); ctx.rotate(-Math.PI / 6);
+          ctx.fillStyle = col; ctx.globalAlpha = 0.35;
+          ctx.font = buildCanvasFontStr(isBold, Math.max(28, Math.round(c.width * 0.06)), chosenFont);
+          ctx.textAlign = 'center';
+          ctx.fillText(t1 || 'WATERMARK', 0, 0); ctx.restore();
+        }
+      }
+      addDownloadCard(out, await toBlob(c, 'image/jpeg', 0.94), `${tool}_result.jpg`, 'Processed Image');
+    };

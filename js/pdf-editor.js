@@ -1,45 +1,11 @@
 // ================= 5. VISUAL PDF EDITOR =================
     let edPdfDoc = null, edCurrentPage = 1, edMode = 'select';
-    const edPreviewCanvas = document.getElementById('edPreviewCanvas');
-    const edPreviewCtx = edPreviewCanvas.getContext('2d');
-    if (typeof pdfjsLib !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
     let edPageItems = {}, edExtractedTextBoxes = [];
     let edSelectedIdx = -1, edDragging = false, edDragOffset = { x: 0, y: 0 }, edDrawStart = null;
     const edCanvas = document.getElementById('edCanvas');
     const edCtx = edCanvas.getContext('2d');
-    const edFontFamilies = [
-      'Roboto','Open Sans','Lato','Montserrat','Poppins','Oswald','Raleway','Nunito','Nunito Sans','Ubuntu',
-      'Merriweather','Playfair Display','PT Sans','PT Serif','Source Sans 3','Source Serif 4','Roboto Slab','Rubik','Work Sans','Fira Sans',
-      'DM Sans','DM Serif Display','Libre Baskerville','Bebas Neue','Barlow','Barlow Condensed','Cabin','Comfortaa','Dancing Script','Lobster',
-      'Kanit','Mukta','Hind','Karla','Inconsolata','Josefin Sans','Quicksand','Titillium Web','Arimo','Asap',
-      'Archivo','Archivo Black','Assistant','Abel','Acme','Alegreya','Alegreya Sans','Alfa Slab One','Amatic SC','Anton',
-      'Averia Serif Libre','Bitter','Bree Serif','Cairo','Cardo','Chakra Petch','Cinzel','Cormorant Garamond','Courgette','Crimson Text',
-      'Cuprum','Exo 2','Fjalla One','Frank Ruhl Libre','Gelasio','Heebo','IBM Plex Mono','IBM Plex Sans','IBM Plex Serif','Inria Sans',
-      'Inria Serif','Istok Web','Kalam','Khand','Lexend','Manrope','Maven Pro','Merriweather Sans','M PLUS 1p','Nanum Gothic',
-      'Noto Sans','Noto Serif','Old Standard TT','Oxygen','Pathway Gothic One','Prata','Prompt','Public Sans','Rajdhani','Red Hat Display',
-      'Saira','Signika','Slabo 27px','Space Grotesk','Spectral','Teko','Tinos','Varela Round','Yanone Kaffeesatz','Zilla Slab'
-    ];
-    const edFontLanguage = document.getElementById('edFontLanguage');
-    const edFontFamily = document.getElementById('edFontFamily');
-    function populateEditorFonts() {
-      const lang = edFontLanguage.value;
-      const list = lang === 'pa' ? ['Noto Sans Gurmukhi','Noto Serif Gurmukhi','Tiro Gurmukhi','Mukta Mahee','Baloo Paaji 2']
-        : lang === 'hi' ? ['Noto Sans Devanagari','Noto Serif Devanagari','Tiro Devanagari Hindi','Hind','Mukta','Kalam']
-        : edFontFamilies;
-      edFontFamily.innerHTML = '';
-      list.forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name; opt.textContent = name;
-        edFontFamily.appendChild(opt);
-      });
-      edFontFamily.value = lang === 'pa' ? 'Noto Sans Gurmukhi' : lang === 'hi' ? 'Noto Sans Devanagari' : 'Roboto';
-      syncSelectedEditorTextStyle();
-    }
-    edFontLanguage.addEventListener('change', populateEditorFonts);
-    populateEditorFonts();
-
+    const edPreviewCanvas = document.getElementById('edPreviewCanvas');
+    const edPreviewCtx = edPreviewCanvas.getContext('2d');
     let edBgCanvas = document.createElement('canvas');
 
     document.querySelectorAll('#edToolbar .chip').forEach(btn => {
@@ -55,36 +21,23 @@
       const f = document.getElementById('edPdfFile').files[0];
       const status = document.getElementById('edStatus');
       if (!f) return alert('Please choose a PDF file first.');
-      if (typeof pdfjsLib === 'undefined' || !pdfjsLib.getDocument) {
-        status.textContent = 'PDF reader library did not load. Refresh the page and try again.';
-        status.classList.remove('hidden');
-        return;
-      }
       status.textContent = 'Opening PDF in editor...'; status.classList.remove('hidden');
       try {
-        const bytes = new Uint8Array(await f.arrayBuffer());
-        const openPass = document.getElementById('edOpenPass').value || '';
-        // The visual editor requires a PDF.js document (getPage/getViewport),
-        // not a pdf-lib document. Keep the reader and writer libraries separate.
-        edPdfDoc = await pdfjsLib.getDocument({ data: bytes, password: openPass }).promise;
+        const openPass = document.getElementById('edOpenPass').value;
+        edPdfDoc = await openPdfWithPasswordSupport(await f.arrayBuffer(), openPass);
         edPageItems = {};
         const sel = document.getElementById('edPageSelect');
         sel.innerHTML = '';
         for (let i = 1; i <= edPdfDoc.numPages; i++) {
           edPageItems[i] = [];
-          const opt = document.createElement('option');
-          opt.value = i; opt.textContent = `Page ${i} of ${edPdfDoc.numPages}`;
+          const opt = document.createElement('option'); opt.value = i; opt.textContent = `Page ${i} of ${edPdfDoc.numPages}`;
           sel.appendChild(opt);
         }
         edCurrentPage = 1;
         await renderEditorPage(1);
         status.classList.add('hidden');
       } catch (err) {
-        const message = err && err.name === 'PasswordException'
-          ? 'This PDF is password-protected. Enter the correct Open Password and click Load / Open PDF.'
-          : 'Could not open PDF: ' + (err.message || String(err));
-        status.textContent = message;
-        status.classList.remove('hidden');
+        status.textContent = 'Could not open PDF: ' + err.message;
       }
     }
 
@@ -104,10 +57,7 @@
       edCanvas.width = vp.width; edCanvas.height = vp.height;
       edBgCanvas.width = vp.width; edBgCanvas.height = vp.height;
       await page.render({ canvasContext: edBgCanvas.getContext('2d'), viewport: vp }).promise;
-      edPreviewCanvas.width = vp.width;
-      edPreviewCanvas.height = vp.height;
-      edPreviewCtx.clearRect(0, 0, vp.width, vp.height);
-      edPreviewCtx.drawImage(edBgCanvas, 0, 0);
+      edPreviewCanvas.width = vp.width; edPreviewCanvas.height = vp.height;
 
       const tc = await page.getTextContent();
       edExtractedTextBoxes = tc.items.map(item => {
@@ -152,25 +102,18 @@
           edCtx.strokeRect(it.x - 2, it.y - 2, it.w + 4, it.h + 4);
         }
       });
-      // Mirror the current edited canvas so the adjacent panel is a true live preview.
-      if (edPreviewCanvas.width !== edCanvas.width || edPreviewCanvas.height !== edCanvas.height) {
-        edPreviewCanvas.width = edCanvas.width;
-        edPreviewCanvas.height = edCanvas.height;
-      }
       edPreviewCtx.clearRect(0, 0, edPreviewCanvas.width, edPreviewCanvas.height);
       edPreviewCtx.drawImage(edCanvas, 0, 0);
-
     }
 
     function findEditorTextAtPoint(x, y) {
-      const padding = 10;
       const matches = edExtractedTextBoxes.map(tb => {
         const dx = x < tb.x ? tb.x - x : x > tb.x + tb.w ? x - (tb.x + tb.w) : 0;
         const dy = y < tb.y ? tb.y - y : y > tb.y + tb.h ? y - (tb.y + tb.h) : 0;
-        return { tb, distance: Math.hypot(dx, dy), area: tb.w * tb.h };
-      }).filter(hit => hit.distance <= padding);
+        return { box: tb, distance: Math.hypot(dx, dy), area: tb.w * tb.h };
+      }).filter(item => item.distance <= 10);
       matches.sort((a, b) => a.distance - b.distance || a.area - b.area);
-      return matches.length ? matches[0].tb : null;
+      return matches[0]?.box || null;
     }
 
     function syncSelectedEditorTextStyle() {
@@ -326,11 +269,10 @@
       }
 
       const pass = document.getElementById('edPdfPassword').value;
-      if (pass) {
-        status.textContent = 'Edited PDF created. Note: password encryption is not supported by the current PDF writer, so the output will be saved without a password.';
-      }
       const bytes = await outPdf.save();
-      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'edited_document.pdf', `Edited PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Saved without password encryption' : ''}`);
-      status.classList.remove('hidden');
-      if (!pass) status.classList.add('hidden');
+      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'edited_document.pdf', `Edited PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Not password encrypted' : ''}`);
+      if (pass) {
+        status.textContent = 'PDF saved. The current PDF writer cannot apply output password encryption.';
+        status.classList.remove('hidden');
+      } else status.classList.add('hidden');
     };

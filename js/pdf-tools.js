@@ -13,86 +13,40 @@
       document.getElementById('pdfRangeLbl').classList.toggle('hidden', tool !== 'split_pdf');
       document.getElementById('pdfSecondFileBox').classList.toggle('hidden', !['sign_pdf', 'add_img_pdf'].includes(tool));
       document.getElementById('pdfTextLbl').classList.toggle('hidden', tool !== 'watermark_pdf');
-      document.getElementById('pdfWatermarkStyleBox').classList.toggle('hidden', tool !== 'watermark_pdf');
-      updatePdfWatermarkPositionControls();
+      document.getElementById('pdfWmStyleBox').classList.toggle('hidden', tool !== 'watermark_pdf');
       document.getElementById('pdfContrastLbl').classList.toggle('hidden', tool !== 'contrast_pdf');
       document.getElementById('pdfPassLbl').classList.toggle('hidden', !['protect_pdf', 'unlock_pdf'].includes(tool));
       document.getElementById('pdfCropLbl').classList.toggle('hidden', !['crop_pdf', 'redact_pdf'].includes(tool));
     }
     document.getElementById('pdfToolSelect').onchange = updatePdfControls;
 
-    function updatePdfWatermarkPositionControls() {
+    function updatePdfWatermarkOptions() {
       const customPosition = document.getElementById('pdfWmPosition').value === 'custom';
       const customAngle = document.getElementById('pdfWmDirection').value === 'custom';
       document.getElementById('pdfWmXBox').classList.toggle('hidden', !customPosition);
       document.getElementById('pdfWmYBox').classList.toggle('hidden', !customPosition);
       document.getElementById('pdfWmRotationBox').classList.toggle('hidden', !customAngle);
     }
-    document.getElementById('pdfWmPosition').addEventListener('change', updatePdfWatermarkPositionControls);
-    document.getElementById('pdfWmDirection').addEventListener('change', updatePdfWatermarkPositionControls);
-    updatePdfWatermarkPositionControls();
+    document.getElementById('pdfWmPosition').addEventListener('change', updatePdfWatermarkOptions);
+    document.getElementById('pdfWmDirection').addEventListener('change', updatePdfWatermarkOptions);
+    document.getElementById('pdfWmFont').value = 'Arial, sans-serif';
+    updatePdfWatermarkOptions();
 
-    const pdfWmFontFamilies = [
-      'Roboto','Open Sans','Lato','Montserrat','Poppins','Oswald','Raleway','Nunito','Nunito Sans','Ubuntu',
-      'Merriweather','Playfair Display','PT Sans','PT Serif','Source Sans 3','Source Serif 4','Roboto Slab','Rubik','Work Sans','Fira Sans',
-      'DM Sans','DM Serif Display','Libre Baskerville','Bebas Neue','Barlow','Barlow Condensed','Cabin','Comfortaa','Dancing Script','Lobster',
-      'Kanit','Mukta','Hind','Karla','Inconsolata','Josefin Sans','Quicksand','Titillium Web','Arimo','Asap',
-      'Archivo','Archivo Black','Assistant','Abel','Acme','Alegreya','Alegreya Sans','Alfa Slab One','Amatic SC','Anton',
-      'Averia Serif Libre','Bitter','Bree Serif','Cairo','Cardo','Chakra Petch','Cinzel','Cormorant Garamond','Courgette','Crimson Text',
-      'Cuprum','Exo 2','Fjalla One','Frank Ruhl Libre','Gelasio','Heebo','IBM Plex Mono','IBM Plex Sans','IBM Plex Serif','Inria Sans',
-      'Inria Serif','Istok Web','Kalam','Khand','Lexend','Manrope','Maven Pro','Merriweather Sans','M PLUS 1p','Nanum Gothic',
-      'Noto Sans','Noto Serif','Old Standard TT','Oxygen','Pathway Gothic One','Prata','Prompt','Public Sans','Rajdhani','Red Hat Display',
-      'Saira','Signika','Slabo 27px','Space Grotesk','Spectral','Teko','Tinos','Varela Round','Yanone Kaffeesatz','Zilla Slab'
-    ];
-    const pdfWmGurmukhiFonts = ['Noto Sans Gurmukhi','Noto Serif Gurmukhi'];
-    const pdfWmFontSelect = document.getElementById('pdfWmFont');
-    function populatePdfWatermarkFonts() {
-      const lang = document.getElementById('pdfWmLanguage').value;
-      const families = lang === 'pa' ? pdfWmGurmukhiFonts : (lang === 'hi' ? ['Noto Sans Devanagari','Noto Serif Devanagari', ...pdfWmFontFamilies] : pdfWmFontFamilies);
-      const current = pdfWmFontSelect.value;
-      pdfWmFontSelect.innerHTML = '';
-      families.forEach((family, index) => {
-        const option = document.createElement('option');
-        option.value = family;
-        option.textContent = family;
-        pdfWmFontSelect.appendChild(option);
-      });
-      if (families.includes(current)) pdfWmFontSelect.value = current;
-      else pdfWmFontSelect.value = lang === 'pa' ? 'Noto Sans Gurmukhi' : lang === 'hi' ? 'Noto Sans Devanagari' : 'Roboto';
-    }
-    function loadPdfWatermarkFont(family, weight, text) {
-      const encoded = encodeURIComponent(family).replace(/%20/g, '+');
-      const id = 'pdf-wm-font-' + encoded.replace(/[^a-z0-9]/gi, '-');
-      if (!document.getElementById(id)) {
-        const link = document.createElement('link');
-        link.id = id;
-        link.rel = 'stylesheet';
-        link.href = 'https://fonts.googleapis.com/css2?family=' + encoded + '&display=swap';
-        document.head.appendChild(link);
-      }
-      return document.fonts.load(weight + ' 72px "' + family + '"', text || 'Watermark ਪੰਜਾਬੀ हिन्दी');
-    }
-    document.getElementById('pdfWmLanguage').addEventListener('change', populatePdfWatermarkFonts);
-    populatePdfWatermarkFonts();
-
-    async function createPdfWatermarkImage(text, family, bold, color, opacity, sizePt, rotation, language) {
-      const fallback = language === 'pa' ? 'Noto Sans Gurmukhi' : language === 'hi' ? 'Noto Sans Devanagari' : 'sans-serif';
-      const fontSize = Math.max(8, Math.min(120, Number(sizePt) || 36)) * 2;
+    async function createPdfWatermarkImage(text, font, bold, color, opacity, sizePt, rotation) {
       const canvas = document.createElement('canvas');
-      const angle = Math.max(-180, Math.min(180, Number(rotation) || 0));
       const ctx = canvas.getContext('2d');
-      await loadPdfWatermarkFont(family, bold ? '700' : '400', text);
-      ctx.font = (bold ? '700 ' : '400 ') + fontSize + 'px "' + family + '", "' + fallback + '", sans-serif';
+      const pxSize = Math.max(8, Math.min(120, Number(sizePt) || 36)) * 2;
+      const fontCss = buildCanvasFontStr(bold, pxSize, font);
+      await document.fonts.load(fontCss, text || 'Watermark ਪੰਜਾਬੀ हिन्दी');
+      ctx.font = fontCss;
       const textWidth = Math.max(1, ctx.measureText(text).width);
-      const radians = angle * Math.PI / 180;
-      const rotatedWidth = Math.abs(Math.cos(radians)) * textWidth + Math.abs(Math.sin(radians)) * fontSize;
-      const rotatedHeight = Math.abs(Math.sin(radians)) * textWidth + Math.abs(Math.cos(radians)) * fontSize;
-      const padding = Math.ceil(fontSize * 0.35 + 4);
+      const radians = Math.max(-180, Math.min(180, Number(rotation) || 0)) * Math.PI / 180;
+      const rotatedWidth = Math.abs(Math.cos(radians)) * textWidth + Math.abs(Math.sin(radians)) * pxSize;
+      const rotatedHeight = Math.abs(Math.sin(radians)) * textWidth + Math.abs(Math.cos(radians)) * pxSize;
+      const padding = Math.ceil(pxSize * 0.35 + 4);
       canvas.width = Math.ceil(rotatedWidth + padding * 2);
       canvas.height = Math.ceil(rotatedHeight + padding * 2);
-      ctx.font = (bold ? '700 ' : '400 ') + fontSize + 'px "' + family + '", "' + fallback + '", sans-serif';
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.save();
+      ctx.font = fontCss;
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate(radians);
       ctx.globalAlpha = Math.max(0.05, Math.min(1, (Number(opacity) || 45) / 100));
@@ -100,11 +54,8 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(text, 0, 0);
-      ctx.restore();
       return await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not render watermark text.')), 'image/png'));
     }
-
-
 
     async function buildCompressedPdfFromPages(pdf, scale, quality, filterCss = 'none') {
       const outPdf = await PDFLib.PDFDocument.create();
@@ -299,53 +250,40 @@
         else if (tool === 'page_num_pdf' || tool === 'watermark_pdf') {
           const pdfDoc = await PDFLib.PDFDocument.load(await files[0].arrayBuffer());
           const pages = pdfDoc.getPages();
-          const wmTxt = document.getElementById('pdfCustomText').value || 'CONFIDENTIAL';
-          pages.forEach((p, idx) => {
-            if (tool === 'page_num_pdf') {
-              p.drawText(`Page ${idx + 1} of ${pages.length}`, { x: p.getWidth() / 2 - 35, y: 20, size: 11, color: PDFLib.rgb(0.2, 0.2, 0.2) });
-            } else {
-              // Render text to a transparent PNG so English, Hindi and Gurmukhi all work.
-              // This avoids PDF standard-font Unicode limitations.
-              // Watermark image is generated once per page size below.
-              p.__needsCustomWatermark = true;
-            }
-          });
-          if (tool === 'watermark_pdf') {
-            const wmLang = document.getElementById('pdfWmLanguage').value;
-            const wmFont = pdfWmFontSelect.value || (wmLang === 'pa' ? 'Noto Sans Gurmukhi' : wmLang === 'hi' ? 'Noto Sans Devanagari' : 'Roboto');
-            const wmDirection = document.getElementById('pdfWmDirection').value;
-            const wmRotation = wmDirection === 'vertical' ? 90 : wmDirection === 'custom' ? document.getElementById('pdfWmRotation').value : 0;
-            const wmPng = await createPdfWatermarkImage(
-              wmTxt, wmFont,
+          if (tool === 'page_num_pdf') {
+            pages.forEach((p, idx) => p.drawText(`Page ${idx + 1} of ${pages.length}`, { x: p.getWidth() / 2 - 35, y: 20, size: 11, color: PDFLib.rgb(0.2, 0.2, 0.2) }));
+          } else {
+            const wmTxt = document.getElementById('pdfCustomText').value || 'CONFIDENTIAL';
+            const direction = document.getElementById('pdfWmDirection').value;
+            const rotation = direction === 'vertical' ? 90 : direction === 'custom' ? Number(document.getElementById('pdfWmRotation').value) || 0 : 0;
+            const imageBlob = await createPdfWatermarkImage(
+              wmTxt,
+              document.getElementById('pdfWmFont').value || 'Arial, sans-serif',
               document.getElementById('pdfWmBold').checked,
               document.getElementById('pdfWmColor').value,
               document.getElementById('pdfWmOpacity').value,
               document.getElementById('pdfWmSize').value,
-              wmRotation,
-              wmLang
+              rotation
             );
-            const wmBytes = await wmPng.arrayBuffer();
-            const embeddedWm = await pdfDoc.embedPng(wmBytes);
-            const wmPosition = document.getElementById('pdfWmPosition').value;
+            const image = await pdfDoc.embedPng(await imageBlob.arrayBuffer());
+            const position = document.getElementById('pdfWmPosition').value;
             pages.forEach(p => {
-              const maxW = p.getWidth() * 0.9;
-              const maxH = p.getHeight() * 0.9;
-              const scale = Math.min(0.5, maxW / embeddedWm.width, maxH / embeddedWm.height);
-              const w = embeddedWm.width * scale;
-              const h = embeddedWm.height * scale;
-              let centerX = p.getWidth() / 2, centerY = p.getHeight() / 2;
+              const maxW = p.getWidth() * 0.9, maxH = p.getHeight() * 0.9;
+              const scale = Math.min(0.5, maxW / image.width, maxH / image.height);
+              const w = image.width * scale, h = image.height * scale;
               const margin = Math.min(24, Math.min(p.getWidth(), p.getHeight()) * 0.04);
-              if (wmPosition === 'top') centerY = p.getHeight() - h / 2 - margin;
-              else if (wmPosition === 'bottom') centerY = h / 2 + margin;
-              else if (wmPosition === 'left') centerX = w / 2 + margin;
-              else if (wmPosition === 'right') centerX = p.getWidth() - w / 2 - margin;
-              else if (wmPosition === 'custom') {
-                const xPct = Math.max(0, Math.min(100, Number(document.getElementById('pdfWmX').value) || 50));
-                const yPct = Math.max(0, Math.min(100, Number(document.getElementById('pdfWmY').value) || 50));
-                centerX = Math.max(w / 2, Math.min(p.getWidth() - w / 2, p.getWidth() * xPct / 100));
-                centerY = Math.max(h / 2, Math.min(p.getHeight() - h / 2, p.getHeight() * yPct / 100));
+              let cx = p.getWidth() / 2, cy = p.getHeight() / 2;
+              if (position === 'top') cy = p.getHeight() - h / 2 - margin;
+              else if (position === 'bottom') cy = h / 2 + margin;
+              else if (position === 'left') cx = w / 2 + margin;
+              else if (position === 'right') cx = p.getWidth() - w / 2 - margin;
+              else if (position === 'custom') {
+                const x = Math.max(0, Math.min(100, Number(document.getElementById('pdfWmX').value) || 50));
+                const y = Math.max(0, Math.min(100, Number(document.getElementById('pdfWmY').value) || 50));
+                cx = Math.max(w / 2, Math.min(p.getWidth() - w / 2, p.getWidth() * x / 100));
+                cy = Math.max(h / 2, Math.min(p.getHeight() - h / 2, p.getHeight() * y / 100));
               }
-              p.drawImage(embeddedWm, { x: centerX - w / 2, y: centerY - h / 2, width: w, height: h });
+              p.drawImage(image, { x: cx - w / 2, y: cy - h / 2, width: w, height: h });
             });
           }
           addDownloadCard(out, new Blob([await pdfDoc.save()], { type: 'application/pdf' }), `updated_${files[0].name}`, 'Updated PDF ready');

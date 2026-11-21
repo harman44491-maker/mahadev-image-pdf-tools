@@ -6,8 +6,9 @@
   <title>PDF Tools & Security - DocX Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Acme&family=Alfa+Slab+One&family=Amatic+SC:wght@700&family=Anton&family=Architects+Daughter&family=Arvo:wght@400;700&family=Baloo+2:wght@400;700&family=Baloo+Bhai+2:wght@400;700&family=Baloo+Bhaina+2:wght@400;700&family=Baloo+Da+2:wght@400;700&family=Baloo+Paaji+2:wght@400;700&family=Baloo+Tamma+2:wght@400;700&family=Baloo+Tammudu+2:wght@400;700&family=Baloo+Thambi+2:wght@400;700&family=Bangers&family=Bebas+Neue&family=Bitter:wght@400;700&family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Comfortaa:wght@400;700&family=Cookie&family=Courgette&family=Creepster&family=Crimson+Text:wght@400;700&family=Dancing+Script:wght@400;700&family=DM+Sans:wght@400;700&family=DM+Serif+Display&family=EB+Garamond:wght@400;700&family=Exo+2:wght@400;700&family=Fira+Code:wght@400;700&family=Fredoka:wght@400;700&family=Gloria+Hallelujah&family=Great+Vibes&family=Hind:wght@400;700&family=Hind+Siliguri:wght@400;700&family=Hind+Vadodara:wght@400;700&family=Indie+Flower&family=Inconsolata:wght@400;700&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Josefin+Sans:wght@400;700&family=Kalam:wght@400;700&family=Kaushan+Script:wght@400;700&family=Khand:wght@400;700&family=Laila:wght@400;700&family=Lato:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Lobster&family=Lora:wght@400;700&family=Merriweather:wght@400;700&family=Modak&family=Montserrat:wght@400;700&family=Mukta:wght@400;700&family=Mukta+Mahee:wght@400;700&family=Mukta+Malayalam:wght@400;700&family=Mukta+Vaani:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Noto+Serif:wght@400;700&family=Noto+Serif+Devanagari:wght@400;700&family=Noto+Serif+Gurmukhi:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;700&family=Outfit:wght@400;700&family=Pacifico&family=Patrick+Hand&family=Permanent+Marker&family=Playfair+Display:wght@400;700&family=Plus+Jakarta+Sans:wght@400;700&family=Poppins:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Serif:wght@400;700&family=Quicksand:wght@400;700&family=Rajdhani:wght@400;700&family=Raleway:wght@400;700&family=Righteous&family=Roboto:wght@400;700&family=Roboto+Mono:wght@400;700&family=Roboto+Slab:wght@400;700&family=Rokkitt:wght@400;700&family=Rozha+One&family=Rubik:wght@400;700&family=Sacramento&family=Satisfy&family=Shadows+Into+Light&family=Source+Code+Pro:wght@400;700&family=Space+Grotesk:wght@400;700&family=Teko:wght@400;700&family=Tiro+Devanagari+Hindi&family=Tiro+Gurmukhi&family=Ubuntu:wght@400;700&family=Varela+Round:wght@400;700&family=Work+Sans:wght@400;700&family=Yatra+One&family=Zeyada&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -17,30 +18,18 @@
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
-  <header class="navbar">
-    <div class="nav-inner">
-      <div class="brand">
-        <div class="brand-top">
-          <span class="brand-badge">PRO</span>
-          <span>DOCX STUDIO</span>
-        </div>
-        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
-      </div>
-      <nav class="menu">
-        <a href="index.html" class="menu-btn">Image Resizer</a>
-        <a href="passport.html" class="menu-btn">Passport Photo</a>
-        <a href="studio-photo.html" class="menu-btn">Auto Studio Photo</a>
-        <a href="watermark.html" class="menu-btn">Watermark Remover</a>
-        <a href="pdf-tools.html" class="menu-btn active">PDF Tools & Security</a>
-        <a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a>
-        <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
-        <a href="join-edit.html" class="menu-btn">Join, Edit & Create</a>
-      </nav>
-    </div>
-  </header>
-
-  <main class="container">
-    <section id="tab-pdf-resize" class="panel active">
+  <header class="navbar"><div class="nav-inner">
+    <div class="brand"><div class="brand-top"><span class="brand-badge">PRO</span><span>DOCX STUDIO</span></div><span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span></div>
+    <nav class="menu"><a href="index.html" class="menu-btn">Image Resizer</a>
+      <a href="passport.html" class="menu-btn">Passport Photo</a>
+      <a href="studio-photo.html" class="menu-btn">Auto Studio Photo</a>
+      <a href="watermark.html" class="menu-btn">Watermark Remover</a>
+      <a href="pdf-tools.html" class="menu-btn active">PDF Tools &amp; Security</a>
+      <a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a>
+      <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
+      <a href="join-edit.html" class="menu-btn">Join, Edit &amp; Create</a></nav>
+  </div></header>
+  <main class="container"><section id="tab-pdf-resize" class="panel active">
       <h1>Complete PDF Resize, Convert, Change, Crop &amp; Security Tools</h1>
       <div class="tool-selector">
         <select id="pdfToolSelect">
@@ -104,42 +93,22 @@
         </label>
 
         <label id="pdfRangeLbl" class="hidden">Pages (e.g. 1-2): <input type="text" id="pdfRange" value="1-1"></label>
-        <label id="pdfTextLbl" class="hidden">Watermark Text: <input type="text" id="pdfCustomText" placeholder="Enter English / हिन्दी / ਪੰਜਾਬੀ text"></label>
-        <div id="pdfWatermarkStyleBox" class="hidden" style="width:100%;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;margin:10px 0;">
-          <label>Language:
-            <select id="pdfWmLanguage">
-              <option value="en" selected>English</option>
-              <option value="hi">Hindi (Devanagari)</option>
-              <option value="pa">Punjabi (Gurmukhi)</option>
-            </select>
-          </label>
-          <label>Font (100+):
-            <select id="pdfWmFont" style="min-width:220px;max-width:280px;"></select>
-          </label>
+        <label id="pdfTextLbl" class="hidden">Watermark Text: <input type="text" id="pdfCustomText" placeholder="CONFIDENTIAL"></label>
+        <div id="pdfWmStyleBox" class="hidden" style="width:100%;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;margin:10px 0;">
+          <label>Font: <select class="font-selector-100" id="pdfWmFont" style="max-width:260px;"></select></label>
           <label><input type="checkbox" id="pdfWmBold"> Bold</label>
           <label>Color: <input type="color" id="pdfWmColor" value="#777777"></label>
           <label>Size (pt): <input type="number" id="pdfWmSize" min="8" max="120" value="36" style="width:76px"></label>
           <label>Opacity (%): <input type="number" id="pdfWmOpacity" min="5" max="100" value="45" style="width:70px"></label>
           <label>Position:
-            <select id="pdfWmPosition">
-              <option value="center" selected>Center</option>
-              <option value="top">Top</option>
-              <option value="bottom">Bottom</option>
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-              <option value="custom">Custom</option>
-            </select>
+            <select id="pdfWmPosition"><option value="center">Center</option><option value="top">Top</option><option value="bottom">Bottom</option><option value="left">Left</option><option value="right">Right</option><option value="custom">Custom</option></select>
           </label>
           <label>Direction:
-            <select id="pdfWmDirection">
-              <option value="horizontal" selected>Horizontal</option>
-              <option value="vertical">Vertical</option>
-              <option value="custom">Custom angle</option>
-            </select>
+            <select id="pdfWmDirection"><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option><option value="custom">Custom angle</option></select>
           </label>
           <label id="pdfWmRotationBox" class="hidden">Angle: <input type="number" id="pdfWmRotation" min="-180" max="180" value="35" style="width:70px">°</label>
-          <label id="pdfWmXBox" class="hidden">X position (%): <input type="number" id="pdfWmX" min="0" max="100" value="50" style="width:70px"></label>
-          <label id="pdfWmYBox" class="hidden">Y position (%): <input type="number" id="pdfWmY" min="0" max="100" value="50" style="width:70px"></label>
+          <label id="pdfWmXBox" class="hidden">X (%): <input type="number" id="pdfWmX" min="0" max="100" value="50" style="width:70px"></label>
+          <label id="pdfWmYBox" class="hidden">Y (%): <input type="number" id="pdfWmY" min="0" max="100" value="50" style="width:70px"></label>
         </div>
         <label id="pdfContrastLbl" class="hidden">Contrast (%): <input type="number" id="pdfContrastVal" value="140" min="50" max="250"></label>
         <label id="pdfPassLbl" class="hidden">PDF Password: <input type="password" id="pdfPasswordInput" placeholder="Enter password"></label>
@@ -164,10 +133,8 @@
         <textarea id="pdfExtractedText" readonly></textarea>
       </div>
       <div class="output-area" id="pdfOutput"></div>
-    </section>
-  </main>
-
-  <script src="js/shared.js?v=6"></script>
-  <script src="js/pdf-tools.js?v=3"></script>
+    </section></main>
+  <script src="js/source-shared.js?v=1"></script>
+  <script src="js/pdf-tools.js?v=4"></script>
 </body>
 </html>

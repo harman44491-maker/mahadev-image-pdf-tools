@@ -9,43 +9,30 @@
   <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Acme&family=Alfa+Slab+One&family=Amatic+SC:wght@700&family=Anton&family=Architects+Daughter&family=Arvo:wght@400;700&family=Baloo+2:wght@400;700&family=Baloo+Bhai+2:wght@400;700&family=Baloo+Bhaina+2:wght@400;700&family=Baloo+Da+2:wght@400;700&family=Baloo+Paaji+2:wght@400;700&family=Baloo+Tamma+2:wght@400;700&family=Baloo+Tammudu+2:wght@400;700&family=Baloo+Thambi+2:wght@400;700&family=Bangers&family=Bebas+Neue&family=Bitter:wght@400;700&family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Comfortaa:wght@400;700&family=Cookie&family=Courgette&family=Creepster&family=Crimson+Text:wght@400;700&family=Dancing+Script:wght@400;700&family=DM+Sans:wght@400;700&family=DM+Serif+Display&family=EB+Garamond:wght@400;700&family=Exo+2:wght@400;700&family=Fira+Code:wght@400;700&family=Fredoka:wght@400;700&family=Gloria+Hallelujah&family=Great+Vibes&family=Hind:wght@400;700&family=Hind+Siliguri:wght@400;700&family=Hind+Vadodara:wght@400;700&family=Indie+Flower&family=Inconsolata:wght@400;700&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Josefin+Sans:wght@400;700&family=Kalam:wght@400;700&family=Kaushan+Script:wght@400;700&family=Khand:wght@400;700&family=Laila:wght@400;700&family=Lato:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Lobster&family=Lora:wght@400;700&family=Merriweather:wght@400;700&family=Modak&family=Montserrat:wght@400;700&family=Mukta:wght@400;700&family=Mukta+Mahee:wght@400;700&family=Mukta+Malayalam:wght@400;700&family=Mukta+Vaani:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Noto+Serif:wght@400;700&family=Noto+Serif+Devanagari:wght@400;700&family=Noto+Serif+Gurmukhi:wght@400;700&family=Nunito:wght@400;700&family=Open+Sans:wght@400;700&family=Oswald:wght@400;700&family=Outfit:wght@400;700&family=Pacifico&family=Patrick+Hand&family=Permanent+Marker&family=Playfair+Display:wght@400;700&family=Plus+Jakarta+Sans:wght@400;700&family=Poppins:wght@400;700&family=PT+Sans:wght@400;700&family=PT+Serif:wght@400;700&family=Quicksand:wght@400;700&family=Rajdhani:wght@400;700&family=Raleway:wght@400;700&family=Righteous&family=Roboto:wght@400;700&family=Roboto+Mono:wght@400;700&family=Roboto+Slab:wght@400;700&family=Rokkitt:wght@400;700&family=Rozha+One&family=Rubik:wght@400;700&family=Sacramento&family=Satisfy&family=Shadows+Into+Light&family=Source+Code+Pro:wght@400;700&family=Space+Grotesk:wght@400;700&family=Teko:wght@400;700&family=Tiro+Devanagari+Hindi&family=Tiro+Gurmukhi&family=Ubuntu:wght@400;700&family=Varela+Round:wght@400;700&family=Work+Sans:wght@400;700&family=Yatra+One&family=Zeyada&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <style>
-    .ed-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;margin:14px 0}
-    .ed-pane{min-width:0;border:1px solid #dbe3ef;border-radius:10px;padding:12px;background:#f8fafc}
-    .ed-pane h3{text-align:center;font-size:1rem;margin:2px 0 5px;color:#0f766e}
-    .ed-hint{text-align:center;color:#64748b;font-size:.8rem;margin-bottom:8px}
-    #edCanvas,#edPreviewCanvas{max-width:100%;height:auto;background:#fff;border:1px solid #94a3b8;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.07)}
-    #edPreviewCanvas{cursor:default}
-    @media(max-width:850px){.ed-workspace{grid-template-columns:1fr}}
-  </style>
-
+      .ed-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;margin:14px 0}
+      .ed-pane{min-width:0;border:1px solid #dbe3ef;border-radius:10px;padding:12px;background:#f8fafc}
+      .ed-pane h3{text-align:center;font-size:1rem;margin:2px 0 5px;color:#0f766e}
+      .ed-hint{text-align:center;color:#64748b;font-size:.8rem;margin-bottom:8px}
+      #edCanvas,#edPreviewCanvas{max-width:100%;height:auto;background:#fff;border:1px solid #94a3b8;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+      #edPreviewCanvas{cursor:default}
+      @media(max-width:850px){.ed-workspace{grid-template-columns:1fr}}
+    </style>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
-  <header class="navbar">
-    <div class="nav-inner">
-      <div class="brand">
-        <div class="brand-top">
-          <span class="brand-badge">PRO</span>
-          <span>DOCX STUDIO</span>
-        </div>
-        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
-      </div>
-      <nav class="menu">
-        <a href="index.html" class="menu-btn">Image Resizer</a>
-        <a href="passport.html" class="menu-btn">Passport Photo</a>
-        <a href="studio-photo.html" class="menu-btn">Auto Studio Photo</a>
-        <a href="watermark.html" class="menu-btn">Watermark Remover</a>
-        <a href="pdf-tools.html" class="menu-btn">PDF Tools & Security</a>
-        <a href="pdf-editor.html" class="menu-btn active">PDF Editor (Text/Img)</a>
-        <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
-        <a href="join-edit.html" class="menu-btn">Join, Edit & Create</a>
-      </nav>
-    </div>
-  </header>
-
-  <main class="container">
-    <section id="tab-pdf-editor" class="panel active">
+  <header class="navbar"><div class="nav-inner">
+    <div class="brand"><div class="brand-top"><span class="brand-badge">PRO</span><span>DOCX STUDIO</span></div><span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span></div>
+    <nav class="menu"><a href="index.html" class="menu-btn">Image Resizer</a>
+      <a href="passport.html" class="menu-btn">Passport Photo</a>
+      <a href="studio-photo.html" class="menu-btn">Auto Studio Photo</a>
+      <a href="watermark.html" class="menu-btn">Watermark Remover</a>
+      <a href="pdf-tools.html" class="menu-btn">PDF Tools &amp; Security</a>
+      <a href="pdf-editor.html" class="menu-btn active">PDF Editor (Text/Img)</a>
+      <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
+      <a href="join-edit.html" class="menu-btn">Join, Edit &amp; Create</a></nav>
+  </div></header>
+  <main class="container"><section id="tab-pdf-editor" class="panel active">
       <h1>Visual PDF Editor (Edit Text, Add Images, Erase &amp; Password Protect)</h1>
       <div class="inputs-row">
         <label>Upload PDF to Edit: <input type="file" id="edPdfFile" accept="application/pdf"></label>
@@ -66,8 +53,7 @@
           + Add Image/Sign: <input type="file" id="edAddImgInput" accept="image/*" style="width:170px;">
         </label>
         <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
-          Language: <select id="edFontLanguage" style="max-width:115px;"><option value="en">English</option><option value="hi">Hindi</option><option value="pa">Punjabi</option></select>
-          Font: <select class="font-selector-100" id="edFontFamily" style="max-width:210px;"></select>
+          Font (Eng/Hin/Punjabi): <select class="font-selector-100" id="edFontFamily" style="max-width:210px;"></select>
         </label>
         <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
           <input type="checkbox" id="edBoldToggle" checked> <strong>Bold</strong>
@@ -88,22 +74,12 @@
 
       <div id="edStatus" class="status-note hidden"></div>
       <div class="ed-workspace">
-        <div class="ed-pane">
-          <h3>Edit PDF Page</h3>
-          <p class="ed-hint">Select a tool above, then click or drag on the page.</p>
-          <div class="canvas-box"><canvas id="edCanvas" class="interactive"></canvas></div>
-        </div>
-        <div class="ed-pane">
-          <h3>Live PDF Preview</h3>
-          <p class="ed-hint">Clean page preview updates when you change pages.</p>
-          <div class="canvas-box"><canvas id="edPreviewCanvas"></canvas></div>
-        </div>
+        <div class="ed-pane"><h3>Edit PDF Page</h3><p class="ed-hint">Select a tool above, then click or drag on the page.</p><div class="canvas-box"><canvas id="edCanvas" class="interactive"></canvas></div></div>
+        <div class="ed-pane"><h3>Live PDF Preview</h3><p class="ed-hint">Edited page preview updates while you work.</p><div class="canvas-box"><canvas id="edPreviewCanvas"></canvas></div></div>
       </div>
       <div class="output-area" id="edOutput"></div>
-    </section>
-  </main>
-
-  <script src="js/shared.js?v=6"></script>
-  <script src="js/pdf-editor.js?v=4"></script>
+    </section></main>
+  <script src="js/source-shared.js?v=1"></script>
+  <script src="js/pdf-editor.js?v=5"></script>
 </body>
 </html>
