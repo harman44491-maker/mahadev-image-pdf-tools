@@ -54,74 +54,15 @@ function getSelectedBrushEffect() {
   return 'tuck';
 }
 
-function getEffectiveZoomRect() {
-  const zoomEnabled = Boolean(document.getElementById('psZoomSelectMode')?.checked);
-  const zoomScale = Math.max(1, Math.min(5, parseFloat(document.getElementById('psZoomScaleNum')?.value) || 2));
-
-  if (zoomSelectionNorm && zoomSelectionNorm.w >= 0.02 && zoomSelectionNorm.h >= 0.02) {
-    return zoomSelectionNorm;
-  }
-  if (!zoomEnabled || zoomScale <= 1.05) {
-    return null;
-  }
-
-  const vw = Math.min(1, 1 / zoomScale);
-  const vh = Math.min(1, 1 / zoomScale);
-  const cx = zoomSelectionNorm ? (zoomSelectionNorm.x + zoomSelectionNorm.w / 2) : 0.5;
-  const cy = zoomSelectionNorm ? (zoomSelectionNorm.y + zoomSelectionNorm.h / 2) : 0.35;
-
-  const x = Math.max(0, Math.min(1 - vw, cx - vw / 2));
-  const y = Math.max(0, Math.min(1 - vh, cy - vh / 2));
-  return { x, y, w: vw, h: vh };
+function getBrushMagnification() {
+  const enabled = Boolean(document.getElementById('psZoomSelectMode')?.checked);
+  const value = parseFloat(document.getElementById('psZoomScaleNum')?.value) || 1;
+  return enabled ? Math.max(1, Math.min(6, value)) : 1;
 }
 
+// Brush magnification is a precision loupe only. Never crop the source or exported photo.
 function getActiveWorkingSource(baseSource) {
-  const rectNorm = getEffectiveZoomRect();
-  if (!rectNorm) return baseSource;
-
-  const sw = baseSource.width || baseSource.videoWidth;
-  const sh = baseSource.height || baseSource.videoHeight;
-  if (!sw || !sh) return baseSource;
-
-  const sx = Math.max(0, Math.min(sw - 1, Math.round(rectNorm.x * sw)));
-  const sy = Math.max(0, Math.min(sh - 1, Math.round(rectNorm.y * sh)));
-  const cw = Math.max(10, Math.min(sw - sx, Math.round(rectNorm.w * sw)));
-  const ch = Math.max(10, Math.min(sh - sy, Math.round(rectNorm.h * sh)));
-
-  const zoomScale = Math.max(1, parseFloat(document.getElementById('psZoomScaleNum')?.value) || 2);
-  const outW = Math.min(3600, Math.max(160, Math.round(cw * Math.max(1, zoomScale * 0.85))));
-  const outH = Math.min(3600, Math.max(160, Math.round(ch * Math.max(1, zoomScale * 0.85))));
-
-  const cropC = document.createElement('canvas');
-  cropC.width = outW;
-  cropC.height = outH;
-  const cctx = cropC.getContext('2d');
-  cctx.imageSmoothingEnabled = true;
-  cctx.imageSmoothingQuality = 'high';
-  cctx.drawImage(baseSource, sx, sy, cw, ch, 0, 0, outW, outH);
-
-  if (document.getElementById('psZoomSharpToggle')?.checked && outW * outH < 2500000) {
-    const imgData = cctx.getImageData(0, 0, outW, outH);
-    const d = imgData.data;
-    const copy = new Uint8ClampedArray(d);
-    const amt = 0.25;
-    for (let y = 1; y < outH - 1; y++) {
-      for (let x = 1; x < outW - 1; x++) {
-        const idx = (y * outW + x) * 4;
-        if (copy[idx + 3] < 10) continue;
-        for (let chIdx = 0; chIdx < 3; chIdx++) {
-          const center = copy[idx + chIdx] * 5;
-          const neighbors = copy[((y - 1) * outW + x) * 4 + chIdx]
-                          + copy[((y + 1) * outW + x) * 4 + chIdx]
-                          + copy[(y * outW + (x - 1)) * 4 + chIdx]
-                          + copy[(y * outW + (x + 1)) * 4 + chIdx];
-          d[idx + chIdx] = Math.min(255, Math.max(0, Math.round(copy[idx + chIdx] * (1 - amt) + (center - neighbors) * amt)));
-        }
-      }
-    }
-    cctx.putImageData(imgData, 0, 0);
-  }
-  return cropC;
+  return baseSource;
 }
 
 function applyEffectToRegion(ctx, copy, w, h, x0, y0, bw, bh, effect, testHitFn) {
@@ -325,72 +266,98 @@ function applyHairSetBrushStrokes(targetCanvas) {
 }
 
 const liveEditCanvas = document.getElementById('liveEditCanvas');
-liveEditCanvas.addEventListener('pointerdown', (e) => {
-  const tool = document.getElementById('editToolSelect').value;
-  if (!cachedMainImg || tool !== 'ps_auto_retouch') return;
-  e.preventDefault();
-  try { liveEditCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+const hairBrushMagnifier = document.getElementById('hairBrushMagnifier');
+let lastMagnifierPos = null;
 
-  const pos = getSafeCanvasPos(liveEditCanvas, e);
-  const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
-  const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
+function hideHairBrushMagnifier() {
+  if (hairBrushMagnifier) hairBrushMagnifier.style.display = 'none';
+}
 
-  if ((e.shiftKey || e.altKey) && document.getElementById('psZoomSelectMode')?.checked) {
-    zoomDragStart = { x: nx, y: ny };
-    isSelectingZoom = true;
-    zoomSelectionNorm = { x: nx, y: ny, w: 0.04, h: 0.04 };
-    renderLiveEditPreview();
-    return;
+function drawHairBrushMagnifier(pos) {
+  if (!hairBrushMagnifier || !pos || !cachedMainImg ||
+      !document.getElementById('hairBrushToggle')?.checked ||
+      !document.getElementById('psZoomSelectMode')?.checked) {
+    hideHairBrushMagnifier(); return;
   }
+  const zoom = getBrushMagnification();
+  if (zoom <= 1.01) { hideHairBrushMagnifier(); return; }
+  const cw=liveEditCanvas.width, ch=liveEditCanvas.height;
+  if (!cw || !ch) return;
+  const sw=Math.max(1,cw/zoom), sh=Math.max(1,ch/zoom);
+  const sx=Math.max(0,Math.min(cw-sw,pos.x-sw/2));
+  const sy=Math.max(0,Math.min(ch-sh,pos.y-sh/2));
+  const ctx=hairBrushMagnifier.getContext('2d');
+  const mw=hairBrushMagnifier.width, mh=hairBrushMagnifier.height;
+  ctx.clearRect(0,0,mw,mh);
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  ctx.drawImage(liveEditCanvas,sx,sy,sw,sh,0,0,mw,mh);
+  const kx=mw/sw, ky=mh/sh, lx=x=>(x-sx)*kx, ly=y=>(y-sy)*ky;
+  const cx=lx(pos.x), cy=ly(pos.y);
+  ctx.save(); ctx.strokeStyle='#f59e0b'; ctx.lineWidth=2; ctx.setLineDash([5,3]);
+  if(currentHairStroke && currentHairStroke.points.length){
+    const pts=currentHairStroke.points, p0=pts[0], p1=pts[pts.length-1];
+    const x0=p0.x*cw,y0=p0.y*ch,x1=p1.x*cw,y1=p1.y*ch;
+    if(currentHairStroke.shape==='circle'){
+      const r=Math.max(currentHairStroke.radiusNorm*Math.min(cw,ch),Math.hypot(x1-x0,y1-y0));
+      ctx.beginPath();ctx.arc(lx(x0),ly(y0),r*kx,0,Math.PI*2);ctx.stroke();
+    }else if(currentHairStroke.shape==='rect'){
+      ctx.strokeRect(lx(Math.min(x0,x1)),ly(Math.min(y0,y1)),Math.max(1,Math.abs(x1-x0)*kx),Math.max(1,Math.abs(y1-y0)*ky));
+    }else{
+      ctx.beginPath();pts.forEach((p,i)=>{const x=lx(p.x*cw),y=ly(p.y*ch);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();
+    }
+  }else{
+    const brushPx=parseFloat(document.getElementById('hairBrushSize')?.value)||24;
+    ctx.beginPath();ctx.arc(cx,cy,Math.max(2,brushPx*mw/cw),0,Math.PI*2);ctx.stroke();
+  }
+  ctx.setLineDash([]);ctx.strokeStyle='#fff';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx-8,cy);ctx.lineTo(cx+8,cy);ctx.moveTo(cx,cy-8);ctx.lineTo(cx,cy+8);ctx.stroke();
+  ctx.restore(); hairBrushMagnifier.style.display='block';
+}
 
-  if (document.getElementById('hairBrushToggle')?.checked) {
-    isBrushingHair = true;
-    const brushPx = parseFloat(document.getElementById('hairBrushSize')?.value) || 24;
-    currentHairStroke = {
-      shape: getSelectedBrushShape(),
-      effect: getSelectedBrushEffect(),
-      radiusNorm: brushPx / Math.max(1, Math.min(liveEditCanvas.width, liveEditCanvas.height)),
-      points: [{ x: nx, y: ny }]
+liveEditCanvas.addEventListener('pointerdown',(e)=>{
+  const tool=document.getElementById('editToolSelect').value;
+  if(!cachedMainImg||tool!=='ps_auto_retouch')return;
+  e.preventDefault();try{liveEditCanvas.setPointerCapture(e.pointerId);}catch(_){}
+  const pos=getSafeCanvasPos(liveEditCanvas,e);
+  const nx=Math.max(0,Math.min(1,pos.x/Math.max(1,liveEditCanvas.width)));
+  const ny=Math.max(0,Math.min(1,pos.y/Math.max(1,liveEditCanvas.height)));
+  lastMagnifierPos=pos;
+  if(document.getElementById('hairBrushToggle')?.checked){
+    isBrushingHair=true;
+    const brushPx=parseFloat(document.getElementById('hairBrushSize')?.value)||24;
+    const magnification=getBrushMagnification();
+    currentHairStroke={
+      shape:getSelectedBrushShape(),effect:getSelectedBrushEffect(),magnification,
+      radiusNorm:brushPx/magnification/Math.max(1,Math.min(liveEditCanvas.width,liveEditCanvas.height)),
+      points:[{x:nx,y:ny}]
     };
-    hairStrokes.push(currentHairStroke);
-    lastHairPos = pos;
-    renderLiveEditPreview();
-  }
+    hairStrokes.push(currentHairStroke);lastHairPos=pos;
+    renderLiveEditPreview().then(()=>drawHairBrushMagnifier(pos));
+  }else drawHairBrushMagnifier(pos);
 });
 
-window.addEventListener('pointermove', (e) => {
-  const pos = getSafeCanvasPos(liveEditCanvas, e);
-  const nx = Math.max(0, Math.min(1, pos.x / Math.max(1, liveEditCanvas.width)));
-  const ny = Math.max(0, Math.min(1, pos.y / Math.max(1, liveEditCanvas.height)));
-
-  if (isSelectingZoom && zoomDragStart) {
-    zoomSelectionNorm = {
-      x: Math.min(zoomDragStart.x, nx),
-      y: Math.min(zoomDragStart.y, ny),
-      w: Math.max(0.04, Math.abs(nx - zoomDragStart.x)),
-      h: Math.max(0.04, Math.abs(ny - zoomDragStart.y))
-    };
-    renderLiveEditPreview();
-    return;
-  }
-
-  if (isBrushingHair && currentHairStroke) {
-    if (lastHairPos && Math.hypot(pos.x - lastHairPos.x, pos.y - lastHairPos.y) < 1.5) return;
-    currentHairStroke.points.push({ x: nx, y: ny });
-    lastHairPos = pos;
-    renderLiveEditPreview();
-  }
+window.addEventListener('pointermove',(e)=>{
+  const rect=liveEditCanvas.getBoundingClientRect();
+  const inside=e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
+  if(!inside&&!isBrushingHair){hideHairBrushMagnifier();return;}
+  const pos=getSafeCanvasPos(liveEditCanvas,e);
+  const nx=Math.max(0,Math.min(1,pos.x/Math.max(1,liveEditCanvas.width)));
+  const ny=Math.max(0,Math.min(1,pos.y/Math.max(1,liveEditCanvas.height)));
+  lastMagnifierPos=pos;
+  if(isBrushingHair&&currentHairStroke){
+    if(lastHairPos&&Math.hypot(pos.x-lastHairPos.x,pos.y-lastHairPos.y)<1.5)return;
+    currentHairStroke.points.push({x:nx,y:ny});lastHairPos=pos;
+    renderLiveEditPreview().then(()=>drawHairBrushMagnifier(pos));
+  }else if(inside)drawHairBrushMagnifier(pos);
 });
 
-const finishCanvasPointer = () => {
-  isBrushingHair = false;
-  currentHairStroke = null;
-  lastHairPos = null;
-  isSelectingZoom = false;
-  zoomDragStart = null;
+const finishCanvasPointer=()=>{
+  isBrushingHair=false;currentHairStroke=null;lastHairPos=null;
+  drawHairBrushMagnifier(lastMagnifierPos);
 };
-window.addEventListener('pointerup', finishCanvasPointer);
-window.addEventListener('pointercancel', finishCanvasPointer);
+window.addEventListener('pointerup',finishCanvasPointer);
+window.addEventListener('pointercancel',finishCanvasPointer);
+liveEditCanvas.addEventListener('pointerleave',()=>{if(!isBrushingHair)hideHairBrushMagnifier();});
 
 document.querySelectorAll('.quick-bg-btn').forEach(btn => {
   btn.onclick = () => {
@@ -399,18 +366,15 @@ document.querySelectorAll('.quick-bg-btn').forEach(btn => {
 });
 
 document.getElementById('psZoomSelectMode').onchange = () => {
-  if (document.getElementById('psZoomSelectMode').checked && document.getElementById('hairBrushToggle')) {
-    document.getElementById('hairBrushToggle').checked = true;
-  }
+  if (document.getElementById('psZoomSelectMode').checked && document.getElementById('hairBrushToggle')) document.getElementById('hairBrushToggle').checked = true;
   updatePsBgControls();
-  renderLiveEditPreview();
+  renderLiveEditPreview().then(()=>drawHairBrushMagnifier(lastMagnifierPos));
 };
 
 document.getElementById('psZoomResetBoxBtn').onclick = () => {
-  zoomSelectionNorm = null;
-  if (document.getElementById('psZoomScaleRange')) document.getElementById('psZoomScaleRange').value = 1;
-  if (document.getElementById('psZoomScaleNum')) document.getElementById('psZoomScaleNum').value = 1;
-  renderLiveEditPreview();
+  document.getElementById('psZoomScaleRange').value=1;
+  document.getElementById('psZoomScaleNum').value=1;
+  renderLiveEditPreview().then(()=>drawHairBrushMagnifier(lastMagnifierPos));
 };
 
 document.getElementById('hairUndoBtn').onclick = () => {
@@ -477,9 +441,9 @@ function updatePsBgControls() {
   if (splitEl && splitLbl) splitLbl.textContent = `${splitEl.value}%`;
 
   const hintEl = document.getElementById('canvasToolHint');
-  if (zoomActive) {
-    if (hintEl) hintEl.textContent = 'Zoomed Hair Brush Mode: Drag directly on zoomed hair to smooth/trim. Hold Shift+Drag to pick custom crop area.';
-    document.getElementById('livePreviewCaption').textContent = 'Zoomed Hair Brush Preview: Drag on hair to set/trim stray strands';
+  if (zoomActive && hairActive) {
+    if (hintEl) hintEl.textContent = 'Brush Magnifier Active: Move over the photo to inspect the exact area; drag to retouch that same area. Zoom does not crop the final photo.';
+    document.getElementById('livePreviewCaption').textContent = 'Live Hair Retouch Preview • Magnified Brush Area';
   } else if (hairActive) {
     if (hintEl) hintEl.textContent = 'Hair Set Brush Active: Drag over top/side hairs to smooth, darken or trim stray strands.';
     document.getElementById('livePreviewCaption').textContent = 'Live Digital Studio Preview: Hair Brush & Digital Studio Retouch';
@@ -873,7 +837,7 @@ bindRangeAndNum('cbContrastRange', 'cbContrastNum', renderLiveEditPreview);
 bindRangeAndNum('cbBrightnessRange', 'cbBrightnessNum', renderLiveEditPreview);
 bindRangeAndNum('logoOpacityRange', 'logoOpacityNum', renderLiveEditPreview);
 bindRangeAndNum('logoSizeRange', 'logoSizeNum', renderLiveEditPreview);
-bindRangeAndNum('psZoomScaleRange', 'psZoomScaleNum', renderLiveEditPreview);
+bindRangeAndNum('psZoomScaleRange','psZoomScaleNum',()=>renderLiveEditPreview().then(()=>drawHairBrushMagnifier(lastMagnifierPos)));
 if (document.getElementById('psZoomSharpToggle')) {
   document.getElementById('psZoomSharpToggle').onchange = renderLiveEditPreview;
 }
