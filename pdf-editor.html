@@ -66,7 +66,8 @@
           + Add Image/Sign: <input type="file" id="edAddImgInput" accept="image/*" style="width:170px;">
         </label>
         <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
-          Font (Eng/Hin/Punjabi): <select class="font-selector-100" id="edFontFamily" style="max-width:210px;"></select>
+          Language: <select id="edFontLanguage" style="max-width:115px;"><option value="en">English</option><option value="hi">Hindi</option><option value="pa">Punjabi</option></select>
+          Font: <select class="font-selector-100" id="edFontFamily" style="max-width:210px;"></select>
         </label>
         <label style="font-size:.82rem;display:flex;align-items:center;gap:4px;">
           <input type="checkbox" id="edBoldToggle" checked> <strong>Bold</strong>
@@ -103,6 +104,6 @@
   </main>
 
   <script src="js/shared.js?v=6"></script>
-  <script src="js/pdf-editor.js?v=2"></script>
+  <script src="js/pdf-editor.js?v=3"></script>
 </body>
 </html>
