@@ -4,8 +4,6 @@
     let edSelectedIdx = -1, edDragging = false, edDragOffset = { x: 0, y: 0 }, edDrawStart = null;
     const edCanvas = document.getElementById('edCanvas');
     const edCtx = edCanvas.getContext('2d');
-    const edPreviewCanvas = document.getElementById('edPreviewCanvas');
-    const edPreviewCtx = edPreviewCanvas.getContext('2d');
     let edBgCanvas = document.createElement('canvas');
 
     document.querySelectorAll('#edToolbar .chip').forEach(btn => {
@@ -57,7 +55,6 @@
       edCanvas.width = vp.width; edCanvas.height = vp.height;
       edBgCanvas.width = vp.width; edBgCanvas.height = vp.height;
       await page.render({ canvasContext: edBgCanvas.getContext('2d'), viewport: vp }).promise;
-      edPreviewCanvas.width = vp.width; edPreviewCanvas.height = vp.height;
 
       const tc = await page.getTextContent();
       edExtractedTextBoxes = tc.items.map(item => {
@@ -102,18 +99,6 @@
           edCtx.strokeRect(it.x - 2, it.y - 2, it.w + 4, it.h + 4);
         }
       });
-      edPreviewCtx.clearRect(0, 0, edPreviewCanvas.width, edPreviewCanvas.height);
-      edPreviewCtx.drawImage(edCanvas, 0, 0);
-    }
-
-    function findEditorTextAtPoint(x, y) {
-      const matches = edExtractedTextBoxes.map(tb => {
-        const dx = x < tb.x ? tb.x - x : x > tb.x + tb.w ? x - (tb.x + tb.w) : 0;
-        const dy = y < tb.y ? tb.y - y : y > tb.y + tb.h ? y - (tb.y + tb.h) : 0;
-        return { box: tb, distance: Math.hypot(dx, dy), area: tb.w * tb.h };
-      }).filter(item => item.distance <= 10);
-      matches.sort((a, b) => a.distance - b.distance || a.area - b.area);
-      return matches[0]?.box || null;
     }
 
     function syncSelectedEditorTextStyle() {
@@ -166,19 +151,14 @@
       const curColor = document.getElementById('edColor').value;
 
       if (edMode === 'edit_existing') {
-        const hit = findEditorTextAtPoint(pos.x, pos.y);
+        const hit = edExtractedTextBoxes.find(tb => pos.x >= tb.x && pos.x <= tb.x + tb.w && pos.y >= tb.y && pos.y <= tb.y + tb.h);
         if (hit) {
-          document.getElementById('edStatus').classList.add('hidden');
           items.push({ type: 'whiteout', x: hit.x - 2, y: hit.y - 2, w: hit.w + 6, h: hit.h + 4 });
           items.push({ type: 'text', x: hit.x, y: hit.y, w: hit.w, h: hit.h, text: hit.text, size: hit.fontSize, font: curFont, bold: curBold, color: curColor });
           edSelectedIdx = items.length - 1;
           document.getElementById('edTextInput').value = hit.text;
           document.getElementById('edTextInput').focus();
           redrawEditorCanvas();
-        } else {
-          const status = document.getElementById('edStatus');
-          status.textContent = 'No selectable text found at that spot. Use Add New Text for scanned or image-only pages.';
-          status.classList.remove('hidden');
         }
         return;
       }
@@ -269,10 +249,7 @@
       }
 
       const pass = document.getElementById('edPdfPassword').value;
-      const bytes = await outPdf.save();
-      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'edited_document.pdf', `Edited PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Not password encrypted' : ''}`);
-      if (pass) {
-        status.textContent = 'PDF saved. The current PDF writer cannot apply output password encryption.';
-        status.classList.remove('hidden');
-      } else status.classList.add('hidden');
+      const bytes = pass ? await outPdf.save({ userPassword: pass, ownerPassword: pass }) : await outPdf.save();
+      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'edited_document.pdf', `Edited PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Password Protected' : ''}`);
+      status.classList.add('hidden');
     };
