@@ -487,3 +487,83 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
   window.buildReferenceStudioOutput = buildReferenceStudioOutput;
   window.applyReferenceStudioGrade = applyReferenceStudioGrade;
 })();
+
+
+// ================= SIDE & CROWN EDGE CLEANER TOOL =================
+// Linear-time edge-distance pass; avoids the quadratic neighbourhood scan
+// from the supplied draft and only blends likely curtain-coloured fringe pixels.
+function cleanSideAndCrownEdges(sourceCanvas, options = {}) {
+  if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return sourceCanvas;
+  const w = sourceCanvas.width, h = sourceCanvas.height, total = w * h;
+  const trimPx = Math.max(3, Math.min(10, Math.round(options.trimPx || Math.min(w, h) * 0.0045)));
+  const work = document.createElement('canvas');
+  work.width = w; work.height = h;
+  const ctx = work.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(sourceCanvas, 0, 0);
+  const image = ctx.getImageData(0, 0, w, h);
+  const d = image.data;
+  const dist = new Uint8Array(total);
+  const limit = trimPx + 1;
+
+  // White-background pixels are distance-map seeds.
+  for (let p = 0, i = 0; p < total; p++, i += 4) {
+    dist[p] = (d[i] > 245 && d[i + 1] > 245 && d[i + 2] > 245) ? 0 : limit;
+  }
+
+  // Forward chamfer pass.
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      const p = row + x;
+      let best = dist[p];
+      if (x > 0) best = Math.min(best, dist[p - 1] + 1);
+      if (y > 0) {
+        best = Math.min(best, dist[p - w] + 1);
+        if (x > 0) best = Math.min(best, dist[p - w - 1] + 1);
+        if (x + 1 < w) best = Math.min(best, dist[p - w + 1] + 1);
+      }
+      dist[p] = Math.min(limit, best);
+    }
+  }
+
+  // Backward chamfer pass.
+  for (let y = h - 1; y >= 0; y--) {
+    const row = y * w;
+    for (let x = w - 1; x >= 0; x--) {
+      const p = row + x;
+      let best = dist[p];
+      if (x + 1 < w) best = Math.min(best, dist[p + 1] + 1);
+      if (y + 1 < h) {
+        best = Math.min(best, dist[p + w] + 1);
+        if (x > 0) best = Math.min(best, dist[p + w - 1] + 1);
+        if (x + 1 < w) best = Math.min(best, dist[p + w + 1] + 1);
+      }
+      dist[p] = Math.min(limit, best);
+    }
+  }
+
+  // Suppress only likely curtain fringe in the narrow outer contour.
+  // Dark hair, skin and clothing are deliberately left untouched.
+  for (let p = 0, i = 0; p < total; p++, i += 4) {
+    const edgeDist = dist[p];
+    if (edgeDist === 0 || edgeDist > trimPx) continue;
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+    const brightness = (r + g + b) / 3;
+    const warmCurtain = r > g && g >= b && (r - b) >= 8 && (r - b) <= 78;
+    const greyCurtain = (maxC - minC) <= 24;
+    const midTone = brightness >= 92 && brightness <= 238;
+    if (!midTone || !(warmCurtain || greyCurtain)) continue;
+
+    const proximity = 1 - (edgeDist - 1) / Math.max(1, trimPx);
+    const blend = Math.max(0.18, Math.min(0.72, 0.22 + proximity * 0.5));
+    d[i] = Math.round(r * (1 - blend) + 255 * blend);
+    d[i + 1] = Math.round(g * (1 - blend) + 255 * blend);
+    d[i + 2] = Math.round(b * (1 - blend) + 255 * blend);
+    d[i + 3] = 255;
+  }
+
+  ctx.putImageData(image, 0, 0);
+  return work;
+}
+window.cleanSideAndCrownEdges = cleanSideAndCrownEdges;
