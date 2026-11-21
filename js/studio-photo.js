@@ -87,26 +87,28 @@
   }
 
   async function runBrowserFast() {
-    let subjectCanvas;
-    if (document.getElementById('studioWhiteBg').checked) {
-      if (typeof SelfieSegmentation === 'undefined' || typeof runSelfieSegmentation !== 'function') {
-        throw new Error('Browser segmentation library did not load. Refresh and try again.');
-      }
-      setStatus('Separating the person from the background locally...');
-      subjectCanvas = await runSelfieSegmentation(sourceImage, 'transparent');
-      if (document.getElementById('studioHairTidy')?.checked) subjectCanvas = tidyHairEdges(subjectCanvas);
-    } else {
-      subjectCanvas = document.createElement('canvas');
-      subjectCanvas.width = sourceImage.naturalWidth || sourceImage.width;
-      subjectCanvas.height = sourceImage.naturalHeight || sourceImage.height;
-      subjectCanvas.getContext('2d').drawImage(sourceImage, 0, 0);
+    if (typeof window.buildReferenceStudioOutput !== 'function') {
+      throw new Error('Studio processing module did not load. Please refresh the page and try again.');
     }
-    const scale = Number(document.getElementById('studioScale').value) || 2;
-    const [width, height] = frameSize(document.getElementById('studioFrame').value, sourceImage, scale);
-    const canvas = composeStudioPhoto(subjectCanvas, width, height, document.getElementById('studioEnhance').checked);
+    const file = fileInput.files && fileInput.files[0];
+    const frameSelect = document.getElementById('studioFrame');
+    const qualitySelect = document.getElementById('studioScale');
+    const frameText = frameSelect.options[frameSelect.selectedIndex].text;
+    const qualityText = qualitySelect.options[qualitySelect.selectedIndex].text;
+    const useWhiteBg = document.getElementById('studioWhiteBg').checked;
+    const enhance = document.getElementById('studioEnhance').checked;
+    const tidyHair = document.getElementById('studioHairTidy').checked;
+
+    setStatus(useWhiteBg
+      ? 'Removing background and refining hair edges locally...'
+      : 'Preparing studio photo locally...');
+
+    const canvas = await window.buildReferenceStudioOutput(
+      file, frameText, qualityText, useWhiteBg, enhance, tidyHair
+    );
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', .96));
-    if (!blob) throw new Error('The browser could not export this image. Try a smaller output size.');
-    return { blob, width, height, engine: 'Browser Local' };
+    if (!blob) throw new Error('Could not export the studio photo. Try HD – 1× quality.');
+    return { blob, width: canvas.width, height: canvas.height, engine: 'Browser Local' };
   }
 
   fileInput.addEventListener('change', async () => {
