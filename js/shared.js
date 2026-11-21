@@ -364,8 +364,8 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
     ctx.restore();
   }
 
-  function applyReferenceStudioGrade(srcCanvas, outW, outH, enhanceLightSharp = true) {
-    const shapedSubject = typeof window.shapeHairGolaiAndLowerStrands === 'function'
+  function applyReferenceStudioGrade(srcCanvas, outW, outH, enhanceLightSharp = true, tidyHair = true) {
+    const shapedSubject = tidyHair && typeof window.shapeHairGolaiAndLowerStrands === 'function'
       ? window.shapeHairGolaiAndLowerStrands(srcCanvas)
       : srcCanvas;
 
@@ -482,67 +482,8 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
     return applyReferenceStudioGrade(subjectCanvas, dims.width, dims.height, enhanceLightSharp, tidyHair);
   }
 
-  function bindAutoStudioPage() {
-    if (!/studio-photo/i.test(window.location.pathname || '') && !/auto studio photo/i.test(document.title || '')) {
-      return;
-    }
 
-    const selects = Array.from(document.querySelectorAll('select'));
-    const frameSelect = selects.find(s => /1232|1200|1050|reference|square|portrait/i.test(s.textContent || ''));
-    const qualitySelect = selects.find(s => /2×|1×|3×|high resolution|extra large/i.test(s.textContent || ''));
-    const checkboxes = Array.from(document.querySelectorAll('input[type="checkbox"]'));
-    const whiteBgBox = checkboxes[0] || null;
-    const sharpBox = checkboxes[2] || checkboxes[1] || null;
-    const fileInput = document.querySelector('input[type="file"]');
-    const runBtn = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]'))
-      .find(el => /create hd studio photo/i.test(el.textContent || el.value || ''));
-
-    if (!fileInput || !runBtn) return;
-
-    async function runAndUpdatePreview() {
-      const file = fileInput.files && fileInput.files[0];
-      if (!file) return;
-
-      const frameText = frameSelect ? (frameSelect.options[frameSelect.selectedIndex]?.text || frameSelect.value) : '1232 × 1277';
-      const qualityText = qualitySelect ? (qualitySelect.options[qualitySelect.selectedIndex]?.text || qualitySelect.value) : '2×';
-      const useWhiteBg = whiteBgBox ? whiteBgBox.checked : true;
-      const enhanceLightSharp = sharpBox ? sharpBox.checked : true;
-
-      const resultCanvas = await buildReferenceStudioOutput(file, frameText, qualityText, useWhiteBg, enhanceLightSharp);
-      const dataUrl = resultCanvas.toDataURL('image/jpeg', 0.97);
-
-      const imgs = Array.from(document.querySelectorAll('img'));
-      const outImg = imgs.length > 1 ? imgs[imgs.length - 1] : imgs[0];
-      if (outImg) {
-        outImg.src = dataUrl;
-      }
-
-      const dlLink = Array.from(document.querySelectorAll('a')).find(a => /download hd photo/i.test(a.textContent || ''));
-      if (dlLink) {
-        dlLink.href = dataUrl;
-        dlLink.download = `studio_photo_${resultCanvas.width}x${resultCanvas.height}.jpg`;
-      }
-    }
-
-    runBtn.addEventListener('click', () => {
-      setTimeout(() => {
-        runAndUpdatePreview().catch(() => {});
-      }, 450);
-    });
-
-    fileInput.addEventListener('change', () => {
-      setTimeout(() => {
-        runAndUpdatePreview().catch(() => {});
-      }, 500);
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindAutoStudioPage);
-  } else {
-    bindAutoStudioPage();
-  }
+  // Expose the functions used by js/studio-photo.js. The page owns all UI events.
+  window.buildReferenceStudioOutput = buildReferenceStudioOutput;
+  window.applyReferenceStudioGrade = applyReferenceStudioGrade;
 })();
-
-// Public entry point for Auto Studio Photo page.
-window.buildReferenceStudioOutput = buildReferenceStudioOutput;
