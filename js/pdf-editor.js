@@ -11,6 +11,12 @@
         document.querySelectorAll('#edToolbar .chip').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         edMode = btn.dataset.edmode;
+        if (edMode === 'add_text') {
+          // A new-text draft must not change the text item that was selected before.
+          edSelectedIdx = -1;
+          edDragging = false;
+          edDrawStart = null;
+        }
         redrawEditorCanvas();
       };
     });
