@@ -1172,16 +1172,9 @@ document.getElementById('editRunBtn')?.addEventListener('click', async () => {
     const blob = await new Promise((resolve, reject) => {
       finalCanvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not create the output image.')), 'image/png');
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'mahadev-studio-hairstyle-retouch.png';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
-    if (status) status.textContent = 'Done! Your edited photo has been downloaded.';
     if (output) output.innerHTML = '';
+    await joinEditDownload(finalCanvas, 'mahadev-studio-hairstyle-retouch.png', 'image/png');
+    if (status) status.textContent = 'Done! Review the edited photo preview, then click Download.';
   } catch (error) {
     if (status) status.textContent = error?.message || 'Photo processing failed. Please try again.';
   } finally {
