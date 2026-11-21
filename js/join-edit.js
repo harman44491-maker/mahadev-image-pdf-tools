@@ -48,91 +48,153 @@ function getSelectedBrushEffect() {
 }
 
 /*
- * Auto Hair Fit uses the MediaPipe person matte to conservatively clean
- * narrow upward flyaway strands along the top hair contour.
+ * Auto Hair Fit: smooth only small, isolated upward bumps in the detected
+ * person/hair silhouette. The segmentation mask is a person matte, not a
+ * dedicated hair model, so this deliberately makes conservative edits.
+ * Errors are reported instead of silently returning the untouched original.
  */
+let autoHairFitMessage = '';
+
+function setAutoHairFitStatus(message, isError = false) {
+  autoHairFitMessage = message;
+  const el = document.getElementById('psAutoHairFitStatus');
+  if (el) {
+    el.textContent = message;
+    el.style.color = isError ? '#b91c1c' : '#0f766e';
+    el.classList.remove('hidden');
+  }
+}
+
 async function runAutoHairFit(img) {
-  return new Promise(async (resolve) => {
-    const fallback = () => {
-      const c = document.createElement('canvas');
-      c.width = img.width; c.height = img.height;
-      c.getContext('2d').drawImage(img, 0, 0);
-      resolve(c);
+  if (typeof SelfieSegmentation === 'undefined') {
+    throw new Error('AI hair cleanup model did not load. Check your internet connection and refresh the page.');
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let segmenter = null;
+    const finish = (error, canvas) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      try { segmenter?.close(); } catch (_) {}
+      if (error) reject(error);
+      else resolve(canvas);
     };
+    const timeoutId = setTimeout(() => {
+      finish(new Error('AI hair cleanup timed out. Please retry with a smaller photo.'));
+    }, 30000);
+
     try {
-      const segmenter = new SelfieSegmentation({
+      segmenter = new SelfieSegmentation({
         locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
       });
       segmenter.setOptions({ modelSelection: 1 });
       segmenter.onResults(results => {
         try {
-          const w = img.width, h = img.height;
-          const maskCanvas = document.createElement('canvas');
-          maskCanvas.width = w; maskCanvas.height = h;
-          const mctx = maskCanvas.getContext('2d', { willReadFrequently: true });
-          mctx.drawImage(results.segmentationMask, 0, 0, w, h);
-          const mask = mctx.getImageData(0, 0, w, h).data;
-          const srcCanvas = document.createElement('canvas');
-          srcCanvas.width = w; srcCanvas.height = h;
-          const sctx = srcCanvas.getContext('2d', { willReadFrequently: true });
-          sctx.drawImage(img, 0, 0, w, h);
-          const imageData = sctx.getImageData(0, 0, w, h);
-          const pixels = imageData.data;
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          if (!results?.segmentationMask || !w || !h) {
+            throw new Error('AI did not return a usable person mask.');
+          }
 
-          const left = Math.floor(w * 0.08), right = Math.ceil(w * 0.92);
-          const topLimit = Math.floor(h * 0.62);
-          const edge = new Int32Array(w);
-          edge.fill(-1);
+          const maskCanvas = document.createElement('canvas');
+          maskCanvas.width = w;
+          maskCanvas.height = h;
+          const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
+          maskCtx.drawImage(results.segmentationMask, 0, 0, w, h);
+          const mask = maskCtx.getImageData(0, 0, w, h).data;
+
+          const output = document.createElement('canvas');
+          output.width = w;
+          output.height = h;
+          const outCtx = output.getContext('2d', { willReadFrequently: true });
+          outCtx.drawImage(img, 0, 0, w, h);
+          const frame = outCtx.getImageData(0, 0, w, h);
+          const pixels = frame.data;
+
+          // Read the upper head silhouette only; ignore shoulders and lower body.
+          const left = Math.floor(w * 0.12);
+          const right = Math.ceil(w * 0.88);
+          const topLimit = Math.floor(h * 0.56);
+          const rawTop = new Int32Array(w);
+          rawTop.fill(-1);
+
           for (let x = left; x < right; x++) {
             for (let y = 0; y < topLimit; y++) {
-              if (mask[(y * w + x) * 4] >= 112) { edge[x] = y; break; }
+              if (mask[(y * w + x) * 4] >= 72) {
+                rawTop[x] = y;
+                break;
+              }
             }
           }
 
-          const radius = Math.max(3, Math.min(18, Math.round(w * 0.009)));
-          const smoothEdge = new Int32Array(w);
-          smoothEdge.fill(-1);
+          // Median-filter the contour to suppress narrow spikes, preserving
+          // broad hairstyle shapes and the center part.
+          const radius = Math.max(5, Math.min(34, Math.round(w * 0.018)));
+          const fittedTop = new Int32Array(w);
+          fittedTop.fill(-1);
           for (let x = left; x < right; x++) {
+            if (rawTop[x] < 0) continue;
             const values = [];
             for (let xx = Math.max(left, x - radius); xx <= Math.min(right - 1, x + radius); xx++) {
-              if (edge[xx] >= 0) values.push(edge[xx]);
+              if (rawTop[xx] >= 0) values.push(rawTop[xx]);
             }
-            if (values.length >= 3) {
+            if (values.length >= Math.max(5, Math.round(radius * 0.8))) {
               values.sort((a, b) => a - b);
-              smoothEdge[x] = values[Math.floor(values.length / 2)];
+              fittedTop[x] = values[Math.floor(values.length / 2)];
             }
           }
 
+          let changedPixels = 0;
+          const minLift = Math.max(2, Math.round(h * 0.0015));
+          const maxLift = Math.max(minLift + 1, Math.round(h * 0.028));
+
           for (let x = left; x < right; x++) {
-            const actualTop = edge[x], fittedTop = smoothEdge[x];
-            if (actualTop < 0 || fittedTop < 0 || fittedTop - actualTop < Math.max(3, Math.round(h * 0.003))) continue;
-            const sampleGap = Math.max(4, Math.round(h * 0.012));
-            let bgY = Math.max(0, fittedTop - sampleGap);
-            while (bgY > 0 && mask[(bgY * w + x) * 4] > 42) bgY--;
-            const bgIdx = (bgY * w + x) * 4;
-            const bgR = pixels[bgIdx], bgG = pixels[bgIdx + 1], bgB = pixels[bgIdx + 2];
-            const yEnd = Math.min(fittedTop, actualTop + Math.max(2, Math.round(h * 0.035)));
-            for (let y = actualTop; y < yEnd; y++) {
+            const actualY = rawTop[x];
+            const smoothY = fittedTop[x];
+            if (actualY < 0 || smoothY < 0) continue;
+            const lift = smoothY - actualY;
+            // Only remove small upward wisps; do not reshape large hair masses.
+            if (lift < minLift || lift > maxLift) continue;
+
+            const sampleY = Math.max(0, smoothY - Math.max(2, Math.round(h * 0.004)));
+            const sampleIndex = (sampleY * w + x) * 4;
+            const bgR = pixels[sampleIndex];
+            const bgG = pixels[sampleIndex + 1];
+            const bgB = pixels[sampleIndex + 2];
+
+            for (let y = actualY; y < smoothY; y++) {
               const idx = (y * w + x) * 4;
               const confidence = mask[idx] / 255;
-              if (confidence < 0.10) continue;
-              const blend = Math.min(0.92, confidence * 0.92);
+              if (confidence < 0.025) continue;
+
+              const vertical = (y - actualY) / Math.max(1, lift);
+              const edgeFeather = 0.78 + 0.20 * vertical;
+              const blend = Math.min(0.96, Math.max(0.38, confidence * 1.18)) * edgeFeather;
               pixels[idx] = Math.round(pixels[idx] * (1 - blend) + bgR * blend);
               pixels[idx + 1] = Math.round(pixels[idx + 1] * (1 - blend) + bgG * blend);
               pixels[idx + 2] = Math.round(pixels[idx + 2] * (1 - blend) + bgB * blend);
+              changedPixels++;
             }
           }
-          sctx.putImageData(imageData, 0, 0);
-          resolve(srcCanvas);
-        } catch (err) {
-          console.warn('Auto Hair Fit cleanup fallback:', err);
-          fallback();
+
+          if (changedPixels === 0) {
+            output.autoHairFitChangedPixels = 0;
+            setAutoHairFitStatus('AI scan complete: no clear flyaway strands were detected. Original hair was preserved.');
+          } else {
+            outCtx.putImageData(frame, 0, 0);
+            output.autoHairFitChangedPixels = changedPixels;
+            setAutoHairFitStatus(`Auto Hair Fit applied: cleaned ${changedPixels.toLocaleString()} edge pixels.`);
+          }
+          finish(null, output);
+        } catch (error) {
+          finish(error);
         }
       });
-      await segmenter.send({ image: img });
-    } catch (err) {
-      console.warn('Auto Hair Fit segmentation unavailable:', err);
-      fallback();
+      segmenter.send({ image: img }).catch(error => finish(error));
+    } catch (error) {
+      finish(error);
     }
   });
 }
@@ -519,6 +581,7 @@ document.getElementById('psRemoveBgToggle').onchange = () => {
 document.getElementById('psAutoHairFitToggle').onchange = () => {
   cachedAutoHairFitImage = null;
   cachedTransparentCutout = null;
+  setAutoHairFitStatus('Auto Hair Fit is ready. Enable it to scan the hair outline.');
   updatePsBgControls();
   renderLiveEditPreview();
 };
@@ -768,12 +831,19 @@ async function renderLiveEditPreview() {
     if (autoHairFit) {
       if (!cachedAutoHairFitImage) {
         const st = document.getElementById('editStatus');
-        st.textContent = 'AI Auto Hair Fit: Cleaning separated flyaway strands...';
+        st.textContent = 'AI Auto Hair Fit: Scanning and cleaning flyaway hair edges...';
         st.classList.remove('hidden');
-        cachedAutoHairFitImage = await runAutoHairFit(cachedMainImg);
+        try {
+          cachedAutoHairFitImage = await runAutoHairFit(cachedMainImg);
+        } catch (error) {
+          setAutoHairFitStatus(error.message || 'AI hair cleanup failed.', true);
+          cachedAutoHairFitImage = null;
+          st.classList.add('hidden');
+          baseSrc = cachedMainImg;
+        }
         st.classList.add('hidden');
       }
-      baseSrc = cachedAutoHairFitImage;
+      if (cachedAutoHairFitImage) baseSrc = cachedAutoHairFitImage;
     }
     if (removeBg) {
       if (!cachedTransparentCutout) {
@@ -868,6 +938,7 @@ document.getElementById('editFiles').onchange = async (e) => {
   const f = e.target.files[0];
   cachedTransparentCutout = null;
   cachedAutoHairFitImage = null;
+  setAutoHairFitStatus('');
   hairStrokes = [];
   zoomSelectionNorm = null;
   if (!f) { cachedMainImg = null; renderLiveEditPreview(); return; }
