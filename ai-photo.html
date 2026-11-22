@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Photo Studio - DocX Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Gurmukhi:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js" crossorigin="anonymous"></script>
+  <style>
+    .ai-mode-wrap { max-width: 680px; margin: 0 auto 14px; }
+    .ai-mode-wrap label { display: block; font-size: .84rem; font-weight: 700; color: #334155; margin-bottom: 5px; }
+    .ai-mode-wrap textarea { width: 100%; max-width: 100%; min-height: 84px; }
+    #aiPreview { max-height: 170px; max-width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; margin-top: 10px; display: none; }
+    .ai-key-box { background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 12px 14px; max-width: 760px; margin: 0 auto 14px; font-size: .85rem; color: #134e4a; }
+    .ai-key-box p { margin: 6px 0; line-height: 1.5; }
+    .ai-key-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+    .ai-key-row input { flex: 1; min-width: 220px; }
+    .ai-note { font-size: .78rem; color: #64748b; text-align: center; margin-top: 10px; line-height: 1.5; }
+    .ai-note a { color: var(--primary); font-weight: 700; }
+    .ai-loading { display: none; width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: var(--accent); border-radius: 50%; margin: 10px auto; animation: aiSpin .8s linear infinite; }
+    @keyframes aiSpin { to { transform: rotate(360deg); } }
+    .ai-err { color: #dc2626 !important; }
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-inner">
+      <div class="brand">
+        <div class="brand-top">
+          <span class="brand-badge">PRO</span>
+          <span>DOCX STUDIO</span>
+        </div>
+        <span class="brand-sub">All-in-One Image, Photo Retouch &amp; PDF Toolkit</span>
+      </div>
+      <nav class="menu">
+        <a href="index.html" class="menu-btn">Image Resizer</a>
+        <a href="passport.html" class="menu-btn">Passport Photo</a>
+        <a href="studio-photo.html" class="menu-btn">Auto Studio Photo</a>
+        <a href="watermark.html" class="menu-btn">Watermark Remover</a>
+        <a href="ai-photo.html" class="menu-btn active">AI Photo Studio</a>
+        <a href="pdf-tools.html" class="menu-btn">PDF Tools & Security</a>
+        <a href="pdf-editor.html" class="menu-btn">PDF Editor (Text/Img)</a>
+        <a href="pdf-form.html" class="menu-btn">PDF Form Filler</a>
+        <a href="join-edit.html" class="menu-btn">Join, Edit & Create</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="tab-ai" class="panel active">
+      <h1>AI Photo Studio — Generate Images from Prompt or Edit Uploaded Photo with Command</h1>
+
+      <div class="dim-bar">
+        <span>Mode:</span>
+        <div class="seg-group" id="aiModeGroup">
+          <button type="button" class="seg active" data-mode="text">&#10024; Prompt se Image</button>
+          <button type="button" class="seg" data-mode="edit">&#128228; Upload + Command</button>
+        </div>
+      </div>
+
+      <!-- ============ MODE 1: TEXT TO IMAGE ============ -->
+      <div id="aiModeText">
+        <div class="ai-mode-wrap">
+          <label for="aiPrompt">Describe the image you want (Hindi / English / Hinglish):</label>
+          <textarea id="aiPrompt" placeholder="jaise: ek chamakta hua sher, cinematic lighting, 4k, ultra detailed"></textarea>
+        </div>
+
+        <div class="presets-row">
+          <span>Quick Ideas:</span>
+          <button type="button" class="chip" data-ai-prompt="a majestic lion wearing a golden crown, cinematic lighting, 4k, ultra detailed">Royal Lion</button>
+          <button type="button" class="chip" data-ai-prompt="futuristic Indian city at night, neon lights, rain, cyberpunk, ultra detailed">Cyberpunk City</button>
+          <button type="button" class="chip" data-ai-prompt="a cute cat astronaut floating in space, colorful nebula background, 4k">Space Cat</button>
+          <button type="button" class="chip" data-ai-prompt="beautiful Indian woman in traditional red saree, portrait, studio lighting, photorealistic">Portrait</button>
+          <button type="button" class="chip" data-ai-prompt="magical forest with glowing mushrooms, fireflies, fantasy digital art">Fantasy Forest</button>
+          <button type="button" class="chip" data-ai-prompt="Lord Shiva meditating on Mount Kailash, divine glowing aura, hyper detailed digital painting">Shiva Art</button>
+          <button type="button" class="chip" data-ai-prompt="passport photo bana do, white background, face center">passport photo bana do, white background, face center</button>
+        </div>
+
+        <div class="controls-row">
+          <label>Size:
+            <select id="aiSize">
+              <option value="768x768" selected>Square 1:1</option>
+              <option value="1024x576">Landscape 16:9</option>
+              <option value="576x1024">Portrait 9:16</option>
+              <option value="768x512">Classic 3:2</option>
+            </select>
+          </label>
+          <label>Seed (0 = random): <input type="number" id="aiSeed" value="0" min="0" style="width:90px;"></label>
+          <button type="button" class="btn-blue" id="aiGenBtn">&#9889; Generate Image</button>
+        </div>
+      </div>
+
+      <!-- ============ MODE 2: IMAGE EDIT (UPLOAD + COMMAND) ============ -->
+      <div id="aiModeEdit" class="hidden">
+        <div class="dim-bar">
+          <span>Edit Engine:</span>
+          <div class="seg-group" id="aiEngineGroup">
+            <button type="button" class="seg active" data-engine="local">&#127827; Bina Key (Local, Instant)</button>
+            <button type="button" class="seg" data-engine="cloud">&#9729;&#65039; AI Cloud (API Key)</button>
+          </div>
+        </div>
+
+        <div class="drop-box" id="aiDrop">
+          <p>Drag &amp; Drop or Select a Photo to Edit (JPG / PNG / WEBP)</p>
+          <input type="file" id="aiFile" accept="image/*" hidden>
+          <button type="button" class="btn-green" id="aiSelectBtn">Select Photo</button>
+          <div class="file-info" id="aiFileInfo">No photo selected</div>
+          <img id="aiPreview" alt="Selected photo preview">
+        </div>
+
+        <div class="ai-mode-wrap">
+          <label for="aiCommand">Command — what should AI change? (keep the rest same):</label>
+          <textarea id="aiCommand" placeholder="jaise: background ko sunset beach bana do, or keep the person exactly same"></textarea>
+        </div>
+
+        <div class="presets-row">
+          <span>Quick Commands (&#127827; = bina key, instant):</span>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="passport photo bana do, white background, face center" style="background:#059669;color:#fff;border-color:#059669;">&#129533; Passport / ID Photo (White BG)</button>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="remove the background, make it transparent">Cutout / Transparent</button>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="background ko solid white bana do">White Background</button>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="background ko solid blue bana do">Blue Background</button>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="background ko blur karo">Blur Background</button>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="photo enhance karo — bright, sharp aur colorful">Enhance Quality</button>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="black and white bana do">Black &amp; White</button>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="cartoon style me bana do">Cartoon Style</button>
+          <button type="button" class="chip" data-engine="local" data-ai-cmd="pencil sketch bana do">Pencil Sketch</button>
+          <button type="button" class="chip" data-engine="cloud" data-ai-cmd="Replace the background with a beautiful sunset beach, keep the subject exactly same">Sunset Beach BG &#9729;</button>
+          <button type="button" class="chip" data-engine="cloud" data-ai-cmd="Restore and enhance this old damaged photo, remove scratches and stains, keep the same person and pose">Restore Old Photo &#9729;</button>
+          <button type="button" class="chip" data-engine="cloud" data-ai-cmd="Turn this person into a movie poster hero, dramatic cinematic lighting, keep the same face">Movie Poster &#9729;</button>
+        </div>
+
+        <div class="controls-row">
+          <label class="cloud-only">AI Model:
+            <select id="aiEditModel">
+              <option value="black-forest-labs/flux.1-kontext-pro" selected>FLUX.1 Kontext Pro (Best for edits)</option>
+              <option value="google/gemini-2.5-flash-image">Gemini Flash Image (Nano Banana)</option>
+              <option value="bytedance/seedream-4.0">Seedream 4.0</option>
+              <option value="qwen/qwen-image-2.1">Qwen Image Edit</option>
+            </select>
+          </label>
+          <label class="cloud-only">Size:
+            <select id="aiEditSize">
+              <option value="" selected>Auto (photo jaisa)</option>
+              <option value="1024x1024">1024 x 1024</option>
+              <option value="1536x1024">1536 x 1024</option>
+              <option value="1024x1536">1024 x 1536</option>
+            </select>
+          </label>
+          <button type="button" class="btn-blue" id="aiEditBtn">&#128295; Edit Photo (Bina Key)</button>
+        </div>
+
+        <div class="ai-key-box cloud-only" id="aiKeyBox">
+          <strong>&#9881;&#65039; API Key &mdash; sirf AI Cloud mode ke liye (free, ek baar set karo)</strong>
+          <p><b>Bina Key (Local) mode me koi key nahi chahiye</b> &mdash; background remove/change, enhance, B&amp;W, cartoon, sketch sab aapke browser me hi hota hai. Cloud mode (jyada powerful AI commands) ke liye Pollinations ka <b>free API key</b> chahiye &mdash; paste karo, ek baar save karo, hamesha kaam karega.</p>
+          <div class="ai-key-row">
+            <input type="password" id="aiKeyInput" placeholder="sk_... (yahan apna key paste karo)">
+            <button type="button" class="chip" id="aiKeySaveBtn">Save Key</button>
+            <button type="button" class="chip" id="aiKeyClearBtn">Remove</button>
+            <a class="chip" href="https://enter.pollinations.ai/keys" target="_blank" rel="noopener" style="text-decoration:none;">&#128221; Free Key Lein &rarr;</a>
+          </div>
+          <div id="aiKeyStatus" style="margin-top:6px;font-weight:700;"></div>
+        </div>
+      </div>
+
+      <div id="aiStatus" class="status-note hidden"></div>
+      <div id="aiLoading" class="ai-loading"></div>
+      <div class="output-area" id="aiOutput"></div>
+
+      <div class="ai-note">
+        Images are generated free by <a href="https://pollinations.ai" target="_blank" rel="noopener">Pollinations.ai</a>.<br>
+        Prompt mode: free limit 1 image / 45 sec per IP. Edit (Bina Key): 100% free, instant, offline-friendly. Edit (Cloud): apna free key lagana zaroori hai.
+      </div>
+    </section>
+  </main>
+
+  <script src="js/shared.js"></script>
+  <script src="js/ai-generator.js"></script>
+</body>
+</html>

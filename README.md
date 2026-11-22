@@ -3,7 +3,8 @@
 Modular multi-page web application ready for **GitHub Pages**.
 
 ## Folder Structure
-- `index.html` — Image Resizer (Home)
+- `index.html` - Image Resizer (Home)
+- `ai-photo.html` - AI Photo Studio (Prompt se Image + Photo Edit)
 - `passport.html` — Passport Photo Maker
 - `watermark.html` — Watermark Remover
 - `pdf-tools.html` — PDF Tools & Security
