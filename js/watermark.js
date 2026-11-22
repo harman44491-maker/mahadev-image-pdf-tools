@@ -200,21 +200,42 @@
             continue;
           }
 
-          // Neutral watermark: only soften light, low-saturation overlay pixels.
-          if (lum < 168 || (Math.max(r, g, b) - Math.min(r, g, b)) > 24) continue;
-          const left = (y * w + x - 2) * 4, right = (y * w + x + 2) * 4;
-          const up = ((y - 2) * w + x) * 4, down = ((y + 2) * w + x) * 4;
-          const surround = (
-            0.299 * src[left] + 0.587 * src[left + 1] + 0.114 * src[left + 2] +
-            0.299 * src[right] + 0.587 * src[right + 1] + 0.114 * src[right + 2] +
-            0.299 * src[up] + 0.587 * src[up + 1] + 0.114 * src[up + 2] +
-            0.299 * src[down] + 0.587 * src[down + 1] + 0.114 * src[down + 2]
-          ) / 4;
-          const delta = surround - lum;
-          if (delta > 6 && delta < 82) {
-            const amount = Math.min(0.58, strengthFactor * (delta / 72));
+          // Neutral / pale-grey watermark cleanup. Sample a wider ring around
+          // the pixel so broad, low-contrast watermark strokes are estimated
+          // from the clean paper rather than only softened by 2-pixel neighbors.
+          const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+          if (lum < 190 || saturation > 34) continue;
+
+          const sampleLums = [];
+          const sampleRGB = [];
+          const offsets = [
+            [0, -10], [0, 10], [-10, 0], [10, 0],
+            [-20, -20], [20, -20], [-20, 20], [20, 20],
+            [0, -32], [0, 32], [-32, 0], [32, 0]
+          ];
+          for (const [ox, oy] of offsets) {
+            const sx = Math.max(0, Math.min(w - 1, x + ox));
+            const sy = Math.max(0, Math.min(h - 1, y + oy));
+            const si = (sy * w + sx) * 4;
+            const sr = src[si], sg = src[si + 1], sb = src[si + 2];
+            sampleLums.push(0.299 * sr + 0.587 * sg + 0.114 * sb);
+            sampleRGB.push([sr, sg, sb]);
+          }
+          sampleLums.sort((a, b) => a - b);
+          const paperEstimate = (sampleLums[5] + sampleLums[6] + sampleLums[7]) / 3;
+          const delta = paperEstimate - lum;
+
+          // Only lift pixels when most of the wider surrounding ring is
+          // substantially brighter; dark text and ordinary paper texture stay.
+          if (paperEstimate >= 226 && delta >= 7) {
+            const amount = Math.min(0.98, Math.max(0.62, strengthFactor + 0.28) * Math.min(1, delta / 28));
+            const brightSamples = sampleRGB.filter((v, i) => sampleLums[i] >= 220);
+            const bg = [0, 1, 2].map(ch => {
+              const values = brightSamples.map(v => v[ch]).sort((a, b) => a - b);
+              return values.length ? values[Math.floor(values.length / 2)] : paperEstimate;
+            });
             for (let ch = 0; ch < 3; ch++) {
-              d[idx + ch] = Math.max(0, Math.min(255, Math.round(src[idx + ch] * (1 - amount) + surround * amount)));
+              d[idx + ch] = Math.max(0, Math.min(255, Math.round(src[idx + ch] * (1 - amount) + bg[ch] * amount)));
             }
           }
         }
