@@ -56,6 +56,30 @@
     window.addEventListener('mouseup', () => wmDrag = false);
     document.getElementById('wmClearBoxBtn').onclick = () => { wmBox = null; drawWmPreview(); };
 
+    // Remove a pale translucent pink/red overlay by estimating its alpha,
+    // while reconstructing each original RGB channel independently.
+    // Strongly coloured artwork/logos are deliberately left untouched.
+    function unblendPaleRedWatermark(r, g, b) {
+      const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+      const redExcess = r - (g + b) / 2;
+      if (r < 148 || g < 82 || b < 88 || redExcess < 5 || redExcess > 92 ||
+          (r > 238 && g < 92 && b < 112) || (maxC - minC) > 108) return null;
+
+      const overlay = [248, 150, 160];
+      const alpha = Math.max(0, Math.min(0.72, redExcess / (overlay[0] - (overlay[1] + overlay[2]) / 2)));
+      if (alpha < 0.055 || alpha > 0.72) return null;
+      const inv = 1 - alpha;
+      const out = [
+        Math.round((r - overlay[0] * alpha) / inv),
+        Math.round((g - overlay[1] * alpha) / inv),
+        Math.round((b - overlay[2] * alpha) / inv)
+      ];
+      if (out.some(v => v < 0 || v > 255)) return null;
+      // Do not neutralize genuinely coloured text, logos, stamps or diagrams.
+      if (Math.max(...out) - Math.min(...out) > 48) return null;
+      return out;
+    }
+
     function cleanDocumentCanvas(ctx, w, h, cutoff, sharpenText, region) {
       const imgData = ctx.getImageData(0, 0, w, h), d = imgData.data;
       const x0 = region ? Math.max(0, Math.floor(region.x)) : 0;
@@ -83,11 +107,19 @@
           const area = (xb - xa + 1) * (yb - ya + 1);
           const sum = integral[(yb + 1) * (w + 1) + xb + 1] - integral[ya * (w + 1) + xb + 1]
             - integral[(yb + 1) * (w + 1) + xa] + integral[ya * (w + 1) + xa];
-          const localMean = sum / area, lum = lumBuf[y * w + x], idx = (y * w + x) * 4;
-          const r = d[idx], g = d[idx + 1], b = d[idx + 2];
+          const localMean = sum / area, idx = (y * w + x) * 4;
+          let r = d[idx], g = d[idx + 1], b = d[idx + 2];
+
+          const unblended = unblendPaleRedWatermark(r, g, b);
+          if (unblended) {
+            [r, g, b] = unblended;
+            d[idx] = r; d[idx + 1] = g; d[idx + 2] = b;
+          }
+
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
           const saturation = Math.max(r, g, b) - Math.min(r, g, b);
 
-          // Keep colored logos, seals, diagrams and highlights unchanged.
+          // Keep genuine coloured logos, seals, diagrams and highlights intact.
           if (saturation > 24) continue;
 
           // Preserve dark strokes and fine text tones; only clean the light paper.
@@ -133,43 +165,33 @@
     }
 
     function deblendPhotoWatermark(ctx, w, h, strength, region) {
-      // Work from one immutable source frame: repeated in-place radius passes
-      // create the blurred/double-text artefact seen in the earlier output.
+      // Always sample from the original frame; never blur or repeatedly blend
+      // already modified pixels (that caused ghosting and soft text).
       const imgData = ctx.getImageData(0, 0, w, h);
       const d = imgData.data, src = new Uint8ClampedArray(d);
       const x0 = region ? Math.max(2, Math.floor(region.x)) : 2;
-      const y0 = region ? Math.max(Math.floor(h * 0.16), Math.floor(region.y)) : Math.floor(h * 0.16);
+      const y0 = region ? Math.max(2, Math.floor(region.y)) : Math.floor(h * 0.10);
       const x1 = region ? Math.min(w - 3, Math.ceil(region.x + region.w)) : w - 3;
       const y1 = region ? Math.min(h - 3, Math.ceil(region.y + region.h)) : h - 3;
-      const strengthFactor = Math.max(0.25, Math.min(0.65, (Number(strength) || 45) / 100));
+      const strengthFactor = Math.max(0.35, Math.min(0.78, (Number(strength) || 55) / 72));
 
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
           const idx = (y * w + x) * 4;
           const r = src[idx], g = src[idx + 1], b = src[idx + 2];
           const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-          const redExcess = r - Math.max(g, b);
-          const gbDiff = Math.abs(g - b);
 
-          // Remove a pale red/pink translucent watermark while reconstructing
-          // the underlying grayscale page/text from the green/blue channels.
-          // Skip strong solid-red header logos and seals.
-          if (redExcess > 12 && redExcess < 190 && gbDiff < 42 && !(r > 235 && g < 85 && b < 105)) {
-            const alpha = Math.min(0.68, Math.max(0.06, redExcess / 175));
-            const wmGreen = 70, wmBlue = 82;
-            const baseG = (g - wmGreen * alpha) / Math.max(0.32, 1 - alpha);
-            const baseB = (b - wmBlue * alpha) / Math.max(0.32, 1 - alpha);
-            const base = Math.max(0, Math.min(255, Math.round((baseG + baseB) / 2)));
-            // Do not turn real colored artwork into gray; only act on the
-            // low-saturation pink/red overlay tint.
-            if (baseG >= -8 && baseG <= 265) {
-              d[idx] = base; d[idx + 1] = base; d[idx + 2] = base;
-              continue;
-            }
+          // Stronger, channel-preserving removal for pale pink/red translucent marks.
+          const unblended = unblendPaleRedWatermark(r, g, b);
+          if (unblended) {
+            d[idx] = unblended[0];
+            d[idx + 1] = unblended[1];
+            d[idx + 2] = unblended[2];
+            continue;
           }
 
-          // Neutral light watermark: soften only pale pixels, never dark text.
-          if (lum < 168) continue;
+          // Neutral watermark: only soften light, low-saturation overlay pixels.
+          if (lum < 168 || (Math.max(r, g, b) - Math.min(r, g, b)) > 24) continue;
           const left = (y * w + x - 2) * 4, right = (y * w + x + 2) * 4;
           const up = ((y - 2) * w + x) * 4, down = ((y + 2) * w + x) * 4;
           const surround = (
@@ -179,8 +201,8 @@
             0.299 * src[down] + 0.587 * src[down + 1] + 0.114 * src[down + 2]
           ) / 4;
           const delta = surround - lum;
-          if (delta > 8 && delta < 75) {
-            const amount = Math.min(0.42, strengthFactor * (delta / 90));
+          if (delta > 6 && delta < 82) {
+            const amount = Math.min(0.58, strengthFactor * (delta / 72));
             for (let ch = 0; ch < 3; ch++) {
               d[idx + ch] = Math.max(0, Math.min(255, Math.round(src[idx + ch] * (1 - amount) + surround * amount)));
             }
