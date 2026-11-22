@@ -57,33 +57,50 @@
     document.getElementById('wmClearBoxBtn').onclick = () => { wmBox = null; drawWmPreview(); };
 
     function cleanDocumentCanvas(ctx, w, h, cutoff, sharpenText, region) {
-      const imgData = ctx.getImageData(0, 0, w, h); const d = imgData.data;
-      const x0 = region ? Math.max(0, region.x) : 0, y0 = region ? Math.max(0, region.y) : 0;
-      const x1 = region ? Math.min(w - 1, region.x + region.w) : w - 1, y1 = region ? Math.min(h - 1, region.y + region.h) : h - 1;
-      const lumBuf = new Float32Array(w * h), integral = new Float64Array((w + 1) * (h + 1));
+      const imgData = ctx.getImageData(0, 0, w, h), d = imgData.data;
+      const x0 = region ? Math.max(0, Math.floor(region.x)) : 0;
+      const y0 = region ? Math.max(0, Math.floor(region.y)) : 0;
+      const x1 = region ? Math.min(w - 1, Math.ceil(region.x + region.w)) : w - 1;
+      const y1 = region ? Math.min(h - 1, Math.ceil(region.y + region.h)) : h - 1;
+      const lumBuf = new Float32Array(w * h);
+      const integral = new Float64Array((w + 1) * (h + 1));
       for (let y = 0; y < h; y++) {
         let rowSum = 0;
         for (let x = 0; x < w; x++) {
           const i = (y * w + x) * 4;
-          const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          lumBuf[y * w + x] = l; rowSum += l;
-          integral[(y + 1) * (w + 1) + (x + 1)] = integral[y * (w + 1) + (x + 1)] + rowSum;
+          const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          lumBuf[y * w + x] = lum;
+          rowSum += lum;
+          integral[(y + 1) * (w + 1) + x + 1] = integral[y * (w + 1) + x + 1] + rowSum;
         }
       }
-      const r = 14, contrastDelta = Math.max(12, Math.round((220 - cutoff) * 0.45));
+      const radius = 14;
+      const contrastDelta = Math.max(12, Math.round((220 - cutoff) * 0.45));
       for (let y = y0; y <= y1; y++) {
-        const ya = Math.max(0, y - r), yb = Math.min(h - 1, y + r);
+        const ya = Math.max(0, y - radius), yb = Math.min(h - 1, y + radius);
         for (let x = x0; x <= x1; x++) {
-          const xa = Math.max(0, x - r), xb = Math.min(w - 1, x + r);
+          const xa = Math.max(0, x - radius), xb = Math.min(w - 1, x + radius);
           const area = (xb - xa + 1) * (yb - ya + 1);
-          const sum = integral[(yb + 1) * (w + 1) + (xb + 1)] - integral[ya * (w + 1) + (xb + 1)] - integral[(yb + 1) * (w + 1) + xa] + integral[ya * (w + 1) + xa];
-          const localMean = sum / area, curLum = lumBuf[y * w + x], idx = (y * w + x) * 4;
-          if (curLum < localMean - contrastDelta || curLum < 115) {
-            if (sharpenText) {
-              const ink = Math.max(0, Math.min(255, Math.round((curLum / Math.max(1, localMean)) * 95)));
-              d[idx] = ink; d[idx + 1] = ink; d[idx + 2] = ink;
+          const sum = integral[(yb + 1) * (w + 1) + xb + 1] - integral[ya * (w + 1) + xb + 1]
+            - integral[(yb + 1) * (w + 1) + xa] + integral[ya * (w + 1) + xa];
+          const localMean = sum / area, lum = lumBuf[y * w + x], idx = (y * w + x) * 4;
+          const r = d[idx], g = d[idx + 1], b = d[idx + 2];
+          const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+
+          // Keep colored logos, seals, diagrams and highlights unchanged.
+          if (saturation > 24) continue;
+
+          // Preserve dark strokes and fine text tones; only clean the light paper.
+          if (lum < 115 || lum < localMean - contrastDelta) {
+            if (sharpenText && lum < 175) {
+              const ink = Math.max(0, Math.min(255, Math.round((lum / Math.max(1, localMean)) * 105)));
+              d[idx] = Math.min(r, ink);
+              d[idx + 1] = Math.min(g, ink);
+              d[idx + 2] = Math.min(b, ink);
             }
-          } else { d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255; }
+          } else if (lum > 170 || lum >= localMean - contrastDelta) {
+            d[idx] = 255; d[idx + 1] = 255; d[idx + 2] = 255;
+          }
         }
       }
       ctx.putImageData(imgData, 0, 0);
@@ -116,32 +133,61 @@
     }
 
     function deblendPhotoWatermark(ctx, w, h, strength, region) {
-      const radii = [3, 7, 12], alphaEst = Math.min(0.62, Math.max(0.22, strength / 85));
-      for (const rad of radii) {
-        const imgData = ctx.getImageData(0, 0, w, h); const d = imgData.data, copy = new Uint8ClampedArray(d);
-        const x0 = region ? Math.max(rad, region.x) : rad, y0 = region ? Math.max(rad, region.y) : rad;
-        const x1 = region ? Math.min(w - rad - 1, region.x + region.w) : w - rad - 1;
-        const y1 = region ? Math.min(h - rad - 1, region.y + region.h) : h - rad - 1;
-        for (let y = y0; y <= y1; y++) {
-          for (let x = x0; x <= x1; x++) {
-            const idx = (y * w + x) * 4, lum = 0.299 * copy[idx] + 0.587 * copy[idx + 1] + 0.114 * copy[idx + 2];
-            const ringOffsets = [((y - rad) * w + x) * 4, ((y + rad) * w + x) * 4, (y * w + (x - rad)) * 4, (y * w + (x + rad)) * 4];
-            let surR = 0, surG = 0, surB = 0;
-            for (const ro of ringOffsets) { surR += copy[ro]; surG += copy[ro + 1]; surB += copy[ro + 2]; }
-            surR /= 4; surG /= 4; surB /= 4;
-            const surLum = 0.299 * surR + 0.587 * surG + 0.114 * surB;
-            const sat = Math.max(copy[idx], copy[idx + 1], copy[idx + 2]) - Math.min(copy[idx], copy[idx + 1], copy[idx + 2]);
-            if (lum - surLum > 12 && sat < 80) {
-              for (let ch = 0; ch < 3; ch++) {
-                const deblended = (copy[idx + ch] - alphaEst * 255) / (1 - alphaEst);
-                const surCh = ch === 0 ? surR : ch === 1 ? surG : surB;
-                d[idx + ch] = Math.min(255, Math.max(0, Math.round(deblended * 0.55 + surCh * 0.45)));
-              }
+      // Work from one immutable source frame: repeated in-place radius passes
+      // create the blurred/double-text artefact seen in the earlier output.
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const d = imgData.data, src = new Uint8ClampedArray(d);
+      const x0 = region ? Math.max(2, Math.floor(region.x)) : 2;
+      const y0 = region ? Math.max(Math.floor(h * 0.16), Math.floor(region.y)) : Math.floor(h * 0.16);
+      const x1 = region ? Math.min(w - 3, Math.ceil(region.x + region.w)) : w - 3;
+      const y1 = region ? Math.min(h - 3, Math.ceil(region.y + region.h)) : h - 3;
+      const strengthFactor = Math.max(0.25, Math.min(0.65, (Number(strength) || 45) / 100));
+
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const idx = (y * w + x) * 4;
+          const r = src[idx], g = src[idx + 1], b = src[idx + 2];
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          const redExcess = r - Math.max(g, b);
+          const gbDiff = Math.abs(g - b);
+
+          // Remove a pale red/pink translucent watermark while reconstructing
+          // the underlying grayscale page/text from the green/blue channels.
+          // Skip strong solid-red header logos and seals.
+          if (redExcess > 12 && redExcess < 190 && gbDiff < 42 && !(r > 235 && g < 85 && b < 105)) {
+            const alpha = Math.min(0.68, Math.max(0.06, redExcess / 175));
+            const wmGreen = 70, wmBlue = 82;
+            const baseG = (g - wmGreen * alpha) / Math.max(0.32, 1 - alpha);
+            const baseB = (b - wmBlue * alpha) / Math.max(0.32, 1 - alpha);
+            const base = Math.max(0, Math.min(255, Math.round((baseG + baseB) / 2)));
+            // Do not turn real colored artwork into gray; only act on the
+            // low-saturation pink/red overlay tint.
+            if (baseG >= -8 && baseG <= 265) {
+              d[idx] = base; d[idx + 1] = base; d[idx + 2] = base;
+              continue;
+            }
+          }
+
+          // Neutral light watermark: soften only pale pixels, never dark text.
+          if (lum < 168) continue;
+          const left = (y * w + x - 2) * 4, right = (y * w + x + 2) * 4;
+          const up = ((y - 2) * w + x) * 4, down = ((y + 2) * w + x) * 4;
+          const surround = (
+            0.299 * src[left] + 0.587 * src[left + 1] + 0.114 * src[left + 2] +
+            0.299 * src[right] + 0.587 * src[right + 1] + 0.114 * src[right + 2] +
+            0.299 * src[up] + 0.587 * src[up + 1] + 0.114 * src[up + 2] +
+            0.299 * src[down] + 0.587 * src[down + 1] + 0.114 * src[down + 2]
+          ) / 4;
+          const delta = surround - lum;
+          if (delta > 8 && delta < 75) {
+            const amount = Math.min(0.42, strengthFactor * (delta / 90));
+            for (let ch = 0; ch < 3; ch++) {
+              d[idx + ch] = Math.max(0, Math.min(255, Math.round(src[idx + ch] * (1 - amount) + surround * amount)));
             }
           }
         }
-        ctx.putImageData(imgData, 0, 0);
       }
+      ctx.putImageData(imgData, 0, 0);
     }
 
     function trimWhitePadding(canvas) {
