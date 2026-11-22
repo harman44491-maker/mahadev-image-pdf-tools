@@ -221,15 +221,18 @@
             sampleLums.push(0.299 * sr + 0.587 * sg + 0.114 * sb);
             sampleRGB.push([sr, sg, sb]);
           }
-          sampleLums.sort((a, b) => a - b);
-          const paperEstimate = (sampleLums[5] + sampleLums[6] + sampleLums[7]) / 3;
+          const orderedSamples = sampleRGB.map((rgb, i) => ({
+            rgb,
+            lum: sampleLums[i]
+          })).sort((a, b) => a.lum - b.lum);
+          const paperEstimate = (orderedSamples[5].lum + orderedSamples[6].lum + orderedSamples[7].lum) / 3;
           const delta = paperEstimate - lum;
 
           // Only lift pixels when most of the wider surrounding ring is
           // substantially brighter; dark text and ordinary paper texture stay.
           if (paperEstimate >= 226 && delta >= 7) {
             const amount = Math.min(0.98, Math.max(0.62, strengthFactor + 0.28) * Math.min(1, delta / 28));
-            const brightSamples = sampleRGB.filter((v, i) => sampleLums[i] >= 220);
+            const brightSamples = orderedSamples.filter(v => v.lum >= 220).map(v => v.rgb);
             const bg = [0, 1, 2].map(ch => {
               const values = brightSamples.map(v => v[ch]).sort((a, b) => a - b);
               return values.length ? values[Math.floor(values.length / 2)] : paperEstimate;
