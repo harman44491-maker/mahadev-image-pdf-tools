@@ -60,24 +60,34 @@
     // while reconstructing each original RGB channel independently.
     // Strongly coloured artwork/logos are deliberately left untouched.
     function unblendPaleRedWatermark(r, g, b) {
-      const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
-      const redExcess = r - (g + b) / 2;
-      if (r < 148 || g < 82 || b < 88 || redExcess < 5 || redExcess > 92 ||
-          (r > 238 && g < 92 && b < 112) || (maxC - minC) > 108) return null;
+      // Estimate and remove a pale red/pink translucent overlay while retaining
+      // the underlying neutral paper/text tone. This works on white paper and
+      // also at watermark intersections with dark grayscale text.
+      const overlay = { r: 248, g: 150, b: 160 };
+      const rg = r - g;
+      if (rg < 2 || rg > 96 || g < 70 || b < g - 10 || b > g + 42) return null;
 
-      const overlay = [248, 150, 160];
-      const alpha = Math.max(0, Math.min(0.72, redExcess / (overlay[0] - (overlay[1] + overlay[2]) / 2)));
-      if (alpha < 0.055 || alpha > 0.72) return null;
+      // For neutral source pixels, the watermark's RGB difference is
+      // alpha * (overlay channel difference). Least-squares alpha estimate.
+      const dr = overlay.r - overlay.g; // 98
+      const db = overlay.b - overlay.g; // 10
+      const observedB = b - g;
+      const alpha = (rg * dr + observedB * db) / (dr * dr + db * db);
+      if (!Number.isFinite(alpha) || alpha < 0.012 || alpha > 0.84) return null;
+
       const inv = 1 - alpha;
-      const out = [
-        Math.round((r - overlay[0] * alpha) / inv),
-        Math.round((g - overlay[1] * alpha) / inv),
-        Math.round((b - overlay[2] * alpha) / inv)
-      ];
-      if (out.some(v => v < 0 || v > 255)) return null;
-      // Do not neutralize genuinely coloured text, logos, stamps or diagrams.
-      if (Math.max(...out) - Math.min(...out) > 48) return null;
-      return out;
+      const base = (g - overlay.g * alpha) / inv;
+      if (!Number.isFinite(base) || base < -8 || base > 263) return null;
+
+      // Reject pixels whose blue/red chroma does not match this pale overlay;
+      // this protects coloured text, seals, logos and diagrams.
+      const predictedB = base + alpha * (overlay.b - base);
+      if (Math.abs(predictedB - b) > 15) return null;
+      const predictedR = base + alpha * (overlay.r - base);
+      if (Math.abs(predictedR - r) > 18) return null;
+
+      const clean = Math.max(0, Math.min(255, Math.round(base)));
+      return [clean, clean, clean];
     }
 
     function cleanDocumentCanvas(ctx, w, h, cutoff, sharpenText, region) {
