@@ -6,6 +6,7 @@ Modular multi-page web application ready for **GitHub Pages**.
 - `index.html` — Image Resizer (Home)
 - `passport.html` — Passport Photo Maker
 - `watermark.html` — Watermark Remover
+- `ai-photo.html` — AI Photo Studio (Prompt se image + Upload photo & command se AI edit)
 - `pdf-tools.html` — PDF Tools & Security
 - `pdf-editor.html` — Visual PDF Editor (Text/Img)
 - `pdf-form.html` — PDF Form Filler
