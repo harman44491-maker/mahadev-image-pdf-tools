@@ -323,7 +323,7 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
 
     const timer = setTimeout(() => {
       finishWithCanvas(fallbackRemoveBackgroundByBorderColor(img, w, h));
-    }, 6000);
+    }, 45000);
 
     try {
       if (typeof SelfieSegmentation === 'undefined') {

@@ -431,7 +431,7 @@
         const d = res.detections && res.detections[0];
         finish(d && d.boundingBox ? d.boundingBox : null);
       });
-      setTimeout(() => finish(null), 15000);
+      setTimeout(() => finish(null), 45000);
       fd.send({ image: img }).catch(() => finish(null));
     });
   }
@@ -451,7 +451,7 @@
       cx0 = fcx - (ch * AR) / 2;          // face horizontally center
     } else {
       ch = H * 0.92;                      // fallback: top-heavy center crop
-      cy0 = H * 0.04;
+      cy0 = 0; // top se bilkul crop mat karo (baal na katein)
       cx0 = (W - ch * AR) / 2;
     }
     let cw = ch * AR;
