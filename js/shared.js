@@ -178,9 +178,94 @@ if (typeof pdfjsLib !== 'undefined') { pdfjsLib.GlobalWorkerOptions.workerSrc = 
       }
     }
 
+// ================= HD HAIR-SAFE BACKGROUND REMOVAL (imgly IS-Net ONNX, bina key) =================
+// MediaPipe ka mask blocky/staircase aata tha (jagged hair edges). imgly IS-Net strands-accurate
+// cutout deta hai — pehli baar model download (~88 MB, browser cache), uske baad instant.
+let _imglyMod = null;
+let _imglyLoad = null;
+function loadImglyBgRem() {
+  if (_imglyMod) return Promise.resolve(_imglyMod);
+  if (!_imglyLoad) {
+    _imglyLoad = import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm')
+      .then(m => { _imglyMod = m; return m; })
+      .catch(e => { _imglyLoad = null; throw e; });
+  }
+  return _imglyLoad;
+}
+
+async function hdRemoveBackgroundBlob(img, onProgress) {
+  const mod = await loadImglyBgRem();
+  let input;
+  if (typeof img === 'string') input = img;
+  else if (img instanceof HTMLCanvasElement) {
+    input = await new Promise((res, rej) => img.toBlob(b => b ? res(b) : rej(new Error('toBlob fail')), 'image/png'));
+  } else if (img && img.src) input = img.src;
+  else throw new Error('HD engine: input not supported');
+  return await mod.removeBackground(input, {
+    output: { format: 'image/png' },
+    progress: (key, cur, total) => {
+      if (!onProgress || !total) return;
+      const pct = Math.min(100, Math.round((cur / total) * 100));
+      const isFetch = key && String(key).indexOf('fetch') !== -1;
+      onProgress((isFetch ? 'HD model download: ' : 'HD hair-AI process: ') + pct + '%...');
+    }
+  });
+}
+
+function composeBgFromCutout(cutout, w, h, mode, blurPx, customColor, img) {
+  if (mode === 'transparent') return cutout;
+  const bg = document.createElement('canvas');
+  bg.width = w;
+  bg.height = h;
+  const bctx = bg.getContext('2d');
+  if (mode === 'blur_bg') {
+    bctx.filter = `blur(${blurPx || 14}px)`;
+    bctx.drawImage(img, 0, 0, w, h);
+    bctx.filter = 'none';
+  } else if (mode === 'studio_gradient') {
+    const grad = bctx.createRadialGradient(w / 2, h * 0.42, w * 0.08, w / 2, h / 2, Math.max(w, h) * 0.78);
+    grad.addColorStop(0, '#475569');
+    grad.addColorStop(1, '#0f172a');
+    bctx.fillStyle = grad;
+    bctx.fillRect(0, 0, w, h);
+  } else if (mode === 'solid_color') {
+    bctx.fillStyle = customColor || '#2563eb';
+    bctx.fillRect(0, 0, w, h);
+  } else {
+    bctx.fillStyle = '#ffffff';
+    bctx.fillRect(0, 0, w, h);
+  }
+  bctx.drawImage(cutout, 0, 0, w, h);
+  return bg;
+}
+
 // Shared AI Background Segmentation
-async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, customColor = '#2563eb') {
-      return new Promise(async (resolve) => {
+// Pehle HD hair-safe engine (imgly IS-Net) try hota hai, fail ho to MediaPipe lightweight path.
+async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, customColor = '#2563eb', onProgress) {
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+
+  // ---- Step 1: HD engine — hair strands tak clean cutout (jagged edges fix) ----
+  try {
+    if (onProgress) onProgress('HD hair-AI load ho raha hai... (pehli baar ~30 sec, uske baad instant)');
+    const blob = await Promise.race([
+      hdRemoveBackgroundBlob(img, onProgress),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('HD timeout')), 70000))
+    ]);
+    const bmp = await createImageBitmap(blob);
+    const cut = document.createElement('canvas');
+    cut.width = w;
+    cut.height = h;
+    cut.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    try { bmp.close(); } catch (_) {}
+    if (onProgress) onProgress('Background set ho raha hai...');
+    return composeBgFromCutout(cut, w, h, mode, blurPx, customColor, img);
+  } catch (err) {
+    // HD engine nahi chala (net / adblock / timeout) → Step 2 lightweight path neeche
+  }
+
+  // ---- Step 2: MediaPipe SelfieSegmentation (original lightweight path) ----
+  return new Promise(async (resolve) => {
         try {
           const selfieSeg = new SelfieSegmentation({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
