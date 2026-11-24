@@ -212,6 +212,87 @@ async function hdRemoveBackgroundBlob(img, onProgress) {
   });
 }
 
+// Faint wispy semi-transparent strands hatao (white bg pe grey wisps dikh the) +
+// solid edges banao — top region zyada aggressive (flyaways wahan sabse zyada).
+// Threshold ke baad erode+dilate (morphological opening) se jagged steps khatam,
+// phir 2-pass blur se bilkul round smooth edge.
+function removeWispySemiTransparent(cutoutCanvas) {
+  const w = cutoutCanvas.width;
+  const h = cutoutCanvas.height;
+  const ctx = cutoutCanvas.getContext('2d', { willReadFrequently: true });
+  const id = ctx.getImageData(0, 0, w, h);
+  const d = id.data;
+  const topCut = Math.floor(h * 0.30); // top 30% = flyaway zone
+  // Step 1: threshold — faint wisps hatao, solid karo
+  for (let y = 0; y < h; y++) {
+    const inTop = y < topCut;
+    const lo = inTop ? 130 : 90;
+    const hi = 215;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4 + 3;
+      const a = d[i];
+      if (a === 0) continue;
+      if (a < lo) d[i] = 0;
+      else if (a >= hi) d[i] = 255;
+      else d[i] = Math.round(((a - lo) * 255) / (hi - lo));
+    }
+  }
+  // Step 2: alpha channels alag se process (RGB rehne do)
+  const alpha = new Uint8ClampedArray(w * h);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) alpha[p] = d[i + 3];
+  const morph = (src, op) => { // op: 'min' (erode) | 'max' (dilate)
+    const out = new Uint8ClampedArray(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let v = op === 'min' ? 255 : 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = y + dy; if (yy < 0 || yy >= h) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx; if (xx < 0 || xx >= w) continue;
+            const a = src[yy * w + xx];
+            if (op === 'min') { if (a < v) v = a; } else { if (a > v) v = a; }
+          }
+        }
+        out[y * w + x] = v;
+      }
+    }
+    return out;
+  };
+  // Opening = erode -> dilate: chhote jagged spikes/steps hatate hain, size same
+  let a2 = morph(alpha, 'min');
+  a2 = morph(a2, 'max');
+  // Step 3: 2-pass box blur (R=2) — near-gaussian smooth round edge
+  const blurPass = (src) => {
+    const out = new Uint8ClampedArray(w * h);
+    const R = 2;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let sum = 0, n = 0;
+        for (let dy = -R; dy <= R; dy++) {
+          const yy = y + dy; if (yy < 0 || yy >= h) continue;
+          for (let dx = -R; dx <= R; dx++) {
+            const xx = x + dx; if (xx < 0 || xx >= w) continue;
+            sum += src[yy * w + xx]; n++;
+          }
+        }
+        out[y * w + x] = Math.round(sum / n);
+      }
+    }
+    return out;
+  };
+  a2 = blurPass(a2);
+  a2 = blurPass(a2);
+  // Wapas RGBA me — edge band ya thodi transparent: alpha ~60 neeche = 0 (clean),
+  // upar scale — blur ke baad halki transparency anti-aliasing deti hai.
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    let v = a2[p];
+    if (v < 48) v = 0; else if (v > 235) v = 255;
+    d[i + 3] = v;
+  }
+  ctx.putImageData(id, 0, 0);
+  return cutoutCanvas;
+}
+
 function composeBgFromCutout(cutout, w, h, mode, blurPx, customColor, img) {
   if (mode === 'transparent') return cutout;
   const bg = document.createElement('canvas');
@@ -258,6 +339,7 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
     cut.height = h;
     cut.getContext('2d').drawImage(bmp, 0, 0, w, h);
     try { bmp.close(); } catch (_) {}
+    removeWispySemiTransparent(cut); // faint wispy strands hatao — clean round edge
     if (onProgress) onProgress('Background set ho raha hai...');
     return composeBgFromCutout(cut, w, h, mode, blurPx, customColor, img);
   } catch (err) {
