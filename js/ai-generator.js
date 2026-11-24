@@ -473,11 +473,20 @@
     const white = await runSelfieSegmentation(c, 'white_bg', 12, '#ffffff',
       m => setStatus('💇 ' + m));
 
+    // Hair ko bilkul round golai + niche bikhre strands andar set (studio-grade tidy)
+    let shaped = white;
+    if (typeof window.shapeHairGolaiAndLowerStrands === 'function') {
+      setStatus('💇 Hair edges round ho rahe hain...');
+      try { shaped = window.shapeHairGolaiAndLowerStrands(white); } catch (_) { shaped = white; }
+    }
+
     // gentle ID-photo polish: thoda bright + clear
-    const fin = newCanvas(white.width, white.height);
+    const fin = newCanvas(shaped.width, shaped.height);
     const fc = fin.getContext('2d');
+    fc.fillStyle = '#ffffff'; // shape warp se edges transparent hoti hain — white base
+    fc.fillRect(0, 0, fin.width, fin.height);
     fc.filter = 'brightness(1.05) contrast(1.07) saturate(1.08)';
-    fc.drawImage(white, 0, 0);
+    fc.drawImage(shaped, 0, 0);
     fc.filter = 'none';
     return fin;
   }
