@@ -495,7 +495,7 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
     if (onProgress) onProgress('HD hair-AI load ho raha hai... (pehli baar ~30 sec, uske baad instant)');
     const blob = await Promise.race([
       hdRemoveBackgroundBlob(img, onProgress),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('HD timeout')), 70000))
+      new Promise((_, rej) => setTimeout(() => rej(new Error('HD timeout')), 150000))
     ]);
     const bmp = await createImageBitmap(blob);
     const cut = document.createElement('canvas');
@@ -517,7 +517,7 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
       if (done) return;
       done = true;
 
-      const cleanedCutout = stripCurtainFringeFromCutout(cutoutCanvas);
+      const cleanedCutout = removeWispySemiTransparent(stripCurtainFringeFromCutout(cutoutCanvas));
 
       if (mode === 'transparent') {
         resolve(cleanedCutout);
@@ -649,7 +649,8 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
 
   for (let y = 0; y < h; y++) {
     const ny = y / Math.max(1, h);
-    const topFade = smoothstep(0.02, 0.14, ny) * (1 - smoothstep(0.38, 0.55, ny));
+    // Dome warp sirf hairline + forehead tak (eyes ~30% height pe hain — unhe untouched rehna chahiye)
+    const topFade = smoothstep(0.02, 0.14, ny) * (1 - smoothstep(0.16, 0.26, ny));
     const lowerFade = smoothstep(0.40, 0.55, ny) * (1 - smoothstep(0.76, 0.90, ny));
 
     for (let x = 0; x < w; x++) {

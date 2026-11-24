@@ -514,7 +514,7 @@
         out = await Promise.race([
           runSelfieSegmentation(scaled, op.mode, op.blurPx || 14, op.color || '#2563eb',
             m => setStatus('💇 ' + m)),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('Background AI slow tha — retry karo.')), 90000))
+          new Promise((_, rej) => setTimeout(() => rej(new Error('Background AI slow tha — retry karo.')), 180000))
         ]);
         if (op.mode === 'transparent') type = 'image/png';
       } else if (op.op === 'passport') {
