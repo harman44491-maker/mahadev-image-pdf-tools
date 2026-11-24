@@ -11,7 +11,7 @@
     prompt: $('aiPrompt'), seed: $('aiSeed'), size: $('aiSize'), genBtn: $('aiGenBtn'),
     drop: $('aiDrop'), file: $('aiFile'), selectBtn: $('aiSelectBtn'), fileInfo: $('aiFileInfo'),
     preview: $('aiPreview'), command: $('aiCommand'), editModel: $('aiEditModel'),
-    editSize: $('aiEditSize'), editBtn: $('aiEditBtn'),
+    editSize: $('aiEditSize'), editBtn: $('aiEditBtn'), geminiBtn: $('aiGeminiBtn'),
     keyInput: $('aiKeyInput'), keySave: $('aiKeySaveBtn'), keyClear: $('aiKeyClearBtn'),
     keyStatus: $('aiKeyStatus'), status: $('aiStatus'), loading: $('aiLoading'), output: $('aiOutput')
   };
@@ -225,6 +225,97 @@
 
   /* ---------- MODE 2: upload + command -> edit ---------- */
   els.editBtn.addEventListener('click', editWithCommand);
+
+  /* ---------- Open in Gemini — best quality, free, user ke apne Gemini chat me ---------- */
+  function fallbackCopy(text) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  function copyText(text) {
+    return new Promise(resolve => {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => resolve(true)).catch(() => resolve(fallbackCopy(text)));
+      } else {
+        resolve(fallbackCopy(text));
+      }
+    });
+  }
+
+  function showGeminiPrompt(prompt) {
+    let box = $('geminiPromptBox');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'geminiPromptBox';
+      box.className = 'ai-note';
+      box.style.cssText = 'margin-top:8px;word-break:break-word;';
+      els.status.parentNode.insertBefore(box, els.status.nextSibling);
+    }
+    box.innerHTML = '';
+    const t = document.createElement('div');
+    t.textContent = prompt;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.style.marginTop = '6px';
+    b.textContent = '📋 Copy Prompt';
+    b.addEventListener('click', () => copyText(prompt));
+    box.appendChild(t);
+    box.appendChild(b);
+    box.classList.remove('hidden');
+  }
+
+  if (els.geminiBtn) {
+    els.geminiBtn.addEventListener('click', () => {
+      const outImg = els.output.querySelector('img'); // sabse naya result (prepend)
+      const file = els.file.files && els.file.files[0];
+      let href, fname;
+      if (outImg) {
+        href = outImg.src;
+        fname = 'docX-studio-result.png';
+      } else if (file) {
+        href = URL.createObjectURL(file);
+        fname = file.name || 'photo.jpg';
+      } else {
+        setStatus('Pehle photo upload karo ya Edit Photo se result banao.', true);
+        return;
+      }
+
+      const cmd = (els.command.value || '').trim();
+      const prompt = cmd
+        ? `Is photo ko professionally edit karo: ${cmd}. Chehra, expression aur framing bilkul waise hi rakho. High resolution, soft natural studio lighting, clean sharp result.`
+        : 'Is photo ko professionally enhance karo — high resolution, soft natural studio lighting, clean background, chehra aur expression bilkul natural rakho.';
+
+      // 1) photo download — sync (popup blocker se bachne ke liye pehle)
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      // 2) Gemini kholo — sync click handler me hi
+      const tab = window.open('https://gemini.google.com/app?hl=en', '_blank');
+      if (!tab) setStatus('Popup block ho gaya — browser me is site ke liye popup allow karo.', true);
+
+      // 3) prompt copy + visible fallback
+      copyText(prompt).then(ok => {
+        setStatus(ok
+          ? '✅ Photo download + prompt copy ho gaya. Gemini me photo attach karo aur prompt paste kar do.'
+          : '✅ Photo download ho gayi, Gemini khul gaya. Neeche wala prompt copy karke paste karo.');
+        showGeminiPrompt(prompt);
+      });
+    });
+  }
 
   async function editWithCommand() {
     if (busy) return;
