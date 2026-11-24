@@ -397,7 +397,7 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
     if (onProgress) onProgress('HD hair-AI load ho raha hai... (pehli baar ~30 sec, uske baad instant)');
     const blob = await Promise.race([
       hdRemoveBackgroundBlob(img, onProgress),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('HD timeout')), 70000))
+      new Promise((_, rej) => setTimeout(() => rej(new Error('HD timeout')), 150000))
     ]);
     const bmp = await createImageBitmap(blob);
     const cut = document.createElement('canvas');
@@ -428,6 +428,8 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
             ctx.drawImage(results.segmentationMask, 0, 0, outCanvas.width, outCanvas.height);
             ctx.globalCompositeOperation = 'source-in';
             ctx.drawImage(results.image, 0, 0, outCanvas.width, outCanvas.height);
+            // wispy strands cleanup — clean round edges (HD fail hone par bhi smooth)
+            try { removeWispySemiTransparent(outCanvas); } catch (_) {}
 
             if (mode === 'transparent') {
               ctx.restore();
@@ -526,14 +528,14 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
       // Smooth rounded crown golai + side tuck
       if (topFade > 0.001 && sideFade > 0.001) {
         const dome = Math.cos(normX * Math.PI * 0.5);
-        sy -= dome * (h * 0.045) * topFade * sideFade;
-        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.5) * (w * 0.035) * topFade * sideFade;
+        sy -= dome * (h * 0.024) * topFade * sideFade;
+        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.5) * (w * 0.022) * topFade * sideFade;
       }
 
       // Lower bikhre hair strands ko smooth andar gather karna
       if (lowerFade > 0.001) {
         const outerZone = smoothstep(0.14, 0.40, absDx / Math.max(1, w));
-        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.075) * lowerFade;
+        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.044) * lowerFade;
       }
 
       sampleBilinear(sx, sy, px);
