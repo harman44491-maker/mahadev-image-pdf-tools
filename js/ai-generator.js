@@ -480,15 +480,67 @@
       try { shaped = window.shapeHairGolaiAndLowerStrands(white); } catch (_) { shaped = white; }
     }
 
-    // gentle ID-photo polish: thoda bright + clear
-    const fin = newCanvas(shaped.width, shaped.height);
-    const fc = fin.getContext('2d');
+    // ---- HD output + soft studio lighting + crisp sharpness ----
+    const HD_W = 1000;                                  // HD width (passport 35:45)
+    const scale = Math.max(1, HD_W / shaped.width);
+    const outW = Math.round(shaped.width * scale);
+    const outH = Math.round(shaped.height * scale);
+
+    const fin = newCanvas(outW, outH);
+    const fc = fin.getContext('2d', { willReadFrequently: true });
     fc.fillStyle = '#ffffff'; // shape warp se edges transparent hoti hain — white base
-    fc.fillRect(0, 0, fin.width, fin.height);
-    fc.filter = 'brightness(1.05) contrast(1.07) saturate(1.08)';
-    fc.drawImage(shaped, 0, 0);
+    fc.fillRect(0, 0, outW, outH);
+    fc.imageSmoothingEnabled = true;
+    fc.imageSmoothingQuality = 'high';
+    fc.filter = 'brightness(1.08) contrast(1.08) saturate(1.06)';
+    fc.drawImage(shaped, 0, 0, outW, outH);
     fc.filter = 'none';
+
+    // Soft studio lighting — face pe gentle warm highlight (even, shadow-free)
+    const lx = outW * 0.5;
+    const ly = outH * 0.40;
+    const grad = fc.createRadialGradient(lx, ly, outW * 0.05, lx, ly, outW * 0.66);
+    grad.addColorStop(0, 'rgba(255,249,238,0.24)');
+    grad.addColorStop(0.55, 'rgba(255,252,246,0.10)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    fc.save();
+    fc.globalCompositeOperation = 'soft-light';
+    fc.fillStyle = grad;
+    fc.fillRect(0, 0, outW, outH);
+    fc.restore();
+
+    // Unsharp mask — HD crispness (hair strands + eyes clear)
+    try { unsharpMask(fin, 0.38); } catch (_) {}
     return fin;
+  }
+
+  // Unsharp mask: 3x3 gaussian blur se difference add karke edges crisp karta hai
+  function unsharpMask(canvas, amount) {
+    const w = canvas.width;
+    const h = canvas.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const s = imgData.data;
+    const out = new Uint8ClampedArray(s);
+    const K = [1, 2, 1, 2, 4, 2, 1, 2, 1];
+    const KSUM = 16;
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const di = (y * w + x) * 4;
+        for (let ch = 0; ch < 3; ch++) {
+          let sum = 0, ki = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const row = (y + dy) * w;
+            for (let dx = -1; dx <= 1; dx++) {
+              sum += s[(row + x + dx) * 4 + ch] * K[ki++];
+            }
+          }
+          const blur = sum / KSUM;
+          out[di + ch] = s[di + ch] + amount * (s[di + ch] - blur);
+        }
+      }
+    }
+    ctx.putImageData(new ImageData(out, w, h), 0, 0);
   }
 
   async function localEdit(cmd) {
