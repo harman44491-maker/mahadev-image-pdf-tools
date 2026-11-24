@@ -457,6 +457,28 @@ function roundCrownStrong(cutout) {
   return cutout;
 }
 
+// Ears + hair ko thoda bahar (wider) karo — HD cutout inhe andar trim kar deta hai.
+// Simple + safe: subject ko horizontally ~5% stretch (center anchored). Koi
+// background pixel andar nahi aata, isliye streaks/darwaza jaisa kuch nahi.
+function widenEarsAndHair(cutout, origImg, strength) {
+  const w = cutout.width;
+  const h = cutout.height;
+  const k = 1 + (strength || 0.05); // 5% wider
+  const tmp = document.createElement('canvas');
+  tmp.width = w;
+  tmp.height = h;
+  const tctx = tmp.getContext('2d');
+  tctx.imageSmoothingEnabled = true;
+  tctx.imageSmoothingQuality = 'high';
+  // center anchored horizontal stretch
+  tctx.drawImage(cutout, (w - w * k) / 2, 0, w * k, h);
+
+  const ctx = cutout.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(tmp, 0, 0);
+  return cutout;
+}
+
 function composeBgFromCutout(cutout, w, h, mode, blurPx, customColor, img) {
   if (mode === 'transparent') return cutout;
   const bg = document.createElement('canvas');
@@ -504,6 +526,7 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
     cut.getContext('2d').drawImage(bmp, 0, 0, w, h);
     try { bmp.close(); } catch (_) {}
     removeWispySemiTransparent(cut); // faint wispy strands hatao — clean round edge
+    widenEarsAndHair(cut, img);       // ears + hair thoda bahar — kate hue na lagein
     if (onProgress) onProgress('Background set ho raha hai...');
     return composeBgFromCutout(cut, w, h, mode, blurPx, customColor, img);
   } catch (err) {
@@ -517,7 +540,7 @@ async function runSelfieSegmentation(img, mode = 'white_bg', blurPx = 12, custom
       if (done) return;
       done = true;
 
-      const cleanedCutout = removeWispySemiTransparent(stripCurtainFringeFromCutout(cutoutCanvas));
+      const cleanedCutout = widenEarsAndHair(removeWispySemiTransparent(stripCurtainFringeFromCutout(cutoutCanvas)), img);
 
       if (mode === 'transparent') {
         resolve(cleanedCutout);
