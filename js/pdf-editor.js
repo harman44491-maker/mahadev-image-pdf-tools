@@ -25,6 +25,7 @@
       const f = document.getElementById('edPdfFile').files[0];
       const status = document.getElementById('edStatus');
       if (!f) return alert('Please choose a PDF file first.');
+      if (!window.DOCX?.auth || !(await window.DOCX.auth.authorizeEditor())) return;
       status.textContent = 'Opening PDF in editor...'; status.classList.remove('hidden');
       try {
         const openPass = document.getElementById('edOpenPass').value;
@@ -243,38 +244,49 @@
 
     document.getElementById('edSavePdfBtn').onclick = async () => {
       if (!edPdfDoc) return alert('Please upload and load a PDF first.');
+      const charge = await window.DOCX?.auth?.consume('pdf_editor', 1);
+      if (!charge) return;
       const status = document.getElementById('edStatus');
       const out = document.getElementById('edOutput');
       out.innerHTML = '';
       status.textContent = 'Saving edited PDF...'; status.classList.remove('hidden');
+      try {
+        const outPdf = await PDFLib.PDFDocument.create();
+        for (let pNum = 1; pNum <= edPdfDoc.numPages; pNum++) {
+          const page = await edPdfDoc.getPage(pNum);
+          const vp = page.getViewport({ scale: 1.5 });
+          const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+          const ctx = c.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport: vp }).promise;
 
-      const outPdf = await PDFLib.PDFDocument.create();
-      for (let pNum = 1; pNum <= edPdfDoc.numPages; pNum++) {
-        const page = await edPdfDoc.getPage(pNum);
-        const vp = page.getViewport({ scale: 1.5 });
-        const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
-        const ctx = c.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+          (edPageItems[pNum] || []).forEach(it => {
+            if (it.type === 'whiteout') {
+              ctx.fillStyle = '#ffffff'; ctx.fillRect(it.x, it.y, it.w, it.h);
+            } else if (it.type === 'text') {
+              ctx.font = buildCanvasFontStr(it.bold, it.size, it.font);
+              ctx.fillStyle = it.color;
+              ctx.fillText(transliterateIndicText(it.text, it.script || getFontScript(it.font)), it.x, it.y + it.size);
+            } else if (it.type === 'image' && it.imgObj) {
+              ctx.drawImage(it.imgObj, it.x, it.y, it.w, it.h);
+            }
+          });
 
-        (edPageItems[pNum] || []).forEach(it => {
-          if (it.type === 'whiteout') {
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(it.x, it.y, it.w, it.h);
-          } else if (it.type === 'text') {
-            ctx.font = buildCanvasFontStr(it.bold, it.size, it.font);
-            ctx.fillStyle = it.color;
-            ctx.fillText(transliterateIndicText(it.text, it.script || getFontScript(it.font)), it.x, it.y + it.size);
-          } else if (it.type === 'image' && it.imgObj) {
-            ctx.drawImage(it.imgObj, it.x, it.y, it.w, it.h);
-          }
-        });
+          const emb = await outPdf.embedJpg(await (await toBlob(c, 'image/jpeg', 0.94)).arrayBuffer());
+          const np = outPdf.addPage([emb.width, emb.height]);
+          np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+        }
 
-        const emb = await outPdf.embedJpg(await (await toBlob(c, 'image/jpeg', 0.94)).arrayBuffer());
-        const np = outPdf.addPage([emb.width, emb.height]);
-        np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+        const pass = document.getElementById('edPdfPassword').value;
+        const bytes = pass ? await outPdf.save({ userPassword: pass, ownerPassword: pass }) : await outPdf.save();
+        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'edited_document.pdf', `Edited PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Password Protected' : ''}`);
+        status.classList.add('hidden');
+      } catch (error) {
+        try {
+          await window.DOCX.auth.refund(charge.operation_id);
+          status.textContent = `PDF save failed; ₹${charge.charged_paise / 100} credit has been returned. ${error.message || ''}`;
+        } catch (refundError) {
+          status.textContent = `PDF save failed (${error.message || 'unknown error'}) and the credit return could not be confirmed (${refundError.message}). Contact support with this operation.`;
+        }
+        status.classList.remove('hidden');
       }
-
-      const pass = document.getElementById('edPdfPassword').value;
-      const bytes = pass ? await outPdf.save({ userPassword: pass, ownerPassword: pass }) : await outPdf.save();
-      addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), 'edited_document.pdf', `Edited PDF (${(bytes.length / 1024).toFixed(1)} KB)${pass ? ' • Password Protected' : ''}`);
-      status.classList.add('hidden');
     };
