@@ -473,15 +473,11 @@
     const white = await runSelfieSegmentation(c, 'white_bg', 12, '#ffffff',
       m => setStatus('💇 ' + m));
 
-    // Hair ko bilkul round golai + niche bikhre strands andar set (studio-grade tidy)
+    // Hair ko subtle round golai + niche bikhre strands andar set (face untouched)
     let shaped = white;
     if (typeof window.shapeHairGolaiAndLowerStrands === 'function') {
       setStatus('💇 Hair edges round ho rahe hain...');
       try { shaped = window.shapeHairGolaiAndLowerStrands(white); } catch (_) { shaped = white; }
-    }
-    // Final: crown ko strong smooth ellipse dome pe trim — bilkul round top
-    if (typeof roundCrownStrong === 'function') {
-      try { shaped = roundCrownStrong(shaped); } catch (_) {}
     }
 
     // gentle ID-photo polish: thoda bright + clear

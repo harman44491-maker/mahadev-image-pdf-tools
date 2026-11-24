@@ -650,7 +650,7 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
   for (let y = 0; y < h; y++) {
     const ny = y / Math.max(1, h);
     // Dome warp sirf hairline + forehead tak (eyes ~30% height pe hain — unhe untouched rehna chahiye)
-    const topFade = smoothstep(0.02, 0.14, ny) * (1 - smoothstep(0.16, 0.26, ny));
+    const topFade = smoothstep(0.02, 0.14, ny) * (1 - smoothstep(0.38, 0.55, ny));
     const lowerFade = smoothstep(0.40, 0.55, ny) * (1 - smoothstep(0.76, 0.90, ny));
 
     for (let x = 0; x < w; x++) {
@@ -665,14 +665,14 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
       // Smooth rounded crown golai + side tuck
       if (topFade > 0.001 && sideFade > 0.001) {
         const dome = Math.cos(normX * Math.PI * 0.5);
-        sy -= dome * (h * 0.045) * topFade * sideFade;
-        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.5) * (w * 0.035) * topFade * sideFade;
+        sy -= dome * (h * 0.024) * topFade * sideFade;
+        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.5) * (w * 0.022) * topFade * sideFade;
       }
 
       // Lower bikhre hair strands ko smooth andar gather karna
       if (lowerFade > 0.001) {
         const outerZone = smoothstep(0.14, 0.40, absDx / Math.max(1, w));
-        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.075) * lowerFade;
+        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.044) * lowerFade;
       }
 
       sampleBilinear(sx, sy, px);
