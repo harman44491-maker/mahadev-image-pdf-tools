@@ -479,6 +479,10 @@
       setStatus('💇 Hair edges round ho rahe hain...');
       try { shaped = window.shapeHairGolaiAndLowerStrands(white); } catch (_) { shaped = white; }
     }
+    // Final: crown ko strong smooth ellipse dome pe trim — bilkul round top
+    if (typeof roundCrownStrong === 'function') {
+      try { shaped = roundCrownStrong(shaped); } catch (_) {}
+    }
 
     // gentle ID-photo polish: thoda bright + clear
     const fin = newCanvas(shaped.width, shaped.height);

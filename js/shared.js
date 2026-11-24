@@ -391,6 +391,72 @@ function removeWispySemiTransparent(cutoutCanvas) {
   return cutoutCanvas;
 }
 
+// Strong round crown — hair ke top profile ko smooth ellipse dome pe trim karo
+// (natural clumps/irregular hairline ko bhi bilkul round). Niche side tuck bhi.
+function roundCrownStrong(cutout) {
+  const w = cutout.width;
+  const h = cutout.height;
+  const ctx = cutout.getContext('2d', { willReadFrequently: true });
+  const id = ctx.getImageData(0, 0, w, h);
+  const d = id.data;
+
+  // Har column me sabse upar ka opaque pixel (hair top profile)
+  const tops = new Array(w).fill(-1);
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      if (d[(y * w + x) * 4 + 3] > 70) { tops[x] = y; break; }
+    }
+  }
+  let first = -1, last = -1;
+  for (let x = 0; x < w; x++) if (tops[x] >= 0) { first = x; break; }
+  for (let x = w - 1; x >= 0; x--) if (tops[x] >= 0) { last = x; break; }
+  if (first < 0 || last - first < w * 0.2) return cutout;
+
+  // Range ke andar empty columns fill
+  const fallback = tops[first];
+  for (let x = first; x <= last; x++) if (tops[x] < 0) tops[x] = fallback;
+
+  // Heavy moving average = irregular bumps khatam, round curve
+  const span = last - first;
+  const win = Math.max(9, Math.round(span * 0.22));
+  const smooth = new Array(w).fill(0);
+  for (let x = first; x <= last; x++) {
+    let sum = 0, n = 0;
+    for (let k = -win; k <= win; k++) {
+      const xx = Math.min(last, Math.max(first, x + k));
+      sum += tops[xx]; n++;
+    }
+    smooth[x] = sum / n;
+  }
+
+  // Ellipse blend — guaranteed gol dome (center highest, sides gently down)
+  const cx = (first + last) / 2;
+  let minT = Infinity, maxT = -Infinity;
+  for (let x = first; x <= last; x++) { if (smooth[x] < minT) minT = smooth[x]; if (smooth[x] > maxT) maxT = smooth[x]; }
+  const depth = Math.max(8, maxT - minT);
+  for (let x = first; x <= last; x++) {
+    const t = (x - cx) / Math.max(1, span / 2);
+    const ellipse = minT + (1 - Math.sqrt(Math.max(0, 1 - t * t))) * depth;
+    smooth[x] = smooth[x] * 0.4 + ellipse * 0.6; // 60% round ellipse + 40% natural
+  }
+
+  // Curve ke upar wale pixels hatao (3px margin + 4px anti-alias fade)
+  const MARGIN = 3;
+  for (let x = first; x <= last; x++) {
+    const cut = smooth[x] + MARGIN;
+    const maxY = Math.min(h, Math.ceil(cut + 4));
+    for (let y = 0; y < maxY; y++) {
+      const i = (y * w + x) * 4 + 3;
+      if (d[i] === 0) continue;
+      if (y < cut - 2) d[i] = 0;
+      else if (y < cut + 2) d[i] = Math.round(d[i] * (y - (cut - 2)) / 4);
+    }
+  }
+
+  ctx.putImageData(id, 0, 0);
+  return cutout;
+}
+
 function composeBgFromCutout(cutout, w, h, mode, blurPx, customColor, img) {
   if (mode === 'transparent') return cutout;
   const bg = document.createElement('canvas');
@@ -598,14 +664,14 @@ window.shapeHairGolaiAndLowerStrands = function shapeHairGolaiAndLowerStrands(sr
       // Smooth rounded crown golai + side tuck
       if (topFade > 0.001 && sideFade > 0.001) {
         const dome = Math.cos(normX * Math.PI * 0.5);
-        sy -= dome * (h * 0.024) * topFade * sideFade;
-        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.5) * (w * 0.022) * topFade * sideFade;
+        sy -= dome * (h * 0.045) * topFade * sideFade;
+        sx += (dx > 0 ? 1 : -1) * Math.pow(normX, 1.5) * (w * 0.035) * topFade * sideFade;
       }
 
       // Lower bikhre hair strands ko smooth andar gather karna
       if (lowerFade > 0.001) {
         const outerZone = smoothstep(0.14, 0.40, absDx / Math.max(1, w));
-        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.044) * lowerFade;
+        sx += (dx > 0 ? 1 : -1) * outerZone * (w * 0.075) * lowerFade;
       }
 
       sampleBilinear(sx, sy, px);
