@@ -3,6 +3,7 @@
     const wmCanvas = document.getElementById('wmCanvas');
     const wmCtx = wmCanvas.getContext('2d');
     let wmPreviewImg = null, wmDrag = false, wmStartX = 0, wmStartY = 0, wmBox = null;
+    let wmPdfDoc = null, wmPageCount = 1;
 
     function setWmDocPreset(val) {
       document.getElementById('wmMode').value = 'doc_clean';
@@ -15,12 +16,15 @@
       const f = e.target.files[0];
       if (!f) return;
       wmBox = null;
+      wmPdfDoc = null;
+      wmPageCount = 1;
       document.getElementById('wmPreviewWrap').classList.remove('hidden');
       if (f.type === 'application/pdf') {
         document.getElementById('wmMode').value = 'doc_clean';
         document.getElementById('wmThreshold').value = 135;
-        const pdf = await openPdfWithPasswordSupport(await f.arrayBuffer());
-        const page = await pdf.getPage(1);
+        wmPdfDoc = await openPdfWithPasswordSupport(await f.arrayBuffer());
+        wmPageCount = wmPdfDoc.numPages;
+        const page = await wmPdfDoc.getPage(1);
         const vp = page.getViewport({ scale: 1.2 });
         const tmp = document.createElement('canvas'); tmp.width = vp.width; tmp.height = vp.height;
         await page.render({ canvasContext: tmp.getContext('2d'), viewport: vp }).promise;
@@ -280,35 +284,51 @@
       const f = wmFile.files[0], out = document.getElementById('wmOutput'), status = document.getElementById('wmStatus');
       out.innerHTML = '';
       if (!f) return alert('Please select an Image or PDF first.');
+      if (f.type !== 'application/pdf' && !f.type.startsWith('image/')) return alert('Please select a supported image or PDF file.');
       const mode = document.getElementById('wmMode').value;
       const strength = parseInt(document.getElementById('wmThreshold').value) || 135;
       const autoTrim = document.getElementById('wmAutoTrim').checked;
       const sharpenText = document.getElementById('wmDarkText').checked;
       const normBox = (wmBox && wmBox.w > 4 && wmBox.h > 4) ? { x: wmBox.x / wmCanvas.width, y: wmBox.y / wmCanvas.height, w: wmBox.w / wmCanvas.width, h: wmBox.h / wmCanvas.height } : null;
       if (mode === 'texture_clone' && !normBox) return alert('Please drag your mouse over the watermark area on the preview image first.');
-      status.textContent = 'Cleaning watermark... please wait.'; status.classList.remove('hidden');
-
-      if (f.type === 'application/pdf') {
-        const pdf = await openPdfWithPasswordSupport(await f.arrayBuffer());
-        const outPdf = await PDFLib.PDFDocument.create();
-        for (let pNum = 1; pNum <= pdf.numPages; pNum++) {
-          const page = await pdf.getPage(pNum), vp = page.getViewport({ scale: 2.1 });
-          const rawC = document.createElement('canvas'); rawC.width = vp.width; rawC.height = vp.height;
-          await page.render({ canvasContext: rawC.getContext('2d'), viewport: vp }).promise;
-          const cleanC = cleanCanvasWatermark(rawC, mode, strength, normBox, false, sharpenText);
-          const jpgBytes = await (await toBlob(cleanC, 'image/jpeg', 0.92)).arrayBuffer();
-          const emb = await outPdf.embedJpg(jpgBytes);
-          const np = outPdf.addPage([emb.width, emb.height]);
-          np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
-        }
-        const bytes = await outPdf.save();
-        addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `clean_${f.name}`, `Watermark Cleaned (${(bytes.length / 1024).toFixed(1)} KB)`);
-      } else {
-        const im = await loadImg(URL.createObjectURL(f));
-        const rawC = document.createElement('canvas'); rawC.width = im.width; rawC.height = im.height;
-        rawC.getContext('2d').drawImage(im, 0, 0);
-        const cleanC = cleanCanvasWatermark(rawC, mode, strength, normBox, autoTrim, sharpenText);
-        addDownloadCard(out, await toBlob(cleanC, 'image/jpeg', 0.95), `clean_${f.name.replace(/\.[^/.]+$/, '')}.jpg`, `Watermark Cleaned (${cleanC.width}×${cleanC.height}px)`);
+      if (f.type === 'application/pdf' && !wmPdfDoc) {
+        wmPdfDoc = await openPdfWithPasswordSupport(await f.arrayBuffer());
+        wmPageCount = wmPdfDoc.numPages;
       }
-      status.classList.add('hidden');
+      const charge = await window.DOCX?.auth?.consume('watermark', wmPageCount);
+      if (!charge) return;
+      status.textContent = `Cleaning ${wmPageCount} page${wmPageCount === 1 ? '' : 's'}... please wait.`; status.classList.remove('hidden');
+
+      try {
+        if (f.type === 'application/pdf') {
+          const outPdf = await PDFLib.PDFDocument.create();
+          for (let pNum = 1; pNum <= wmPdfDoc.numPages; pNum++) {
+            const page = await wmPdfDoc.getPage(pNum), vp = page.getViewport({ scale: 2.1 });
+            const rawC = document.createElement('canvas'); rawC.width = vp.width; rawC.height = vp.height;
+            await page.render({ canvasContext: rawC.getContext('2d'), viewport: vp }).promise;
+            const cleanC = cleanCanvasWatermark(rawC, mode, strength, normBox, false, sharpenText);
+            const jpgBytes = await (await toBlob(cleanC, 'image/jpeg', 0.92)).arrayBuffer();
+            const emb = await outPdf.embedJpg(jpgBytes);
+            const np = outPdf.addPage([emb.width, emb.height]);
+            np.drawImage(emb, { x: 0, y: 0, width: emb.width, height: emb.height });
+          }
+          const bytes = await outPdf.save();
+          addDownloadCard(out, new Blob([bytes], { type: 'application/pdf' }), `clean_${f.name}`, `Watermark Cleaned (${(bytes.length / 1024).toFixed(1)} KB)`);
+        } else {
+          const im = await loadImg(URL.createObjectURL(f));
+          const rawC = document.createElement('canvas'); rawC.width = im.width; rawC.height = im.height;
+          rawC.getContext('2d').drawImage(im, 0, 0);
+          const cleanC = cleanCanvasWatermark(rawC, mode, strength, normBox, autoTrim, sharpenText);
+          addDownloadCard(out, await toBlob(cleanC, 'image/jpeg', 0.95), `clean_${f.name.replace(/\.[^/.]+$/, '')}.jpg`, `Watermark Cleaned (${cleanC.width}×${cleanC.height}px)`);
+        }
+        status.classList.add('hidden');
+      } catch (error) {
+        try {
+          await window.DOCX.auth.refund(charge.operation_id);
+          status.textContent = `Watermark removal failed; ₹${charge.charged_paise / 100} credit has been returned. ${error.message || ''}`;
+        } catch (refundError) {
+          status.textContent = `Watermark removal failed (${error.message || 'unknown error'}) and the credit return could not be confirmed (${refundError.message}). Contact support with this operation.`;
+        }
+        status.classList.remove('hidden');
+      }
     };
