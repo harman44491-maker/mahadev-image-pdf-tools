@@ -12,10 +12,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
         <p id="docxModalStatus" class="docx-modal-status" role="status"></p>
         <section id="docxAuthView">
           <div class="docx-switch-row"><button type="button" id="docxLoginTab" class="docx-tab active">Sign in</button><button type="button" id="docxSignupTab" class="docx-tab">Create account</button></div>
-          <div class="docx-switch-row"><button type="button" id="docxEmailTab" class="docx-tab active">Email OTP</button><button type="button" id="docxPhoneTab" class="docx-tab">Mobile OTP</button></div>
           <form id="docxOtpForm">
             <label class="docx-field" id="docxEmailField">Email address<input id="docxEmail" type="email" autocomplete="email" required></label>
-            <label class="docx-field hidden" id="docxPhoneField">Mobile number<input id="docxPhone" type="tel" autocomplete="tel" placeholder="+91 9876543210"></label>
             <div id="docxSignupProfile" class="hidden">
               <div class="docx-two-col">
                 <label class="docx-field">First name<input id="docxFirstName" autocomplete="given-name" required></label>
@@ -112,8 +110,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
   document.addEventListener("keydown", event => { if (event.key === "Escape") closeModal(); });
   document.getElementById("docxLoginTab").onclick = () => switchAuthMode("login");
   document.getElementById("docxSignupTab").onclick = () => switchAuthMode("signup");
-  document.getElementById("docxEmailTab").onclick = () => switchMethod("email");
-  document.getElementById("docxPhoneTab").onclick = () => switchMethod("phone");
 
   function switchAuthMode(mode) {
     if (state.authMode !== mode && state.otpTarget) {
@@ -133,22 +129,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
     document.getElementById("docxOtp").required = Boolean(state.otpTarget);
     setStatus("");
   }
-  function switchMethod(method) {
-    state.method = method;
-    document.getElementById("docxEmailTab").classList.toggle("active", method === "email");
-    document.getElementById("docxPhoneTab").classList.toggle("active", method === "phone");
-    document.getElementById("docxEmailField").classList.toggle("hidden", method !== "email");
-    document.getElementById("docxPhoneField").classList.toggle("hidden", method !== "phone");
-    document.getElementById("docxEmail").required = method === "email";
-    document.getElementById("docxPhone").required = method === "phone";
-    state.otpTarget = null;
-    document.getElementById("docxOtpField").classList.add("hidden");
-    document.getElementById("docxOtpButton").textContent = "Send OTP";
-    document.getElementById("docxOtp").value = "";
-    setStatus("");
-  }
   switchAuthMode("login");
-  switchMethod("email");
 
   async function locationOptions(country, stateName) {
     const response = await fetch("https://countriesnow.space/api/v0.1/countries/states", {
@@ -251,24 +232,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
     button.disabled = true;
     try {
       if (!state.otpTarget) {
-        let target;
+        const target = document.getElementById("docxEmail").value.trim();
+        if (!target) throw new Error("Enter your email address.");
         const options = {};
-        if (state.method === "email") {
-          target = document.getElementById("docxEmail").value.trim();
-          if (!target) throw new Error("Enter your email address.");
-        } else {
-          target = document.getElementById("docxPhone").value.trim();
-          if (!/^\+[1-9]\d{7,14}$/.test(target.replace(/[\s()-]/g, ""))) throw new Error("Enter your mobile number with country code, for example +919876543210.");
-          target = target.replace(/[\s()-]/g, "");
-        }
         if (state.authMode === "signup") {
           const form = profileForm("docx");
           if (Object.values(form).some(value => !value)) throw new Error("Complete all name and address fields first.");
           options.data = { first_name: form.first_name, last_name: form.last_name };
         }
-        const payload = state.method === "email"
-          ? await state.client.auth.signInWithOtp({ email: target, options: { shouldCreateUser: state.authMode === "signup", data: options.data } })
-          : await state.client.auth.signInWithOtp({ phone: target, options: { shouldCreateUser: state.authMode === "signup", data: options.data } });
+        const payload = await state.client.auth.signInWithOtp({
+          email: target,
+          options: { shouldCreateUser: state.authMode === "signup", data: options.data }
+        });
         if (payload.error) throw payload.error;
         state.otpTarget = target;
         document.getElementById("docxOtpField").classList.remove("hidden");
@@ -277,9 +252,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
         setStatus(`We sent a one-time code to ${target}.`);
       } else {
         const token = document.getElementById("docxOtp").value.trim();
-        const result = state.method === "email"
-          ? await state.client.auth.verifyOtp({ email: state.otpTarget, token, type: "email" })
-          : await state.client.auth.verifyOtp({ phone: state.otpTarget, token, type: "sms" });
+        const result = await state.client.auth.verifyOtp({
+          email: state.otpTarget,
+          token,
+          type: "email"
+        });
         if (result.error) throw result.error;
         state.session = result.data.session;
         await refreshAccount();
@@ -370,7 +347,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
     const button = document.getElementById("docxNavAccount");
     if (!button) return;
     button.textContent = state.session
-      ? `${money(state.profile?.balance_paise)} · ${state.profile?.first_name || state.session.user?.email || state.session.user?.phone || "Account"}`
+      ? `${money(state.profile?.balance_paise)} · ${state.profile?.first_name || state.session.user?.email || "Account"}`
       : "Sign in / Sign up";
   }
   document.getElementById("docxLogoutBtn").onclick = async () => {
@@ -396,7 +373,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
       const checkout = new window.Razorpay({
         key: order.key_id, amount: order.amount, currency: order.currency,
         name: "DocX Studio", description: "Add credits to your account", order_id: order.order_id,
-        prefill: { email: state.session.user?.email, contact: state.session.user?.phone },
+        prefill: { email: state.session.user?.email },
         handler: async response => {
           try {
             await api("/api/payments/verify", { method: "POST", body: response });
