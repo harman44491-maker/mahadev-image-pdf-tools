@@ -246,7 +246,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
 
   document.getElementById("docxOtpForm").onsubmit = async event => {
     event.preventDefault();
-    if (!state.client) return setStatus("Authentication is not configured on the server yet.", true);
+    if (!state.client) return setStatus("Sign-in is not available right now. Please contact the site owner.", true);
     const button = document.getElementById("docxOtpButton");
     button.disabled = true;
     try {
