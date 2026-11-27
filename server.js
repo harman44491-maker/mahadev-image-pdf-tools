@@ -10,12 +10,15 @@ const ALLOWED_ORIGINS = new Set(
     .split(",").map(origin => origin.trim()).filter(Boolean)
 );
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+// New Supabase API keys are preferred. Legacy names remain supported during migration.
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
-const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+const supabaseAdmin = SUPABASE_URL && SUPABASE_SECRET_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    })
   : null;
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -37,7 +40,7 @@ app.use((req, res, next) => {
 });
 
 function requireSupabase(res) {
-  if (!supabaseAdmin || !SUPABASE_ANON_KEY) {
+  if (!supabaseAdmin || !SUPABASE_PUBLISHABLE_KEY) {
     res.status(503).json({ error: "Account and wallet services are not configured on the server." });
     return false;
   }
@@ -67,9 +70,12 @@ function publicProfile(profile) {
 
 app.get("/api/config", (_req, res) => {
   res.json({
-    configured: Boolean(supabaseAdmin && SUPABASE_ANON_KEY),
+    configured: Boolean(supabaseAdmin && SUPABASE_PUBLISHABLE_KEY),
     supabaseUrl: SUPABASE_URL || null,
-    supabaseAnonKey: SUPABASE_ANON_KEY || null,
+    // Keep the legacy response field so existing frontends continue to work.
+    supabaseAnonKey: SUPABASE_PUBLISHABLE_KEY || null,
+    supabasePublishableKey: SUPABASE_PUBLISHABLE_KEY || null,
+    supabaseSecretKeyConfigured: Boolean(SUPABASE_SECRET_KEY),
     razorpayKeyId: RAZORPAY_KEY_ID || null
   });
 });
