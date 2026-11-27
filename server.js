@@ -70,7 +70,10 @@ function publicProfile(profile) {
 
 app.get("/api/config", (_req, res) => {
   res.json({
+    // `configured` covers admin-only features (wallet, profile, billing).
     configured: Boolean(supabaseAdmin && SUPABASE_PUBLISHABLE_KEY),
+    // `authConfigured` covers sign-in, which only needs the public keys.
+    authConfigured: Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY),
     supabaseUrl: SUPABASE_URL || null,
     // Keep the legacy response field so existing frontends continue to work.
     supabaseAnonKey: SUPABASE_PUBLISHABLE_KEY || null,

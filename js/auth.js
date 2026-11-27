@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
 
 (() => {
   const apiBase = String(window.DOCX_API_URL || "").replace(/\/+$/, "");
-  const state = { client: null, session: null, profile: null, ledger: [], authMode: "login", otpTarget: null };
+  const state = { client: null, session: null, profile: null, ledger: [], authMode: "login", otpTarget: null, adminConfigured: false };
   const money = paise => `₹${(Number(paise || 0) / 100).toFixed(2)}`;
   const modalMarkup = `
     <div id="docxAccountModal" class="docx-modal hidden" role="dialog" aria-modal="true" aria-labelledby="docxModalTitle">
@@ -309,7 +309,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
   };
 
   async function socialLogin(provider) {
-    if (!state.client) return setStatus("Authentication is not configured on the server yet.", true);
+    if (!state.client) return setStatus("Sign-in is not available right now. Please contact the site owner.", true);
     const { error } = await state.client.auth.signInWithOAuth({
       provider, options: { redirectTo: window.location.href.split("#")[0] }
     });
@@ -340,6 +340,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
   }
   async function refreshAccount() {
     if (!state.session) {
+      state.profile = null;
+      state.ledger = [];
+      updateNav();
+      return;
+    }
+    // Sign-in itself only needs the public Supabase config. Wallet/profile APIs
+    // need the server's admin key, so keep the session usable when it is absent.
+    if (!state.adminConfigured) {
       state.profile = null;
       state.ledger = [];
       updateNav();
@@ -422,10 +430,16 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
       if (!apiBase) throw new Error("Set DOCX_API_URL in js/auth-config.js to enable account features.");
       const response = await fetch(apiBase + "/api/config");
       const config = await response.json();
-      if (!response.ok || !config.configured) {
-        throw new Error("Account services are not configured. Please contact the site owner.");
+      if (!response.ok) throw new Error("Could not reach the account service. Please try again later.");
+      const supabaseUrl = config.supabaseUrl;
+      const supabaseKey = config.supabasePublishableKey || config.supabaseAnonKey;
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error("Authentication is not configured. Please contact the site owner.");
       }
-      state.client = createClient(config.supabaseUrl, config.supabaseAnonKey);
+      // The server admin key is only needed for wallet/profile calls. Never let
+      // a missing admin key block Google / Facebook / OTP sign-in.
+      state.adminConfigured = Boolean(config.configured || config.adminConfigured);
+      state.client = createClient(supabaseUrl, supabaseKey);
       const { data } = await state.client.auth.getSession();
       state.session = data.session;
       if (state.session) await refreshAccount();
@@ -452,6 +466,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
       setStatus("Sign in to use this paid service.");
       return null;
     }
+    if (!state.adminConfigured) {
+      openModal("account");
+      setStatus("Paid services are not configured yet. Please contact the site owner.", true);
+      return null;
+    }
     try {
       const result = await api("/api/billing/consume", {
         method: "POST", body: { service, pages, operation_id: crypto.randomUUID() }
@@ -473,6 +492,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
     if (!state.session) {
       openModal("auth");
       setStatus("Sign in and add at least ₹10 to use PDF Editor.");
+      return false;
+    }
+    if (!state.adminConfigured) {
+      openModal("account");
+      setStatus("Paid services are not configured yet. Please contact the site owner.", true);
       return false;
     }
     try {
