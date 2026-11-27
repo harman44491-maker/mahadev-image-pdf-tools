@@ -310,10 +310,19 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
 
   async function socialLogin(provider) {
     if (!state.client) return setStatus("Sign-in is not available right now. Please contact the site owner.", true);
-    const { error } = await state.client.auth.signInWithOAuth({
-      provider, options: { redirectTo: window.location.href.split("#")[0] }
-    });
-    if (error) setStatus(error.message, true);
+    const label = provider === "google" ? "Google" : "Facebook";
+    setStatus(`Opening ${label} sign-in…`);
+    try {
+      const { error } = await state.client.auth.signInWithOAuth({
+        provider, options: { redirectTo: window.location.href.split("#")[0] }
+      });
+      if (error) throw error;
+    } catch (error) {
+      const message = /missing OAuth secret|not enabled|unsupported provider/i.test(error?.message || "")
+        ? `${label} sign-in is not configured by the site owner yet. Please contact support.`
+        : (error?.message || "Could not start sign-in.");
+      setStatus(message, true);
+    }
   }
   document.getElementById("docxGoogleBtn").onclick = () => socialLogin("google");
   document.getElementById("docxFacebookBtn").onclick = () => socialLogin("facebook");
