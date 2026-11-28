@@ -43,6 +43,12 @@ alter table public.profiles enable row level security;
 alter table public.payment_orders enable row level security;
 alter table public.credit_ledger enable row level security;
 
+-- The backend uses the service_role key, which bypasses RLS but still needs
+-- table-level grants. Supabase projects created/altered outside the default
+-- SQL editor privileges can otherwise fail with "permission denied".
+grant usage on schema public to service_role;
+grant all on public.profiles, public.payment_orders, public.credit_ledger to service_role;
+
 drop policy if exists "Users can read their profile" on public.profiles;
 create policy "Users can read their profile" on public.profiles
   for select using (auth.uid() = id);
