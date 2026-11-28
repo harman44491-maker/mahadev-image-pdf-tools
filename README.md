@@ -2,10 +2,13 @@
 
 > 🚀 **Try it now:** [Open all free tools](https://harman44491-maker.github.io/mahadev-image-pdf-tools/) · [Promo page](https://harman44491-maker.github.io/mahadev-image-pdf-tools/promo.html) · [Mirror](https://mahadev-image-pdf-tools.onrender.com/)
 
+> 🔐 **Admin console:** `admin.html` — password-protected dashboard for users, balances, credit ledger, payment orders and manual adjustments. Set `ADMIN_PASSWORD` on the backend before use.
+
 Modular multi-page web application ready for **GitHub Pages**.
 
 ## Folder Structure
 - `promo.html` - Promotional landing page (features, CTA, AdSense)
+- `admin.html` - Password-protected admin console (`js/admin.js`)
 - `index.html` - Image Resizer (Home)
 - `ai-photo.html` - AI Photo Studio (Prompt se Image + Photo Edit)
 - `passport.html` — Passport Photo Maker

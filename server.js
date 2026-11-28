@@ -287,6 +287,208 @@ app.post("/api/payments/verify", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Admin dashboard API (password-protected, service-role data only on backend)
+// ---------------------------------------------------------------------------
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
+
+function adminSessionToken() {
+  const payload = Buffer.from(JSON.stringify({ exp: Date.now() + ADMIN_SESSION_SECONDS * 1000 })).toString("base64url");
+  const signature = createHmac("sha256", ADMIN_PASSWORD).update(payload).digest("base64url");
+  return payload + "." + signature;
+}
+
+function requireAdmin(req, res, next) {
+  if (!ADMIN_PASSWORD) {
+    return res.status(503).json({ error: "Admin access is not configured on the server." });
+  }
+  const header = String(req.headers["x-admin-token"] || "");
+  const bearer = String(req.headers.authorization || "").match(/^Bearer (.+)$/i)?.[1] || "";
+  const token = header || bearer;
+  const [payload, signature] = token.split(".");
+  if (!payload || !signature) return res.status(401).json({ error: "Admin sign-in required." });
+  const expected = createHmac("sha256", ADMIN_PASSWORD).update(payload).digest("base64url");
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: "Invalid admin session. Please sign in again." });
+  }
+  let claims;
+  try { claims = JSON.parse(Buffer.from(payload, "base64url").toString()); } catch {
+    return res.status(401).json({ error: "Invalid admin session. Please sign in again." });
+  }
+  if (!claims.exp || claims.exp < Date.now()) {
+    return res.status(401).json({ error: "Admin session expired. Please sign in again." });
+  }
+  next();
+}
+
+app.post("/api/admin/login", (req, res) => {
+  if (!ADMIN_PASSWORD) return res.status(503).json({ error: "Admin access is not configured on the server." });
+  const supplied = Buffer.from(String(req.body?.password || ""));
+  const expected = Buffer.from(ADMIN_PASSWORD);
+  if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
+    return res.status(401).json({ error: "Incorrect admin password." });
+  }
+  res.json({ token: adminSessionToken(), expiresIn: ADMIN_SESSION_SECONDS });
+});
+
+app.get("/api/admin/overview", requireAdmin, async (_req, res) => {
+  try {
+    const [{ count: userCount }, { data: profiles }, { data: ledger }, { data: orders }] = await Promise.all([
+      supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
+      supabaseAdmin.from("profiles").select("id, balance_paise, created_at"),
+      supabaseAdmin.from("credit_ledger").select("id, user_id, entry_type, amount_paise, service, pages, created_at").order("created_at", { ascending: false }).limit(5000),
+      supabaseAdmin.from("payment_orders").select("id, user_id, amount_paise, status, created_at").order("created_at", { ascending: false }).limit(5000)
+    ]);
+    const rows = ledger || [];
+    const orderRows = orders || [];
+    const sum = rows.filter(r => r.entry_type === "topup" && !String(r.service || "").startsWith("admin_adjust:"))
+      .reduce((n, r) => n + Number(r.amount_paise || 0), 0);
+    const usage = rows.filter(r => r.entry_type === "usage").reduce((n, r) => n + Math.abs(Number(r.amount_paise || 0)), 0);
+    const refunds = rows.filter(r => r.entry_type === "refund").reduce((n, r) => n + Math.abs(Number(r.amount_paise || 0)), 0);
+    const today = new Date().toISOString().slice(0, 10);
+    res.json({
+      users: userCount || 0,
+      balancePaise: (profiles || []).reduce((n, p) => n + Number(p.balance_paise || 0), 0),
+      paymentsPaise: sum,
+      usagePaise: usage,
+      refundPaise: refunds,
+      orders: orderRows.length,
+      capturedOrders: orderRows.filter(o => o.status === "captured").length,
+      todaySignups: (profiles || []).filter(p => String(p.created_at || "").startsWith(today)).length,
+      monthly: rows.reduce((acc, r) => {
+        const key = String(r.created_at || "").slice(0, 7);
+        if (!key) return acc;
+        if (!acc[key]) acc[key] = { topup: 0, usage: 0 };
+        const amount = Number(r.amount_paise || 0);
+        if (r.entry_type === "topup") acc[key].topup += amount;
+        if (r.entry_type === "usage") acc[key].usage += Math.abs(amount);
+        return acc;
+      }, {})
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Could not load the overview." });
+  }
+});
+
+app.get("/api/admin/users", requireAdmin, async (req, res) => {
+  try {
+    const search = String(req.query.search || "").trim().toLowerCase().slice(0, 120);
+    const [{ data: profiles, error }, usersResult] = await Promise.all([
+      supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }).limit(1000),
+      supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 }).catch(() => ({ data: { users: [] } }))
+    ]);
+    if (error) throw error;
+    const authMap = new Map((usersResult?.data?.users || []).map(u => [u.id, u]));
+    let rows = (profiles || []).map(p => {
+      const auth = authMap.get(p.id);
+      return publicProfile(p) && {
+        ...publicProfile(p),
+        created_at: p.created_at,
+        last_sign_in_at: auth?.last_sign_in_at || null,
+        email_confirmed_at: auth?.email_confirmed_at || null
+      };
+    });
+    if (search) rows = rows.filter(u => [u.email, u.phone, u.first_name, u.last_name, u.id]
+      .some(v => String(v || "").toLowerCase().includes(search)));
+    res.json({ users: rows, total: rows.length });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Could not load users." });
+  }
+});
+
+app.get("/api/admin/ledger", requireAdmin, async (req, res) => {
+  try {
+    const search = String(req.query.search || "").trim().toLowerCase().slice(0, 120);
+    const [{ data: rows, error }, { data: profiles }] = await Promise.all([
+      supabaseAdmin.from("credit_ledger").select("*").order("created_at", { ascending: false }).limit(1000),
+      supabaseAdmin.from("profiles").select("id, email, first_name, last_name")
+    ]);
+    if (error) throw error;
+    const map = new Map((profiles || []).map(p => [p.id, p]));
+    let items = (rows || []).map(r => ({
+      ...r,
+      user_email: map.get(r.user_id)?.email || null,
+      user_name: [map.get(r.user_id)?.first_name, map.get(r.user_id)?.last_name].filter(Boolean).join(" ") || null
+    }));
+    if (search) items = items.filter(r => [r.user_email, r.user_name, r.user_id, r.payment_id, r.service]
+      .some(v => String(v || "").toLowerCase().includes(search)));
+    res.json({ ledger: items, total: items.length });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Could not load the ledger." });
+  }
+});
+
+app.get("/api/admin/orders", requireAdmin, async (req, res) => {
+  try {
+    const search = String(req.query.search || "").trim().toLowerCase().slice(0, 120);
+    const [{ data: rows, error }, { data: profiles }] = await Promise.all([
+      supabaseAdmin.from("payment_orders").select("*").order("created_at", { ascending: false }).limit(1000),
+      supabaseAdmin.from("profiles").select("id, email, first_name, last_name")
+    ]);
+    if (error) throw error;
+    const map = new Map((profiles || []).map(p => [p.id, p]));
+    let items = (rows || []).map(r => ({
+      ...r,
+      user_email: map.get(r.user_id)?.email || null,
+      user_name: [map.get(r.user_id)?.first_name, map.get(r.user_id)?.last_name].filter(Boolean).join(" ") || null
+    }));
+    if (search) items = items.filter(r => [r.user_email, r.user_name, r.id, r.payment_id, r.status]
+      .some(v => String(v || "").toLowerCase().includes(search)));
+    res.json({ orders: items, total: items.length });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Could not load orders." });
+  }
+});
+
+app.post("/api/admin/adjust", requireAdmin, async (req, res) => {
+  try {
+    const userId = String(req.body?.user_id || "");
+    const amount = Number(req.body?.amount_paise);
+    const reason = String(req.body?.reason || "").trim().slice(0, 180);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+      return res.status(400).json({ error: "Invalid user." });
+    }
+    if (!Number.isInteger(amount) || amount === 0 || Math.abs(amount) > 10000000) {
+      return res.status(400).json({ error: "Enter an amount between -₹1,00,000 and ₹1,00,000 (in paise)." });
+    }
+    if (reason.length < 3) return res.status(400).json({ error: "Add a reason (at least 3 characters)." });
+    const { data, error } = await supabaseAdmin.rpc("admin_adjust_credits", {
+      p_user_id: userId, p_amount: amount, p_reason: reason
+    });
+    if (!error) return res.json({ balance_paise: data });
+    if (!/does not exist|not found|function/i.test(error.message || "")) {
+      if (error.message.includes("insufficient_credits")) return res.status(402).json({ error: "That user does not have enough balance." });
+      if (error.message.includes("profile_required")) return res.status(404).json({ error: "User profile not found." });
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Fallback for projects where admin_adjust_credits() has not been installed yet.
+    const { data: profile, error: profileError } = await supabaseAdmin.from("profiles")
+      .select("balance_paise").eq("id", userId).maybeSingle();
+    if (profileError) throw profileError;
+    if (!profile) return res.status(404).json({ error: "User profile not found." });
+    const nextBalance = Number(profile.balance_paise || 0) + amount;
+    if (nextBalance < 0) return res.status(402).json({ error: "That user does not have enough balance." });
+    const { error: ledgerError } = await supabaseAdmin.from("credit_ledger").insert({
+      user_id: userId,
+      entry_type: amount > 0 ? "topup" : "usage",
+      amount_paise: amount,
+      service: "admin_adjust:" + reason
+    });
+    if (ledgerError) throw ledgerError;
+    const { data: updated, error: updateError } = await supabaseAdmin.from("profiles")
+      .update({ balance_paise: nextBalance, updated_at: new Date().toISOString() })
+      .eq("id", userId).select("balance_paise").single();
+    if (updateError) throw updateError;
+    res.json({ balance_paise: updated.balance_paise });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Could not adjust the balance." });
+  }
+});
+
 const requestTimes = new Map();
 function rateLimit(req, res, next) {
   const now = Date.now();

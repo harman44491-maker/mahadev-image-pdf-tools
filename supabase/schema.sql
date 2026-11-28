@@ -208,9 +208,42 @@ begin
 end;
 $$;
 
+create or replace function public.admin_adjust_credits(
+  p_user_id uuid,
+  p_amount bigint,
+  p_reason text
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_balance bigint;
+begin
+  if p_amount = 0 or abs(p_amount) > 10000000 then raise exception 'invalid_amount'; end if;
+  if length(trim(coalesce(p_reason, ''))) < 3 then raise exception 'invalid_reason'; end if;
+
+  perform 1 from public.profiles where id = p_user_id for update;
+  if not found then raise exception 'profile_required'; end if;
+
+  select balance_paise into v_balance from public.profiles where id = p_user_id;
+  if v_balance + p_amount < 0 then raise exception 'insufficient_credits'; end if;
+
+  insert into public.credit_ledger(user_id, entry_type, amount_paise, service)
+    values (p_user_id, case when p_amount > 0 then 'topup' else 'usage' end, p_amount, 'admin_adjust:' || trim(p_reason));
+
+  update public.profiles set balance_paise = balance_paise + p_amount, updated_at = now()
+    where id = p_user_id returning balance_paise into v_balance;
+  return v_balance;
+end;
+$$;
+
 revoke all on function public.consume_credits(uuid, uuid, text, integer) from public, anon, authenticated;
 revoke all on function public.refund_credits(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.credit_payment(uuid, text, bigint) from public, anon, authenticated;
+revoke all on function public.admin_adjust_credits(uuid, bigint, text) from public, anon, authenticated;
 grant execute on function public.consume_credits(uuid, uuid, text, integer) to service_role;
 grant execute on function public.refund_credits(uuid, uuid) to service_role;
 grant execute on function public.credit_payment(uuid, text, bigint) to service_role;
+grant execute on function public.admin_adjust_credits(uuid, bigint, text) to service_role;
