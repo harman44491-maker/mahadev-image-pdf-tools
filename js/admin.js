@@ -14,7 +14,7 @@
     const response = await fetch(apiBase + path, {
       method,
       headers: {
-        ...(token ? { "X-Admin-Token": token } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(body ? { "Content-Type": "application/json" } : {})
       },
       ...(body ? { body: JSON.stringify(body) } : {})
